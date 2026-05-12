@@ -1,7 +1,7 @@
 {
   "name": "tpv-peluqueria",
   "version": "1.0.0",
-  "description": "TPV PeluquerÃ­a - Sync Server",
+  "description": "TPV Peluquería - Sync Server",
   "main": "sync-helper.js",
   "scripts": {
     "start": "node sync-helper.js"
