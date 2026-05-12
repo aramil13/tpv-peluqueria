@@ -1063,7 +1063,9 @@ function saveProduct() {
     cost: parseFloat(document.getElementById('productCost').value)||0,
     stock: parseInt(document.getElementById('productStock').value)||0,
     minStock: parseInt(document.getElementById('productMinStock').value)||5,
-    ivaRate: parseFloat(document.getElementById('productIva').value) || 21
+    ivaRate: parseFloat(document.getElementById('productIva').value) || 21,
+    _modified: Date.now(),
+    _deleted: false
   };
   if (id_) { const p = data.products.find(x => x.id === id_); if (p) Object.assign(p, obj); }
   else { obj.id = id(); data.products.push(obj); }

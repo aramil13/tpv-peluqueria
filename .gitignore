@@ -7,3 +7,7 @@ android-agenda/android/capacitor-cordova-android-plugins/build/
 android-agenda/node_modules/
 android-agenda/AgendaTPV.apk
 *.apk
+
+*.docx
+*.doc
+*github*token*
