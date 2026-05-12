@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">AgendaTPV</string>
+    <string name="title_activity_main">AgendaTPV</string>
+    <string name="package_name">com.tpv.agenda</string>
+    <string name="custom_url_scheme">com.tpv.agenda</string>
+</resources>

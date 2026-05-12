@@ -1,0 +1,271 @@
+{
+  "appointments": [
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "mozh9x36v84z",
+      "employeeId": "mozhxfd25h7k",
+      "date": "2026-05-12",
+      "time": "10:00",
+      "notes": "",
+      "status": "pending",
+      "id": "mozoi6mr18kd",
+      "_modified": 1778519248324,
+      "_deleted": true
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "moyd0wfxi20r",
+      "employeeId": "mozhxfd25h7k",
+      "date": "2026-05-13",
+      "time": "10:00",
+      "notes": "",
+      "status": "pending",
+      "id": "mozv9ov9buto",
+      "_modified": 1778519243258,
+      "_deleted": true
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "",
+      "date": "2026-05-12",
+      "time": "10:00",
+      "notes": "Empleado: Marta",
+      "status": "pending",
+      "id": "mozww0dqwaf8",
+      "_modified": 1778519237683,
+      "employeeId": "mozhx2uwqpa6",
+      "_deleted": true
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "mozh9x36v84z",
+      "employeeId": "mozi5get5fio",
+      "date": "2026-05-12",
+      "time": "12:00",
+      "notes": "",
+      "status": "pending",
+      "id": "mozwxe13stni",
+      "_modified": 1778519252611,
+      "_deleted": true
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "moyd0wfxi20r",
+      "date": "2026-05-12",
+      "time": "10:00",
+      "notes": "Empleado: Marta",
+      "status": "pending",
+      "id": "mp01g8kgpdg1",
+      "_modified": 1778519232224,
+      "employeeId": "mozhxfd25h7k",
+      "_deleted": true
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "mozh9x36v84z",
+      "employeeId": "mozhxfd25h7k",
+      "date": "2026-05-11",
+      "time": "23:11",
+      "notes": "",
+      "status": "pending",
+      "_modified": 1778519222261,
+      "id": "mp09pii4qvyy",
+      "_deleted": true
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "mozh9x36v84z",
+      "employeeId": "mozi5get5fio",
+      "date": "2026-05-11",
+      "time": "10:00",
+      "notes": "",
+      "status": "pending",
+      "_modified": 1778519227797,
+      "id": "mp0bhortv66k",
+      "_deleted": true
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "",
+      "employeeId": "",
+      "date": "2026-05-10",
+      "time": "00:05",
+      "notes": "",
+      "status": "pending",
+      "_modified": 1778519375973,
+      "id": "mp0bnbvtfb3y",
+      "_deleted": true
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "mozh9x36v84z",
+      "employeeId": "mozi5get5fio",
+      "date": "2026-05-11",
+      "time": "10:00",
+      "notes": "",
+      "status": "pending",
+      "_modified": 1778519404101,
+      "_deleted": true,
+      "id": "mp1ggm7q3h6j"
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "mozh9x36v84z",
+      "employeeId": "",
+      "date": "2026-05-12",
+      "time": "12:00",
+      "notes": "",
+      "status": "pending",
+      "_modified": 1778520200113,
+      "_deleted": true,
+      "id": "mp1glwxk6qvr"
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "mozh9x36v84z",
+      "employeeId": "mozhx2uwqpa6",
+      "date": "2026-05-13",
+      "time": "11:00",
+      "notes": "",
+      "status": "pending",
+      "_modified": 1778520504037,
+      "_deleted": true,
+      "id": "mp1gox2jhtg2"
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "moyd0wfxi20r",
+      "employeeId": "mozi5get5fio",
+      "date": "2026-05-12",
+      "time": "10:00",
+      "notes": "",
+      "status": "pending",
+      "_modified": 1778521039844,
+      "_deleted": true,
+      "id": "mp1h81p8ptgf"
+    },
+    {
+      "clientId": "moycytfbdc7n",
+      "serviceId": "mozh9x36v84z",
+      "employeeId": "mozhxfd25h7k",
+      "date": "2026-05-13",
+      "time": "13:00",
+      "notes": "",
+      "status": "pending",
+      "_modified": 1778521003504,
+      "_deleted": true,
+      "id": "mp1hgvukqdtf"
+    },
+    {
+      "clientId": "mp1jaw62khln",
+      "serviceId": "",
+      "employeeId": "",
+      "date": "2026-05-12",
+      "time": "10:00",
+      "notes": "",
+      "status": "pending",
+      "_modified": 1778524244189,
+      "_deleted": true,
+      "id": "mp1jc58y3yql"
+    }
+  ],
+  "clients": [
+    {
+      "name": "victor Alonso",
+      "phone": "",
+      "email": "",
+      "birth": "",
+      "notes": "",
+      "id": "moycytfbdc7n",
+      "visits": 9,
+      "totalSpent": 260,
+      "created": "2026-05-09T13:06:55.991Z",
+      "nif": "10590585M",
+      "address": "",
+      "city": "",
+      "province": "",
+      "zip": "",
+      "_modified": 1778434597852
+    },
+    {
+      "name": "Víctor Alonso",
+      "nif": "10590585M",
+      "address": "",
+      "city": "",
+      "province": "",
+      "zip": "",
+      "phone": "",
+      "email": "labra13@gmail.com",
+      "notes": "",
+      "_modified": 1778524230278,
+      "_deleted": true,
+      "id": "mp1jaw62khln",
+      "visits": 0,
+      "totalSpent": 0,
+      "created": "2026-05-11T18:27:35.642Z"
+    }
+  ],
+  "services": [
+    {
+      "name": "Lavar y peinar",
+      "price": 20,
+      "duration": 30,
+      "desc": "",
+      "id": "moyd0wfxi20r",
+      "_modified": 1778434597852
+    },
+    {
+      "name": "Color",
+      "price": 30,
+      "duration": 65,
+      "desc": "",
+      "id": "mozh9x36v84z",
+      "_modified": 1778434597852
+    },
+    {
+      "name": "color",
+      "price": 30,
+      "duration": 0,
+      "desc": "",
+      "_modified": 1778524269052,
+      "_deleted": true,
+      "id": "mp1jbqhnwox3"
+    }
+  ],
+  "employees": [
+    {
+      "name": "Manolin",
+      "phone": "",
+      "email": "",
+      "role": "Peluquero",
+      "id": "mozi5get5fio",
+      "_modified": 1778434597852
+    },
+    {
+      "name": "Marta",
+      "phone": "",
+      "email": "",
+      "role": "Peluquero",
+      "id": "mozhxfd25h7k",
+      "_modified": 1778434597852
+    },
+    {
+      "name": "pepin",
+      "phone": "",
+      "email": "",
+      "role": "Peluquero",
+      "id": "mozhx2uwqpa6",
+      "_modified": 1778434597852
+    },
+    {
+      "name": "Pepin",
+      "phone": "",
+      "email": "",
+      "role": "Peluquero",
+      "_modified": 1778524065731,
+      "_deleted": false,
+      "id": "mp1jb3yb5ici"
+    }
+  ],
+  "lastModified": 1778524269054
+}

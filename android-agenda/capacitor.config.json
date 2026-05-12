@@ -1,0 +1,10 @@
+{
+  "appId": "com.tpv.agenda",
+  "appName": "AgendaTPV",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "http",
+    "cleartext": true,
+    "allowNavigation": ["*"]
+  }
+}

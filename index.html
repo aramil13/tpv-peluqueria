@@ -1,0 +1,2187 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TPV Peluquería - Terminal Punto de Venta</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --primary: #6C3483; --primary-light: #8E44AD; --primary-dark: #4A235A;
+  --secondary: #F39C12; --bg: #f0f2f5; --card: #fff; --text: #2c3e50;
+  --text-light: #7f8c8d; --border: #dfe6e9; --success: #27ae60;
+  --danger: #e74c3c; --warning: #f39c12; --shadow: 0 2px 10px rgba(0,0,0,.1);
+}
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); display: flex; min-height: 100vh; }
+.sidebar { width: 230px; background: linear-gradient(180deg, var(--primary-dark), var(--primary)); color: #fff; display: flex; flex-direction: column; position: fixed; top: 0; left: 0; height: 100vh; z-index: 100; }
+.sidebar-header { padding: 20px; text-align: center; border-bottom: 1px solid rgba(255,255,255,.1); }
+.sidebar-header h1 { font-size: 18px; font-weight: 700; }
+.sidebar-header h1 span { color: var(--secondary); }
+.sidebar-header small { font-size: 11px; opacity: .7; }
+.sidebar-nav { flex: 1; padding: 10px 0; overflow-y: auto; }
+.nav-item { display: flex; align-items: center; padding: 12px 20px; cursor: pointer; transition: all .2s; gap: 12px; font-size: 14px; border-left: 3px solid transparent; }
+.nav-item:hover { background: rgba(255,255,255,.1); }
+.nav-item.active { background: rgba(255,255,255,.15); border-left-color: var(--secondary); }
+.nav-item .icon { font-size: 18px; width: 24px; text-align: center; }
+.main { margin-left: 230px; flex: 1; display: flex; flex-direction: column; min-height: 100vh; }
+.topbar { background: var(--card); padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow); z-index: 10; }
+.topbar h2 { font-size: 20px; font-weight: 600; }
+.topbar h2 small { font-weight: 400; font-size: 13px; color: var(--text-light); margin-left: 10px; }
+.content { padding: 20px 30px; flex: 1; }
+.section { display: none; }
+.section.active { display: block; }
+.card { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 20px; margin-bottom: 20px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid var(--bg); }
+.card-header h3 { font-size: 16px; font-weight: 600; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+th { background: var(--bg); font-weight: 600; color: var(--text-light); text-transform: uppercase; font-size: 11px; letter-spacing: .5px; }
+tr:hover td { background: #f8f9fa; }
+.btn { padding: 8px 16px; border: none; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all .2s; display: inline-flex; align-items: center; gap: 6px; }
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-light); }
+.btn-secondary { background: var(--bg); color: var(--text); }
+.btn-secondary:hover { background: #dfe6e9; }
+.btn-success { background: var(--success); color: #fff; }
+.btn-success:hover { background: #219a52; }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-danger:hover { background: #c0392b; }
+.btn-warning { background: var(--secondary); color: #fff; }
+.btn-warning:hover { background: #d68910; }
+.btn-sm { padding: 5px 10px; font-size: 12px; }
+.btn-group { display: flex; gap: 5px; }
+.form-group { margin-bottom: 12px; }
+.form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: var(--text); }
+.form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; transition: border .2s; background: #fff; }
+.form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); }
+.form-group textarea { resize: vertical; min-height: 60px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
+.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; }
+.modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.5); z-index: 1000; justify-content: center; align-items: center; }
+.modal.show { display: flex; }
+.modal-content { background: var(--card); border-radius: 12px; padding: 25px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+.modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid var(--bg); }
+.modal-header h3 { font-size: 18px; font-weight: 600; }
+.modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-light); padding: 0 5px; }
+.modal-close:hover { color: var(--danger); }
+.modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border); }
+.search-bar { display: flex; gap: 10px; margin-bottom: 15px; }
+.search-bar input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
+.search-bar input:focus { outline: none; border-color: var(--primary); }
+.badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+.badge-success { background: #d4efdf; color: #1a6e3a; }
+.badge-warning { background: #fdebd0; color: #935d0a; }
+.badge-danger { background: #fadbd8; color: #a93226; }
+.badge-info { background: #d6eaf8; color: #1a5276; }
+.pos-container { display: grid; grid-template-columns: 1fr 400px; gap: 20px; }
+.pos-ticket { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 20px; }
+.pos-ticket-header { text-align: center; padding-bottom: 10px; border-bottom: 2px dashed var(--border); margin-bottom: 10px; }
+.pos-ticket-header h3 { font-size: 16px; }
+.pos-ticket-header p { font-size: 11px; color: var(--text-light); }
+.ticket-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; font-size: 13px; border-bottom: 1px dashed #ecf0f1; }
+.ticket-item .qty { color: var(--text-light); margin-right: 8px; }
+.ticket-item .name { flex: 1; }
+.ticket-item .price { font-weight: 500; }
+.ticket-item .remove-item { color: var(--danger); cursor: pointer; background: none; border: none; font-size: 16px; padding: 0 5px; }
+.ticket-total { padding-top: 10px; margin-top: 10px; border-top: 2px solid var(--text); }
+.ticket-total .row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 13px; }
+.ticket-total .grand-total { font-size: 20px; font-weight: 700; color: var(--primary); }
+.ticket-actions { display: flex; gap: 8px; margin-top: 15px; }
+.ticket-actions .btn { flex: 1; text-align: center; justify-content: center; }
+.pos-items-header { display: flex; gap: 10px; margin-bottom: 15px; }
+.pos-items-header .btn { flex: 1; text-align: center; justify-content: center; }
+.pos-search input { width: 100%; padding: 10px 15px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px; }
+.pos-items-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; max-height: 500px; overflow-y: auto; }
+.pos-item { padding: 12px; background: var(--card); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all .2s; }
+.pos-item:hover { border-color: var(--primary); box-shadow: 0 2px 8px rgba(108,52,131,.15); }
+.pos-item .item-name { font-weight: 500; font-size: 13px; }
+.pos-item .item-price { color: var(--primary); font-weight: 600; font-size: 14px; }
+.pos-item .item-stock { font-size: 11px; color: var(--text-light); }
+.agenda-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; }
+.agenda-nav { display: flex; align-items: center; gap: 15px; }
+.agenda-nav h3 { font-size: 18px; min-width: 200px; text-align: center; }
+.agenda-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; background: #000; border: 1px solid #000; border-radius: 8px; overflow: hidden; }
+.agenda-day-header { background: var(--primary); color: #fff; padding: 6px; text-align: center; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.agenda-day { background: var(--card); min-height: 70px; padding: 4px 6px; cursor: pointer; transition: background .2s; }
+.agenda-day:hover { background: #f8f9fa; }
+.agenda-day.today { background: #fdebd0; }
+
+.agenda-day .day-num { font-weight: 600; font-size: 12px; margin-bottom: 3px; color: var(--text); }
+.agenda-day .appt { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-bottom: 1px; background: #d6eaf8; color: #1a5276; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+.stat-card { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 20px; text-align: center; }
+.stat-card .stat-number { font-size: 28px; font-weight: 700; color: var(--primary); }
+.stat-card .stat-label { font-size: 12px; color: var(--text-light); text-transform: uppercase; letter-spacing: .5px; margin-top: 5px; }
+.empty-state { text-align: center; padding: 40px 20px; color: var(--text-light); }
+.empty-state .icon { font-size: 48px; margin-bottom: 10px; }
+.empty-state p { font-size: 14px; }
+.tabs { display: flex; gap: 0; margin-bottom: 15px; border-bottom: 2px solid var(--border); }
+.tab { padding: 10px 20px; cursor: pointer; font-size: 13px; font-weight: 500; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all .2s; color: var(--text-light); }
+.tab:hover { color: var(--text); }
+.tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.stock-low { color: var(--danger); font-weight: 600; }
+.alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; }
+.alert-success { background: #d4efdf; color: #1a6e3a; border: 1px solid #a9dfbf; }
+.alert-danger { background: #fadbd8; color: #a93226; border: 1px solid #f5b7b1; }
+.alert-info { background: #d6eaf8; color: #1a5276; border: 1px solid #aed6f1; }
+@media (max-width: 1024px) { .pos-container { grid-template-columns: 1fr; } }
+@media (max-width: 768px) {
+  .sidebar { width: 60px; }
+  .sidebar-header h1, .sidebar-header small, .nav-item span { display: none; }
+  .sidebar-header { padding: 10px; }
+  .nav-item { justify-content: center; padding: 12px; }
+  .main { margin-left: 60px; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .content { padding: 15px; }
+  .topbar { padding: 10px 15px; }
+}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+  <div class="sidebar-header">
+    <h1><span>TPV</span> Peluquería</h1>
+    <small>Terminal Punto de Venta</small>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="nav-item active" data-section="dashboard"><span class="icon">📊</span><span>Dashboard</span></div>
+    <div class="nav-item" data-section="pos"><span class="icon">🛒</span><span>Punto de Venta</span></div>
+    <div class="nav-item" data-section="clients"><span class="icon">👥</span><span>Clientes</span></div>
+    <div class="nav-item" data-section="employees"><span class="icon">🧑‍💼</span><span>Empleados</span></div>
+    <div class="nav-item" data-section="services"><span class="icon">✂️</span><span>Servicios</span></div>
+    <div class="nav-item" data-section="projects"><span class="icon">📦</span><span>Proyectos</span></div>
+    <div class="nav-item" data-section="products"><span class="icon">🧴</span><span>Productos</span></div>
+    <div class="nav-item" data-section="warehouse"><span class="icon">📦</span><span>Almacén</span></div>
+    <div class="nav-item" data-section="agenda"><span class="icon">📅</span><span>Agenda</span></div>
+    <div class="nav-item" data-section="reports"><span class="icon">📈</span><span>Listados</span></div>
+  </nav>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <h2 id="sectionTitle">Dashboard <small>Panel de control</small></h2>
+    <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+      <span id="clock" style="color:var(--text-light);"></span>
+      <button class="btn btn-secondary btn-sm" onclick="openSettings()" title="Configuración">⚙️</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="section active" id="sec-dashboard">
+      <div class="stats-grid" id="dashboardStats"></div>
+      <div class="card"><div class="card-header"><h3>Últimas Ventas</h3></div><div id="dashboardSales"></div></div>
+      <div class="card"><div class="card-header"><h3>Citas de Hoy</h3></div><div id="dashboardAppts"></div></div>
+    </div>
+
+    <!-- POS -->
+    <div class="section" id="sec-pos">
+      <div class="pos-container">
+        <div class="card">
+          <div class="pos-search"><input type="text" id="posSearch" placeholder="Buscar servicios o productos..." oninput="filterPosItems()"></div>
+          <div class="pos-items-header" id="posTabs">
+            <button class="btn btn-primary" onclick="filterPosItems('services')">Servicios</button>
+            <button class="btn btn-secondary" onclick="filterPosItems('products')">Productos</button>
+            <button class="btn btn-secondary" onclick="filterPosItems('projects')">Proyectos</button>
+            <button class="btn btn-secondary" onclick="filterPosItems('all')">Todos</button>
+          </div>
+          <div class="pos-items-grid" id="posItems"></div>
+        </div>
+        <div>
+          <div class="pos-ticket" id="ticket">
+            <div class="pos-ticket-header">
+              <h3 id="posTicketHeader">TPV Peluquería</h3>
+              <p id="ticketDate"></p>
+              <div id="editBadge" style="display:none;margin-top:6px;padding:4px 8px;background:#fdebd0;color:#935d0a;border-radius:4px;font-size:12px;font-weight:500;">✏️ Editando ticket <span id="editBadgeNum"></span> <button class="btn btn-sm" style="background:transparent;border:1px solid #935d0a;color:#935d0a;padding:2px 8px;margin-left:6px;" onclick="cancelEditTicket()">Cancelar</button></div>
+            </div>
+            <div id="ticketItems"></div>
+            <div class="ticket-total">
+              <div class="row"><span>Subtotal</span><span id="ticketSubtotal">0.00€</span></div>
+              <div class="row" style="font-size:12px;color:var(--text-light);"><span>Base Imponible</span><span id="ticketBase">0.00€</span></div>
+              <div class="row" style="font-size:12px;color:var(--text-light);"><span>IVA <span id="ticketIvaLabel">21</span>%</span><span id="ticketIva">0.00€</span></div>
+              <div class="row" style="border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px;"><span>Cliente</span><span id="ticketClient">Mostrador</span></div>
+              <div class="row grand-total"><span>Total</span><span id="ticketTotal">0.00€</span></div>
+            </div>
+            <div style="margin-bottom:10px;">
+              <select id="ticketClientSelect" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;" onchange="updateTicketClient()">
+                <option value="">Cliente: Mostrador</option>
+              </select>
+            </div>
+            <div id="ticketClientInvoice" style="font-size:11px;color:var(--text-light);margin-bottom:10px;padding:8px;background:var(--bg);border-radius:6px;display:none;"></div>
+            <div style="margin-bottom:10px;display:flex;gap:8px;">
+              <button class="btn" id="payCash" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;" onclick="setPayment('cash')">💰 Contado</button>
+              <button class="btn" id="payCard" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;" onclick="setPayment('card')">💳 Tarjeta</button>
+            </div>
+            <div class="ticket-actions">
+              <button class="btn btn-success" onclick="completeSale()">💰 Cobrar</button>
+              <button class="btn btn-danger" onclick="clearTicket()">🗑️ Vaciar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CLIENTS -->
+    <div class="section" id="sec-clients">
+      <div class="card">
+        <div class="card-header"><h3>Gestión de Clientes</h3><button class="btn btn-primary" onclick="openModal('clientModal')">+ Nuevo Cliente</button></div>
+        <div class="search-bar"><input type="text" id="searchClient" placeholder="Buscar por nombre, teléfono o email..." oninput="renderClients()"></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>NIF/CIF</th><th>Teléfono</th><th>Población</th><th>Visitas</th><th>Gasto Total</th><th>Acciones</th></tr></thead><tbody id="clientsTable"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- EMPLOYEES -->
+    <div class="section" id="sec-employees">
+      <div class="card">
+        <div class="card-header"><h3>Gestión de Empleados</h3><button class="btn btn-primary" onclick="openModal('employeeModal')">+ Nuevo Empleado</button></div>
+        <div class="search-bar"><input type="text" id="searchEmployee" placeholder="Buscar por nombre, teléfono o email..." oninput="renderEmployees()"></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Rol</th><th>Acciones</th></tr></thead><tbody id="employeesTable"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- SERVICES -->
+    <div class="section" id="sec-services">
+      <div class="card">
+        <div class="card-header"><h3>Gestión de Servicios</h3><button class="btn btn-primary" onclick="openModal('serviceModal')">+ Nuevo Servicio</button></div>
+        <div class="search-bar"><input type="text" id="searchService" placeholder="Buscar servicio..." oninput="renderServices()"></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Duración</th><th>Precio</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="servicesTable"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- PROJECTS -->
+    <div class="section" id="sec-projects">
+      <div class="card">
+        <div class="card-header"><h3>Gestión de Proyectos</h3><button class="btn btn-primary" onclick="openModal('projectModal')">+ Nuevo Proyecto</button></div>
+        <div class="search-bar"><input type="text" id="searchProject" placeholder="Buscar proyecto..." oninput="renderProjects()"></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Servicios</th><th>Duración</th><th>Precio Total</th><th>Descuento</th><th>Precio Final</th><th>Acciones</th></tr></thead><tbody id="projectsTable"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- PRODUCTS -->
+    <div class="section" id="sec-products">
+      <div class="card">
+        <div class="card-header"><h3>Gestión de Productos</h3><button class="btn btn-primary" onclick="openModal('productModal')">+ Nuevo Producto</button></div>
+        <div class="search-bar"><input type="text" id="searchProduct" placeholder="Buscar producto..." oninput="renderProducts()"></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Precio Venta</th><th>Stock</th><th>Stock Mín.</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="productsTable"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- WAREHOUSE -->
+    <div class="section" id="sec-warehouse">
+      <div class="card">
+        <div class="card-header"><h3>Control de Almacén</h3><button class="btn btn-primary" onclick="openWarehouseMovement()">+ Movimiento</button></div>
+        <div class="tabs">
+          <div class="tab active" onclick="switchWarehouseTab('stock',this)">Stock Actual</div>
+          <div class="tab" onclick="switchWarehouseTab('movements',this)">Historial Movimientos</div>
+          <div class="tab" onclick="switchWarehouseTab('low',this)">Stock Bajo</div>
+        </div>
+        <div id="warehouseContent"></div>
+      </div>
+    </div>
+
+    <!-- AGENDA -->
+    <div class="section" id="sec-agenda">
+      <div class="card">
+        <div class="card-header">
+          <h3>Agenda</h3>
+          <div class="btn-group">
+            <button class="btn btn-secondary" onclick="exportToIcs()">📅 Exportar a calendario</button>
+            <button class="btn btn-primary" onclick="quickAppt('')">+ Nueva Cita</button>
+          </div>
+        </div>
+        <div class="agenda-header">
+          <div class="agenda-nav">
+            <button class="btn btn-secondary btn-sm" onclick="changeMonth(-1)">◀</button>
+            <h3 id="agendaMonthYear"></h3>
+            <button class="btn btn-secondary btn-sm" onclick="changeMonth(1)">▶</button>
+            <button class="btn btn-primary btn-sm" onclick="goToday()">Hoy</button>
+          </div>
+        </div>
+        <div class="agenda-grid" id="agendaGrid"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3>Citas del Día</h3></div>
+        <div id="dayAppointments"></div>
+      </div>
+    </div>
+
+    <!-- REPORTS -->
+    <div class="section" id="sec-reports">
+      <div class="card">
+        <div class="card-header"><h3>Listados e Informes</h3></div>
+        <div class="tabs">
+          <div class="tab active" onclick="switchReportTab('sales',this)">Ventas</div>
+          <div class="tab" onclick="switchReportTab('clients',this)">Clientes</div>
+          <div class="tab" onclick="switchReportTab('services',this)">Servicios</div>
+          <div class="tab" onclick="switchReportTab('products',this)">Productos</div>
+        </div>
+        <div class="search-bar" style="margin-top:10px;">
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;">Desde: <input type="date" id="reportFrom" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></label>
+          <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;">Hasta: <input type="date" id="reportTo" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></label>
+          <button class="btn btn-primary btn-sm" onclick="renderReports()">Filtrar</button>
+          <button class="btn btn-success btn-sm" onclick="exportCSV()">Exportar CSV</button>
+          <button class="btn btn-secondary btn-sm" onclick="printReport()">🖨️ Imprimir</button>
+        </div>
+        <div id="reportContent"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal" id="clientModal">
+  <div class="modal-content">
+    <div class="modal-header"><h3 id="clientModalTitle">Nuevo Cliente</h3><button class="modal-close" onclick="closeModal('clientModal')">&times;</button></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Nombre / Razón Social *</label><input type="text" id="clientName" placeholder="Nombre completo"></div>
+      <div class="form-group"><label>NIF / CIF</label><input type="text" id="clientNif" placeholder="12345678A"></div>
+      <div class="form-group"><label>Dirección</label><input type="text" id="clientAddress" placeholder="Calle, número"></div>
+      <div class="form-group"><label>Población</label><input type="text" id="clientCity" placeholder="Ciudad"></div>
+      <div class="form-group"><label>Provincia</label><input type="text" id="clientProvince" placeholder="Provincia"></div>
+      <div class="form-group"><label>Código Postal</label><input type="text" id="clientZip" placeholder="28001"></div>
+      <div class="form-group"><label>Teléfono</label><input type="text" id="clientPhone" placeholder="Teléfono"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="clientEmail" placeholder="email@ejemplo.com"></div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="clientNotes" placeholder="Notas adicionales..."></textarea></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button><button class="btn btn-primary" onclick="saveClient()">Guardar</button></div>
+    <input type="hidden" id="clientEditId">
+  </div>
+</div>
+
+<div class="modal" id="serviceModal">
+  <div class="modal-content">
+    <div class="modal-header"><h3 id="serviceModalTitle">Nuevo Servicio</h3><button class="modal-close" onclick="closeModal('serviceModal')">&times;</button></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Nombre *</label><input type="text" id="serviceName" placeholder="Nombre del servicio"></div>
+      <div class="form-group"><label>Precio *</label><input type="number" id="servicePrice" placeholder="0.00" step="0.01" min="0"></div>
+      <div class="form-group"><label>Duración (min)</label><input type="number" id="serviceDuration" placeholder="30" min="0"></div>
+    </div>
+    <div class="form-group"><label>Descripción</label><textarea id="serviceDesc" placeholder="Descripción..."></textarea></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('serviceModal')">Cancelar</button><button class="btn btn-primary" onclick="saveService()">Guardar</button></div>
+    <input type="hidden" id="serviceEditId">
+  </div>
+</div>
+
+<div class="modal" id="projectModal">
+  <div class="modal-content">
+    <div class="modal-header"><h3 id="projectModalTitle">Nuevo Proyecto</h3><button class="modal-close" onclick="closeModal('projectModal')">&times;</button></div>
+    <div class="form-group"><label>Nombre *</label><input type="text" id="projectName" placeholder="Nombre del proyecto"></div>
+    <div class="form-group"><label>Servicios incluidos</label>
+      <div id="projectServices" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:8px;"></div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group"><label>Descuento (%)</label><input type="number" id="projectDiscount" placeholder="0" min="0" max="100" oninput="calcProjectTotal()"></div>
+      <div class="form-group"><label>Precio Final</label><input type="number" id="projectTotal" readonly style="background:#f8f9fa;font-weight:600;"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('projectModal')">Cancelar</button><button class="btn btn-primary" onclick="saveProject()">Guardar</button></div>
+    <input type="hidden" id="projectEditId">
+  </div>
+</div>
+
+<div class="modal" id="productModal">
+  <div class="modal-content">
+    <div class="modal-header"><h3 id="productModalTitle">Nuevo Producto</h3><button class="modal-close" onclick="closeModal('productModal')">&times;</button></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Nombre *</label><input type="text" id="productName" placeholder="Nombre del producto"></div>
+      <div class="form-group"><label>Precio Venta *</label><input type="number" id="productPrice" placeholder="0.00" step="0.01" min="0"></div>
+      <div class="form-group"><label>Precio Coste</label><input type="number" id="productCost" placeholder="0.00" step="0.01" min="0"></div>
+      <div class="form-group"><label>Stock Inicial</label><input type="number" id="productStock" placeholder="0" min="0" value="0"></div>
+      <div class="form-group"><label>Stock Mínimo</label><input type="number" id="productMinStock" placeholder="5" min="0" value="5"></div>
+      <div class="form-group"><label>IVA (%)</label><input type="number" id="productIva" placeholder="21" step="0.01" min="0" max="100" value="21"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('productModal')">Cancelar</button><button class="btn btn-primary" onclick="saveProduct()">Guardar</button></div>
+    <input type="hidden" id="productEditId">
+  </div>
+</div>
+
+<div class="modal" id="appointmentModal">
+  <div class="modal-content">
+    <div class="modal-header"><h3 id="appointmentModalTitle">Nueva Cita</h3><button class="modal-close" onclick="closeModal('appointmentModal')">&times;</button></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Cliente *</label><select id="apptClient"></select></div>
+      <div class="form-group"><label>Servicio</label><select id="apptService"></select></div>
+      <div class="form-group"><label>Fecha *</label><input type="date" id="apptDate"></div>
+      <div class="form-group"><label>Hora *</label><input type="time" id="apptTime"></div>
+    </div>
+    <div class="grid-2">
+      <div class="form-group"><label>Empleado</label><select id="apptEmployee"></select></div>
+      <div class="form-group"><label>Notas</label><textarea id="apptNotes" placeholder="Notas..."></textarea></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cancelar</button><button class="btn btn-primary" onclick="saveAppointment()">Guardar</button></div>
+    <input type="hidden" id="apptEditId">
+  </div>
+</div>
+
+<div class="modal" id="employeeModal">
+  <div class="modal-content">
+    <div class="modal-header"><h3 id="employeeModalTitle">Nuevo Empleado</h3><button class="modal-close" onclick="closeModal('employeeModal')">&times;</button></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Nombre *</label><input type="text" id="employeeName" placeholder="Nombre completo"></div>
+      <div class="form-group"><label>Teléfono</label><input type="text" id="employeePhone" placeholder="Teléfono"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="employeeEmail" placeholder="email@ejemplo.com"></div>
+      <div class="form-group"><label>Rol</label><select id="employeeRole"><option value="Peluquero">Peluquero</option><option value="Barbero">Barbero</option><option value="Esteticista">Esteticista</option><option value="Recepcionista">Recepcionista</option><option value="Otro">Otro</option></select></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('employeeModal')">Cancelar</button><button class="btn btn-primary" onclick="saveEmployee()">Guardar</button></div>
+    <input type="hidden" id="employeeEditId">
+  </div>
+</div>
+
+<div class="modal" id="warehouseModal">
+  <div class="modal-content" style="max-width:450px;">
+    <div class="modal-header"><h3>Movimiento de Almacén</h3><button class="modal-close" onclick="closeModal('warehouseModal')">&times;</button></div>
+    <div class="form-group"><label>Producto *</label><select id="whProduct"></select></div>
+    <div class="form-group"><label>Tipo *</label>
+      <select id="whType"><option value="in">Entrada</option><option value="out">Salida</option><option value="adjust">Ajuste</option></select>
+    </div>
+    <div class="form-group"><label>Cantidad *</label><input type="number" id="whQty" placeholder="1" min="1"></div>
+    <div class="form-group"><label>Motivo</label><textarea id="whReason" placeholder="Motivo del movimiento..."></textarea></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('warehouseModal')">Cancelar</button><button class="btn btn-primary" onclick="saveWarehouseMovement()">Guardar</button></div>
+  </div>
+</div>
+
+<div class="modal" id="saleDetailModal">
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header"><h3>Detalle de Venta</h3><button class="modal-close" onclick="closeModal('saleDetailModal')">&times;</button></div>
+    <div id="saleDetailContent"></div>
+  </div>
+</div>
+
+<div class="modal" id="settingsModal">
+  <div class="modal-content" style="max-width:550px;">
+    <div class="modal-header"><h3>Configuración</h3><button class="modal-close" onclick="closeModal('settingsModal')">&times;</button></div>
+    <div class="tabs" style="margin-bottom:15px;">
+      <div class="tab active" onclick="switchSettingsTab('business',this)">Empresa</div>
+      <div class="tab" onclick="switchSettingsTab('ticket',this)">Ticket</div>
+      <div class="tab" onclick="switchSettingsTab('invoice',this)">Factura</div>
+      <div class="tab" onclick="switchSettingsTab('iva',this)">IVA</div>
+      <div class="tab" onclick="switchSettingsTab('sync',this)">Sync</div>
+    </div>
+    <div id="settingsBusiness">
+      <div class="grid-2">
+        <div class="form-group"><label>Nombre del Negocio</label><input type="text" id="setBizName" placeholder="Nombre de la peluquería"></div>
+        <div class="form-group"><label>NIF / CIF</label><input type="text" id="setBizNif" placeholder="12345678A"></div>
+        <div class="form-group"><label>Dirección</label><input type="text" id="setBizAddress" placeholder="Calle, número"></div>
+        <div class="form-group"><label>Población</label><input type="text" id="setBizCity" placeholder="Ciudad"></div>
+        <div class="form-group"><label>Provincia</label><input type="text" id="setBizProvince" placeholder="Provincia"></div>
+        <div class="form-group"><label>Código Postal</label><input type="text" id="setBizZip" placeholder="28001"></div>
+        <div class="form-group"><label>Teléfono</label><input type="text" id="setBizPhone" placeholder="Teléfono"></div>
+        <div class="form-group"><label>Email</label><input type="email" id="setBizEmail" placeholder="email@ejemplo.com"></div>
+      </div>
+    </div>
+    <div id="settingsTicket" style="display:none;">
+      <div class="form-group"><label>Pie del Ticket</label><textarea id="setTicketFooter" placeholder="Mensaje al pie del ticket" style="min-height:60px;"></textarea></div>
+    </div>
+    <div id="settingsInvoice" style="display:none;">
+      <div class="form-group"><label>Prefijo de Factura</label><input type="text" id="setInvoicePrefix" placeholder="FACT-"></div>
+      <div class="form-group"><label>Pie de Factura</label><textarea id="setInvoiceFooter" placeholder="Mensaje al pie de la factura" style="min-height:60px;"></textarea></div>
+    </div>
+    <div id="settingsIva" style="display:none;">
+      <div class="form-group"><label>Tipo de IVA (%)</label><input type="number" id="ivaRate" step="0.01" min="0" max="100"></div>
+    </div>
+    <div id="settingsSync" style="display:none;">
+      <div class="form-group" style="margin-bottom:6px;"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="syncEnabled" style="width:auto;"> Activar sincronización automática</label></div>
+      <div class="form-group"><label>URL del servidor Sync</label><input type="text" id="syncUrl" placeholder="http://192.168.1.100:3456"></div>
+      <div style="font-size:12px;color:var(--text-light);margin-top:6px;line-height:1.5;">
+        📖 Usa una URL local (<code>http://192.168.1.100:3456</code>) para sync en red local,<br>
+        o una URL cloud (<code>https://tuservidor.onrender.com</code>) para sync desde cualquier lugar.<br>
+        Compatible con app Android AgendaTPV.
+      </div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('settingsModal')">Cerrar</button><button class="btn btn-primary" onclick="saveSettings()">Guardar</button></div>
+  </div>
+</div>
+
+<div class="modal" id="receiptModal">
+  <div class="modal-content" style="max-width:380px;">
+    <div class="modal-header"><h3>Factura simplificada</h3><button class="modal-close" onclick="closeModal('receiptModal')">&times;</button></div>
+    <div id="receiptContent" style="font-family:'Courier New',Courier,monospace;font-size:12px;line-height:1.4;padding:10px 0;"></div>
+    <div class="modal-footer" style="justify-content:center;"><button class="btn btn-primary" onclick="printReceipt()">🖨️ Imprimir Ticket</button><button class="btn btn-secondary" onclick="closeModal('receiptModal')">Cerrar</button></div>
+  </div>
+</div>
+
+<div class="modal" id="invoiceModal">
+  <div class="modal-content" style="max-width:500px;">
+    <div class="modal-header"><h3>Factura</h3><button class="modal-close" onclick="closeModal('invoiceModal')">&times;</button></div>
+    <div id="invoiceContent" style="font-family:'Courier New',Courier,monospace;font-size:12px;line-height:1.6;padding:10px 0;"></div>
+    <div class="modal-footer" style="justify-content:center;"><button class="btn btn-primary" onclick="printInvoice()">🖨️ Imprimir Factura</button><button class="btn btn-secondary" onclick="closeModal('invoiceModal')">Cerrar</button></div>
+  </div>
+</div>
+
+<script>
+// ============ DATA LAYER ============
+const DB = {
+  get(key, def) { try { return JSON.parse(localStorage.getItem('tpv_'+key)) || def } catch { return def } },
+  set(key, val) { localStorage.setItem('tpv_'+key, JSON.stringify(val)) }
+}
+
+let data = {
+  clients: DB.get('clients', []),
+  employees: DB.get('employees', []),
+  services: DB.get('services', []),
+  projects: DB.get('projects', []),
+  products: DB.get('products', []),
+  appointments: DB.get('appointments', []),
+  sales: DB.get('sales', []),
+  movements: DB.get('movements', []),
+  ivaRate: DB.get('ivaRate', 21),
+  invoiceCounter: DB.get('invoiceCounter', 1),
+  settings: DB.get('settings', {
+    businessName: 'TPV Peluquería',
+    businessNif: '',
+    businessAddress: '',
+    businessCity: '',
+    businessProvince: '',
+    businessZip: '',
+    businessPhone: '',
+    businessEmail: '',
+    ticketFooter: '¡Gracias por su visita!',
+    invoiceFooter: '¡Gracias por su visita!',
+    invoicePrefix: 'FACT-'
+  })
+}
+
+// Migrate old sales without IVA data
+data.sales.forEach(s => {
+  if (s.base === undefined) { const r = s.ivaRate || data.ivaRate || 21; s.base = s.total / (1 + r/100); s.iva = s.total - s.base; s.ivaRate = r; }
+});
+saveKey('sales');
+
+function saveAll() {
+  for (let k in data) DB.get(k) !== undefined && DB.set(k, data[k])
+}
+
+function saveKey(k) { DB.set(k, data[k]) }
+
+function id() { return Date.now().toString(36)+Math.random().toString(36).substr(2,4) }
+
+// ============ CURRENCY ============
+function cur(n) { return parseFloat(n||0).toFixed(2)+'€' }
+
+// ============ IVA ============
+function getIvaRate() { return parseFloat(data.ivaRate) || 21 }
+function basePrice(priceWithIva) { const r = getIvaRate(); return priceWithIva / (1 + r/100) }
+function ivaAmount(priceWithIva) { return priceWithIva - basePrice(priceWithIva) }
+
+// ============ SETTINGS ============
+function switchSettingsTab(tab, el) {
+  document.querySelectorAll('#settingsModal .tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('settingsBusiness').style.display = tab === 'business' ? 'block' : 'none';
+  document.getElementById('settingsTicket').style.display = tab === 'ticket' ? 'block' : 'none';
+  document.getElementById('settingsInvoice').style.display = tab === 'invoice' ? 'block' : 'none';
+  document.getElementById('settingsIva').style.display = tab === 'iva' ? 'block' : 'none';
+  document.getElementById('settingsSync').style.display = tab === 'sync' ? 'block' : 'none';
+}
+
+function openSettings() {
+  const s = data.settings;
+  document.getElementById('setBizName').value = s.businessName;
+  document.getElementById('setBizNif').value = s.businessNif||'';
+  document.getElementById('setBizAddress').value = s.businessAddress||'';
+  document.getElementById('setBizCity').value = s.businessCity||'';
+  document.getElementById('setBizProvince').value = s.businessProvince||'';
+  document.getElementById('setBizZip').value = s.businessZip||'';
+  document.getElementById('setBizPhone').value = s.businessPhone||'';
+  document.getElementById('setBizEmail').value = s.businessEmail||'';
+  document.getElementById('setTicketFooter').value = s.ticketFooter||'';
+  document.getElementById('setInvoicePrefix').value = s.invoicePrefix||'FACT-';
+  document.getElementById('setInvoiceFooter').value = s.invoiceFooter||'';
+  document.getElementById('ivaRate').value = getIvaRate();
+  const sync = s.sync || {};
+  document.getElementById('syncEnabled').checked = sync.enabled || false;
+  document.getElementById('syncUrl').value = sync.url || 'http://localhost:3456';
+  switchSettingsTab('business', document.querySelector('#settingsModal .tab'));
+  openModal('settingsModal');
+}
+
+function saveSettings() {
+  const rate = parseFloat(document.getElementById('ivaRate').value);
+  if (isNaN(rate) || rate < 0) { alert('Introduce un tipo de IVA válido'); return; }
+  data.ivaRate = rate;
+  data.settings = {
+    businessName: document.getElementById('setBizName').value.trim(),
+    businessNif: document.getElementById('setBizNif').value.trim(),
+    businessAddress: document.getElementById('setBizAddress').value.trim(),
+    businessCity: document.getElementById('setBizCity').value.trim(),
+    businessProvince: document.getElementById('setBizProvince').value.trim(),
+    businessZip: document.getElementById('setBizZip').value.trim(),
+    businessPhone: document.getElementById('setBizPhone').value.trim(),
+    businessEmail: document.getElementById('setBizEmail').value.trim(),
+    ticketFooter: document.getElementById('setTicketFooter').value.trim(),
+    invoicePrefix: document.getElementById('setInvoicePrefix').value.trim() || 'FACT-',
+    invoiceFooter: document.getElementById('setInvoiceFooter').value.trim(),
+    sync: {
+      enabled: document.getElementById('syncEnabled').checked,
+      url: document.getElementById('syncUrl').value.trim() || 'http://localhost:3456'
+    }
+  };
+  saveKey('ivaRate'); saveKey('settings');
+  if (data.settings.sync.enabled) { syncPush(); startSyncPoller(); }
+  else stopSyncPoller();
+  closeModal('settingsModal');
+  updateTicket();
+}
+
+// ============ SYNC ============
+function getSyncCfg() { return data.settings.sync || { enabled: false, url: 'http://localhost:3456' } }
+
+function syncPush() {
+  const c = getSyncCfg();
+  if (!c.enabled) return;
+  fetch(c.url.replace(/\/+$/,'') + '/sync', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      appointments: data.appointments,
+      clients: data.clients,
+      services: data.services,
+      employees: data.employees,
+      products: data.products
+    })
+  }).catch(() => {});
+}
+
+function mergeRemote(type, remote) {
+  if (!remote || !remote.length) return false;
+  const localMap = new Map(data[type].map(item => [item.id, item]));
+  let changed = false;
+  remote.forEach(item => {
+    const existing = localMap.get(item.id);
+    if (!existing) { data[type].push(item); changed = true; }
+    else if ((item._modified||0) > (existing._modified||0)) { Object.assign(existing, item); changed = true; }
+  });
+  return changed;
+}
+
+function syncPull() {
+  const c = getSyncCfg();
+  if (!c.enabled) return;
+  fetch(c.url.replace(/\/+$/,'') + '/sync')
+    .then(r => r.json()).then(remote => {
+      let changed = false;
+      if (mergeRemote('appointments', remote.appointments)) changed = true;
+      if (mergeRemote('clients', remote.clients)) changed = true;
+      if (mergeRemote('services', remote.services)) changed = true;
+      if (mergeRemote('employees', remote.employees)) changed = true;
+      if (mergeRemote('products', remote.products)) changed = true;
+      if (changed) {
+        saveKey('appointments'); saveKey('clients'); saveKey('services'); saveKey('employees'); saveKey('products');
+        const active = document.querySelector('.nav-item.active');
+        if (active) {
+          const sec = active.dataset.section;
+          if (sec === 'agenda') renderAgenda();
+          else if (sec === 'clients') renderClients();
+          else if (sec === 'services') renderServices();
+          else if (sec === 'employees') renderEmployees();
+          else if (sec === 'dashboard') renderDashboard();
+        }
+      }
+    }).catch(() => {});
+}
+
+let syncTimer = null;
+function startSyncPoller() { stopSyncPoller(); if (getSyncCfg().enabled) syncTimer = setInterval(syncPull, 30000) }
+function stopSyncPoller() { if (syncTimer) { clearInterval(syncTimer); syncTimer = null } }
+
+// Start sync on load
+startSyncPoller();
+
+// ============ NAVIGATION ============
+document.querySelectorAll('.nav-item').forEach(el => {
+  el.addEventListener('click', function() {
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+    this.classList.add('active');
+    const sec = document.getElementById('sec-'+this.dataset.section);
+    if (sec) sec.classList.add('active');
+    const titles = {
+      dashboard:'Dashboard', pos:'Punto de Venta', clients:'Clientes', services:'Servicios',
+      projects:'Proyectos', products:'Productos', warehouse:'Almacén', agenda:'Agenda', employees:'Empleados', reports:'Listados'
+    };
+    const t = titles[this.dataset.section]||'';
+    const subs = {pos:'Terminal de cobro', clients:'Gestión de clientes', employees:'Gestión de empleados', services:'Servicios y tratamientos',
+      projects:'Paquetes de servicios', products:'Productos para la venta', warehouse:'Control de inventario',
+      agenda:'Gestión de citas', reports:'Informes y estadísticas'};
+    document.getElementById('sectionTitle').innerHTML = t+' <small>'+(subs[this.dataset.section]||'')+'</small>';
+    if (this.dataset.section === 'dashboard') renderDashboard();
+    if (this.dataset.section === 'pos') { renderPosItems(); updateTicket(); }
+    if (this.dataset.section === 'clients') renderClients();
+    if (this.dataset.section === 'employees') renderEmployees();
+    if (this.dataset.section === 'services') renderServices();
+    if (this.dataset.section === 'projects') renderProjects();
+    if (this.dataset.section === 'products') renderProducts();
+    if (this.dataset.section === 'warehouse') renderWarehouse();
+    if (this.dataset.section === 'agenda') renderAgenda();
+    if (this.dataset.section === 'reports') renderReports();
+  });
+});
+
+// ============ CLOCK ============
+function updateClock() {
+  const d = new Date();
+  document.getElementById('clock').textContent = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+' | '+d.toLocaleTimeString('es-ES');
+}
+updateClock(); setInterval(updateClock, 1000);
+
+// ============ MODALS ============
+function openModal(id) { document.getElementById(id).classList.add('show'); }
+function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+document.querySelectorAll('.modal').forEach(m => {
+  m.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+});
+
+// ============ CLIENTS ============
+function renderClients() {
+  const q = (document.getElementById('searchClient').value||'').toLowerCase();
+  const tbody = document.getElementById('clientsTable');
+  const list = data.clients.filter(c => !c._deleted && (c.name+' '+c.phone+' '+c.email).toLowerCase().includes(q))
+    .sort((a,b) => a.name.localeCompare(b.name));
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay clientes</td></tr>'; return; }
+  tbody.innerHTML = list.map(c => `<tr>
+    <td><strong>${esc(c.name)}</strong></td>
+    <td>${esc(c.nif||'-')}</td>
+    <td>${esc(c.phone||'-')}</td>
+    <td>${esc(c.city||'-')}</td>
+    <td>${c.visits||0}</td>
+    <td>${cur(c.totalSpent||0)}</td>
+    <td><div class="btn-group">
+      <button class="btn btn-primary btn-sm" onclick="editClient('${c.id}')">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteClient('${c.id}')">🗑️</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+function saveClient() {
+  const id_ = document.getElementById('clientEditId').value;
+  const name = document.getElementById('clientName').value.trim();
+  if (!name) { alert('El nombre es obligatorio'); return; }
+  const obj = {
+    name, nif: document.getElementById('clientNif').value.trim().toUpperCase(),
+    address: document.getElementById('clientAddress').value.trim(),
+    city: document.getElementById('clientCity').value.trim(),
+    province: document.getElementById('clientProvince').value.trim(),
+    zip: document.getElementById('clientZip').value.trim(),
+    phone: document.getElementById('clientPhone').value.trim(),
+    email: document.getElementById('clientEmail').value.trim(),
+    notes: document.getElementById('clientNotes').value.trim(),
+    _modified: Date.now(),
+    _deleted: false
+  };
+  if (id_) {
+    const c = data.clients.find(x => x.id === id_);
+    if (c) Object.assign(c, obj);
+  } else {
+    obj.id = id(); obj.visits = 0; obj.totalSpent = 0; obj.created = new Date().toISOString();
+    data.clients.push(obj);
+  }
+  saveKey('clients'); clearClientForm(); closeModal('clientModal'); renderClients(); syncPush();
+}
+
+function editClient(id) {
+  const c = data.clients.find(x => x.id === id);
+  if (!c) return;
+  document.getElementById('clientEditId').value = id;
+  document.getElementById('clientName').value = c.name;
+  document.getElementById('clientNif').value = c.nif||'';
+  document.getElementById('clientAddress').value = c.address||'';
+  document.getElementById('clientCity').value = c.city||'';
+  document.getElementById('clientProvince').value = c.province||'';
+  document.getElementById('clientZip').value = c.zip||'';
+  document.getElementById('clientPhone').value = c.phone||'';
+  document.getElementById('clientEmail').value = c.email||'';
+  document.getElementById('clientNotes').value = c.notes||'';
+  document.getElementById('clientModalTitle').textContent = 'Editar Cliente';
+  openModal('clientModal');
+}
+
+function deleteClient(id) {
+  if (!confirm('¿Eliminar este cliente?')) return;
+  const c = data.clients.find(x => x.id === id);
+  if (c) { c._deleted = true; c._modified = Date.now(); }
+  saveKey('clients'); renderClients(); syncPush();
+}
+
+function clearClientForm() {
+  ['clientEditId','clientName','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNotes'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
+}
+
+// ============ EMPLOYEES ============
+function renderEmployees() {
+  const q = (document.getElementById('searchEmployee').value||'').toLowerCase();
+  const tbody = document.getElementById('employeesTable');
+  const list = data.employees.filter(e => !e._deleted && (e.name+' '+e.phone+' '+e.email).toLowerCase().includes(q))
+    .sort((a,b) => a.name.localeCompare(b.name));
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No hay empleados</td></tr>'; return; }
+  tbody.innerHTML = list.map(e => `<tr>
+    <td><strong>${esc(e.name)}</strong></td>
+    <td>${esc(e.phone||'-')}</td>
+    <td>${esc(e.email||'-')}</td>
+    <td>${esc(e.role||'Peluquero')}</td>
+    <td><div class="btn-group">
+      <button class="btn btn-primary btn-sm" onclick="editEmployee('${e.id}')">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteEmployee('${e.id}')">🗑️</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+function saveEmployee() {
+  const id_ = document.getElementById('employeeEditId').value;
+  const name = document.getElementById('employeeName').value.trim();
+  if (!name) { alert('El nombre es obligatorio'); return; }
+  const obj = {
+    name, phone: document.getElementById('employeePhone').value.trim(),
+    email: document.getElementById('employeeEmail').value.trim(),
+    role: document.getElementById('employeeRole').value,
+    _modified: Date.now(),
+    _deleted: false
+  };
+  if (id_) {
+    const e = data.employees.find(x => x.id === id_);
+    if (e) Object.assign(e, obj);
+  } else {
+    obj.id = id(); data.employees.push(obj);
+  }
+  saveKey('employees'); clearEmployeeForm(); closeModal('employeeModal'); renderEmployees(); syncPush();
+}
+
+function editEmployee(id) {
+  const e = data.employees.find(x => x.id === id);
+  if (!e) return;
+  document.getElementById('employeeEditId').value = id;
+  document.getElementById('employeeName').value = e.name;
+  document.getElementById('employeePhone').value = e.phone||'';
+  document.getElementById('employeeEmail').value = e.email||'';
+  document.getElementById('employeeRole').value = e.role||'Peluquero';
+  document.getElementById('employeeModalTitle').textContent = 'Editar Empleado';
+  openModal('employeeModal');
+}
+
+function deleteEmployee(id) {
+  if (!confirm('¿Eliminar este empleado?')) return;
+  const e = data.employees.find(x => x.id === id);
+  if (e) { e._deleted = true; e._modified = Date.now(); }
+  saveKey('employees'); renderEmployees(); syncPush();
+}
+
+function clearEmployeeForm() {
+  document.getElementById('employeeEditId').value = '';
+  document.getElementById('employeeName').value = '';
+  document.getElementById('employeePhone').value = '';
+  document.getElementById('employeeEmail').value = '';
+  document.getElementById('employeeRole').value = 'Peluquero';
+  document.getElementById('employeeModalTitle').textContent = 'Nuevo Empleado';
+}
+
+// ============ SERVICES ============
+function renderServices() {
+  const q = (document.getElementById('searchService').value||'').toLowerCase();
+  const tbody = document.getElementById('servicesTable');
+  const list = data.services.filter(s => !s._deleted && s.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No hay servicios</td></tr>'; return; }
+  tbody.innerHTML = list.map(s => `<tr>
+    <td><strong>${esc(s.name)}</strong></td>
+    <td>${s.duration||'-'} min</td>
+    <td><strong>${cur(s.price)}</strong></td>
+    <td>${esc(s.desc||'-')}</td>
+    <td><div class="btn-group">
+      <button class="btn btn-primary btn-sm" onclick="editService('${s.id}')">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteService('${s.id}')">🗑️</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+function saveService() {
+  const id_ = document.getElementById('serviceEditId').value;
+  const name = document.getElementById('serviceName').value.trim();
+  const price = parseFloat(document.getElementById('servicePrice').value);
+  if (!name || isNaN(price) || price<=0) { alert('Nombre y precio válido son obligatorios'); return; }
+  const obj = {
+    name, price,
+    duration: parseInt(document.getElementById('serviceDuration').value)||0,
+    desc: document.getElementById('serviceDesc').value.trim(),
+    _modified: Date.now(),
+    _deleted: false
+  };
+  if (id_) {
+    const s = data.services.find(x => x.id === id_);
+    if (s) Object.assign(s, obj);
+  } else {
+    obj.id = id(); data.services.push(obj);
+  }
+  saveKey('services'); clearServiceForm(); closeModal('serviceModal'); renderServices(); syncPush();
+}
+
+function editService(id) {
+  const s = data.services.find(x => x.id === id); if (!s) return;
+  document.getElementById('serviceEditId').value = id;
+  document.getElementById('serviceName').value = s.name;
+  document.getElementById('servicePrice').value = s.price;
+  document.getElementById('serviceDuration').value = s.duration||'';
+  document.getElementById('serviceDesc').value = s.desc||'';
+  document.getElementById('serviceModalTitle').textContent = 'Editar Servicio'; openModal('serviceModal');
+}
+
+function deleteService(id) {
+  if (!confirm('¿Eliminar este servicio?')) return;
+  const s = data.services.find(x => x.id === id);
+  if (s) { s._deleted = true; s._modified = Date.now(); }
+  saveKey('services'); saveKey('projects'); renderServices(); renderProjects(); syncPush();
+}
+
+function clearServiceForm() {
+  ['serviceEditId','serviceName','servicePrice','serviceDuration','serviceDesc'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('serviceModalTitle').textContent = 'Nuevo Servicio';
+}
+
+// ============ PROJECTS ============
+function renderProjects() {
+  const q = (document.getElementById('searchProject').value||'').toLowerCase();
+  const tbody = document.getElementById('projectsTable');
+  const list = data.projects.filter(p => !p._deleted && p.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay proyectos</td></tr>'; return; }
+  tbody.innerHTML = list.map(p => {
+    const svcs = (p.services||[]).map(sid => { const s = data.services.find(x => x.id===sid); return s ? s.name : '?'}).join(', ');
+    const total = (p.services||[]).reduce((sum, sid) => { const s = data.services.find(x => x.id===sid); return sum + (s? s.price:0) },0);
+    const disc = p.discount||0;
+    const final = total * (1 - disc/100);
+    return `<tr>
+      <td><strong>${esc(p.name)}</strong></td>
+      <td>${esc(svcs)}</td>
+      <td>${calcProjectDuration(p)} min</td>
+      <td>${cur(total)}</td>
+      <td>${disc}%</td>
+      <td><strong>${cur(final)}</strong></td>
+      <td><div class="btn-group">
+        <button class="btn btn-primary btn-sm" onclick="editProject('${p.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">🗑️</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function calcProjectDuration(p) {
+  return (p.services||[]).reduce((sum, sid) => { const s = data.services.find(x => x.id===sid); return sum + (s? s.duration||0:0) },0);
+}
+
+function openProjectForm() {
+  document.getElementById('projectEditId').value = '';
+  document.getElementById('projectName').value = '';
+  document.getElementById('projectDiscount').value = '0';
+  document.getElementById('projectTotal').value = '';
+  document.getElementById('projectModalTitle').textContent = 'Nuevo Proyecto';
+  renderProjectServices();
+  openModal('projectModal');
+}
+
+function renderProjectServices() {
+  const div = document.getElementById('projectServices');
+  const selected = (document.getElementById('projectEditId').value ? 
+    (data.projects.find(p => p.id===document.getElementById('projectEditId').value)?.services||[]) : []);
+  if (!data.services.length) { div.innerHTML = '<div style="color:var(--text-light);padding:10px;">Crea servicios primero</div>'; return; }
+  div.innerHTML = data.services.map(s => `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;cursor:pointer;border-radius:4px;hover:background:#f8f9fa;">
+    <input type="checkbox" value="${s.id}" ${selected.includes(s.id)?'checked':''} onchange="calcProjectTotal()">
+    <span>${esc(s.name)} - ${cur(s.price)}</span>
+  </label>`).join('');
+}
+
+function calcProjectTotal() {
+  const checks = document.querySelectorAll('#projectServices input:checked');
+  let total = 0;
+  checks.forEach(cb => { const s = data.services.find(x => x.id===cb.value); if (s) total += s.price; });
+  const disc = parseFloat(document.getElementById('projectDiscount').value)||0;
+  document.getElementById('projectTotal').value = (total * (1 - disc/100)).toFixed(2);
+}
+
+function saveProject() {
+  const id_ = document.getElementById('projectEditId').value;
+  const name = document.getElementById('projectName').value.trim();
+  if (!name) { alert('El nombre es obligatorio'); return; }
+  const checks = document.querySelectorAll('#projectServices input:checked');
+  const services = Array.from(checks).map(cb => cb.value);
+  if (!services.length) { alert('Selecciona al menos un servicio'); return; }
+  const discount = parseFloat(document.getElementById('projectDiscount').value)||0;
+  const obj = { name, services, discount };
+  if (id_) { const p = data.projects.find(x => x.id === id_); if (p) Object.assign(p, obj); }
+  else { obj.id = id(); data.projects.push(obj); }
+  saveKey('projects'); closeModal('projectModal'); renderProjects(); syncPush();
+}
+
+function editProject(id) {
+  const p = data.projects.find(x => x.id === id); if (!p) return;
+  document.getElementById('projectEditId').value = id;
+  document.getElementById('projectName').value = p.name;
+  document.getElementById('projectDiscount').value = p.discount||0;
+  document.getElementById('projectModalTitle').textContent = 'Editar Proyecto';
+  renderProjectServices();
+  calcProjectTotal();
+  openModal('projectModal');
+}
+
+function deleteProject(id) {
+  if (!confirm('¿Eliminar este proyecto?')) return;
+  const p = data.projects.find(x => x.id === id);
+  if (p) { p._deleted = true; p._modified = Date.now(); }
+  saveKey('projects'); renderProjects(); syncPush();
+}
+
+// ============ PRODUCTS ============
+function renderProducts() {
+  const q = (document.getElementById('searchProduct').value||'').toLowerCase();
+  const tbody = document.getElementById('productsTable');
+  const list = data.products.filter(p => !p._deleted && p.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No hay productos</td></tr>'; return; }
+  tbody.innerHTML = list.map(p => {
+    const stock = p.stock||0;
+    const min = p.minStock||5;
+    const low = stock <= min;
+    return `<tr>
+      <td><strong>${esc(p.name)}</strong></td>
+      <td><strong>${cur(p.price)}</strong></td>
+      <td class="${low?'stock-low':''}">${stock}</td>
+      <td>${min}</td>
+      <td>${low ? '<span class="badge badge-danger">Stock Bajo</span>' : '<span class="badge badge-success">Ok</span>'}</td>
+      <td><div class="btn-group">
+        <button class="btn btn-primary btn-sm" onclick="editProduct('${p.id}')">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p.id}')">🗑️</button>
+      </div></td>
+    </tr>`;
+  }).join('');
+}
+
+function saveProduct() {
+  const id_ = document.getElementById('productEditId').value;
+  const name = document.getElementById('productName').value.trim();
+  const price = parseFloat(document.getElementById('productPrice').value);
+  if (!name || isNaN(price) || price<=0) { alert('Nombre y precio válido son obligatorios'); return; }
+  const obj = {
+    name, price,
+    cost: parseFloat(document.getElementById('productCost').value)||0,
+    stock: parseInt(document.getElementById('productStock').value)||0,
+    minStock: parseInt(document.getElementById('productMinStock').value)||5,
+    ivaRate: parseFloat(document.getElementById('productIva').value) || 21
+  };
+  if (id_) { const p = data.products.find(x => x.id === id_); if (p) Object.assign(p, obj); }
+  else { obj.id = id(); data.products.push(obj); }
+  saveKey('products'); clearProductForm(); closeModal('productModal'); renderProducts(); syncPush();
+}
+
+function editProduct(id) {
+  const p = data.products.find(x => x.id === id); if (!p) return;
+  document.getElementById('productEditId').value = id;
+  document.getElementById('productName').value = p.name;
+  document.getElementById('productPrice').value = p.price;
+  document.getElementById('productCost').value = p.cost||'';
+  document.getElementById('productStock').value = p.stock||0;
+  document.getElementById('productMinStock').value = p.minStock||5;
+  document.getElementById('productIva').value = p.ivaRate||21;
+  document.getElementById('productModalTitle').textContent = 'Editar Producto'; openModal('productModal');
+}
+
+function deleteProduct(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  const p = data.products.find(x => x.id === id);
+  if (p) { p._deleted = true; p._modified = Date.now(); }
+  saveKey('products'); renderProducts(); syncPush();
+}
+
+function clearProductForm() {
+  ['productEditId','productName','productPrice','productCost','productStock','productMinStock'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('productMinStock').value = '5';
+  document.getElementById('productIva').value = '21';
+  document.getElementById('productModalTitle').textContent = 'Nuevo Producto';
+}
+
+// ============ WAREHOUSE ============
+let warehouseTab = 'stock';
+function switchWarehouseTab(tab, el) {
+  warehouseTab = tab;
+  document.querySelectorAll('#warehouseContent').forEach(d => {});
+  document.querySelectorAll('#sec-warehouse .tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderWarehouse();
+}
+
+function renderWarehouse() {
+  const div = document.getElementById('warehouseContent');
+  if (warehouseTab === 'stock') {
+    if (!data.products.length) { div.innerHTML = '<div class="empty-state"><p>No hay productos</p></div>'; return; }
+    let html = '<div style="overflow-x:auto;"><table><thead><tr><th>Producto</th><th>Stock Actual</th><th>Stock Mín.</th><th>Precio Coste</th><th>Valor Inventario</th><th>Estado</th></tr></thead><tbody>';
+    data.products.sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
+      const stock = p.stock||0;
+      const low = stock <= (p.minStock||5);
+      html += `<tr><td>${esc(p.name)}</td><td class="${low?'stock-low':''}">${stock}</td><td>${p.minStock||5}</td>
+        <td>${cur(p.cost)}</td><td>${cur((p.cost||0)*stock)}</td>
+        <td>${low ? '<span class="badge badge-danger">Stock Bajo</span>' : '<span class="badge badge-success">Ok</span>'}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+    div.innerHTML = html;
+  } else if (warehouseTab === 'movements') {
+    const movs = data.movements.sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,100);
+    if (!movs.length) { div.innerHTML = '<div class="empty-state"><p>Sin movimientos</p></div>'; return; }
+    let html = '<div style="overflow-x:auto;"><table><thead><tr><th>Fecha</th><th>Producto</th><th>Tipo</th><th>Cantidad</th><th>Stock Resultante</th><th>Motivo</th></tr></thead><tbody>';
+    movs.forEach(m => {
+      const prod = data.products.find(p => p.id===m.productId);
+      const tipoMap = {in:'Entrada',out:'Salida',adjust:'Ajuste'};
+      const badgeMap = {in:'badge-success',out:'badge-danger',adjust:'badge-warning'};
+      html += `<tr><td>${new Date(m.date).toLocaleString('es-ES')}</td><td>${esc(prod?prod.name:'?')}</td>
+        <td><span class="badge ${badgeMap[m.type]||'badge-info'}">${tipoMap[m.type]||m.type}</span></td>
+        <td>${m.qty}</td><td>${m.resultStock||'-'}</td><td>${esc(m.reason||'-')}</td></tr>`;
+    });
+    html += '</tbody></table></div>';
+    div.innerHTML = html;
+  } else if (warehouseTab === 'low') {
+    const low = data.products.filter(p => (p.stock||0) <= (p.minStock||5)).sort((a,b) => a.name.localeCompare(b.name));
+    if (!low.length) { div.innerHTML = '<div class="alert alert-success">✅ Todos los productos tienen stock suficiente</div>'; return; }
+    let html = '<div class="alert alert-danger">⚠️ Productos con stock bajo</div><table><thead><tr><th>Producto</th><th>Stock Actual</th><th>Stock Mínimo</th><th>Diferencia</th></tr></thead><tbody>';
+    low.forEach(p => {
+      const diff = (p.minStock||5) - (p.stock||0);
+      html += `<tr><td>${esc(p.name)}</td><td class="stock-low">${p.stock||0}</td><td>${p.minStock||5}</td><td class="stock-low">Faltan ${diff}</td></tr>`;
+    });
+  html += '</tbody></table>';
+  html += `<div style="margin-top:15px;text-align:center;"><button class="btn btn-primary" onclick="showInvoice('${s.id}')">📄 Factura</button></div>`;
+    div.innerHTML = html;
+  }
+}
+
+function openWarehouseMovement() {
+  if (!data.products.length) { alert('Primero crea productos'); return; }
+  const sel = document.getElementById('whProduct');
+  sel.innerHTML = data.products.map(p => `<option value="${p.id}">${esc(p.name)} (Stock: ${p.stock||0})</option>`).join('');
+  document.getElementById('whType').value = 'in';
+  document.getElementById('whQty').value = '1';
+  document.getElementById('whReason').value = '';
+  openModal('warehouseModal');
+}
+
+function saveWarehouseMovement() {
+  const productId = document.getElementById('whProduct').value;
+  const type = document.getElementById('whType').value;
+  const qty = parseInt(document.getElementById('whQty').value);
+  const reason = document.getElementById('whReason').value.trim();
+  if (!productId || !qty || qty<1) { alert('Selecciona producto y cantidad válida'); return; }
+  const prod = data.products.find(p => p.id === productId);
+  if (!prod) return;
+  let newStock = prod.stock||0;
+  if (type === 'in') newStock += qty;
+  else if (type === 'out') { if (newStock < qty) { alert('Stock insuficiente'); return; } newStock -= qty; }
+  else { newStock = qty; }
+  const mov = { id: id(), productId, type, qty, resultStock: newStock, reason: reason||(type==='in'?'Entrada manual':type==='out'?'Salida manual':'Ajuste manual'), date: new Date().toISOString() };
+  data.movements.push(mov);
+  prod.stock = newStock;
+  saveKey('products'); saveKey('movements'); closeModal('warehouseModal'); renderWarehouse(); renderProducts();
+}
+
+// ============ AGENDA ============
+let agendaDate = new Date();
+
+function renderAgenda() {
+  const grid = document.getElementById('agendaGrid');
+  const year = agendaDate.getFullYear();
+  const month = agendaDate.getMonth();
+  document.getElementById('agendaMonthYear').textContent = new Date(year, month).toLocaleDateString('es-ES',{month:'long',year:'numeric'});
+  
+  const firstDay = new Date(year, month, 1).getDay();
+  const firstDayMon = (firstDay + 6) % 7;
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const prevMonthDays = new Date(year, month, 0).getDate();
+  const today = new Date();
+  
+  const dayNames = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+  let html = dayNames.map(d => `<div class="agenda-day-header">${d}</div>`).join('');
+  
+  // Previous month days
+  for (let i = firstDayMon - 1; i >= 0; i--) {
+    html += `<div class="agenda-day other-month"><div class="day-num">${prevMonthDays - i}</div></div>`;
+  }
+  
+  for (let d = 1; d <= daysInMonth; d++) {
+    const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
+    const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted);
+    html += `<div class="agenda-day ${isToday?'today':''}" onclick="showDayAppts('${dateStr}')">
+      <div class="day-num">${d}</div>
+      ${appts.slice(0,3).map(a => {
+        const client = data.clients.find(c => c.id === a.clientId);
+        const employee = data.employees.find(e => e.id === a.employeeId);
+        return `<div class="appt">${esc(a.time||'')} ${esc(client?client.name:'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(employee.name)})</span>`:''}</div>`;
+      }).join('')}
+      ${appts.length>3?`<div style="font-size:9px;color:var(--primary);">+${appts.length-3} más</div>`:''}
+    </div>`;
+  }
+  
+  // Next month days to fill grid
+  const totalCells = firstDayMon + daysInMonth;
+  const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+  for (let i = 1; i <= remaining; i++) {
+    html += `<div class="agenda-day other-month"><div class="day-num">${i}</div></div>`;
+  }
+  
+  grid.innerHTML = html;
+  // Show today's appointments
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  showDayAppts(todayStr);
+}
+
+function changeMonth(delta) {
+  agendaDate.setMonth(agendaDate.getMonth() + delta);
+  renderAgenda();
+}
+
+function goToday() {
+  agendaDate = new Date();
+  renderAgenda();
+}
+
+function showDayAppts(dateStr) {
+  const div = document.getElementById('dayAppointments');
+  const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted).sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  const d = new Date(dateStr);
+  const title = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
+  if (!appts.length) {
+    div.innerHTML = `<div class="empty-state"><p>${title}</p><p style="margin-top:10px;font-size:13px;">Sin citas programadas</p>
+      <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="quickAppt('${dateStr}')">+ Agendar cita</button></div>`;
+    return;
+  }
+
+  const employees = data.employees.sort((a,b) => a.name.localeCompare(b.name));
+  const unassigned = appts.filter(a => !a.employeeId);
+  const byEmployee = {};
+  employees.forEach(e => { byEmployee[e.id] = appts.filter(a => a.employeeId === e.id); });
+
+  let cols = employees.filter(e => byEmployee[e.id].length > 0);
+  if (unassigned.length > 0) cols = [...cols, null];
+
+  if (!cols.length) {
+    div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${title} — ${appts.length} cita(s)</p>` +
+      appts.map(a => {
+        const client = data.clients.find(c => c.id === a.clientId);
+        const service = data.services.find(s => s.id === a.serviceId);
+        const employee = data.employees.find(e => e.id === a.employeeId);
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;">
+          <div><strong>${esc(a.time||'')}</strong> — ${esc(client?client.name:'?')} ${service?`<span style="color:var(--text-light)">(${esc(service.name)})</span>`:''}
+          ${employee?`<br><small style="color:var(--text-light)">👤 ${esc(employee.name)}</small>`:''}
+          ${a.notes?`<br><small style="color:var(--text-light)">${esc(a.notes)}</small>`:''}</div>
+          <div class="btn-group">
+            <button class="btn btn-primary btn-sm" onclick="editAppt('${a.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteAppt('${a.id}')">🗑️</button>
+          </div>
+        </div>`;
+      }).join('') +
+      `<button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="quickAppt('${dateStr}')">+ Agendar cita</button>`;
+    return;
+  }
+
+  const colWidth = Math.floor(12 / cols.length);
+  let html = `<p style="margin-bottom:10px;font-weight:500;">${title} — ${appts.length} cita(s)</p>`;
+  html += `<div style="display:grid;grid-template-columns:repeat(${cols.length},1fr);gap:10px;">`;
+  cols.forEach(e => {
+    const name = e ? esc(e.name) : 'Sin asignar';
+    const list = e ? byEmployee[e.id] : unassigned;
+    html += `<div style="background:var(--bg);border-radius:8px;padding:10px;">
+      <div style="font-weight:600;font-size:13px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--primary);color:var(--primary);">${name}</div>
+      ${list.map(a => {
+        const client = data.clients.find(c => c.id === a.clientId);
+        const service = data.services.find(s => s.id === a.serviceId);
+        return `<div style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px;">
+          <div style="font-weight:600;font-size:12px;">${esc(a.time||'')}</div>
+          <div style="font-size:12px;">${esc(client?client.name:'?')}</div>
+          ${service?`<div style="font-size:11px;color:var(--text-light);">${esc(service.name)}</div>`:''}
+          ${a.notes?`<div style="font-size:11px;color:var(--text-light);margin-top:2px;">${esc(a.notes)}</div>`:''}
+          <div style="margin-top:4px;display:flex;gap:4px;"><button class="btn btn-primary btn-sm" style="padding:2px 6px;font-size:10px;" onclick="editAppt('${a.id}')">✏️</button><button class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:10px;" onclick="deleteAppt('${a.id}')">🗑️</button></div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  });
+  html += `</div>`;
+  html += `<button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="quickAppt('${dateStr}')">+ Agendar cita</button>`;
+  div.innerHTML = html;
+}
+
+function editAppt(id) {
+  const a = data.appointments.find(x => x.id === id);
+  if (!a) return;
+  document.getElementById('apptEditId').value = id;
+  document.getElementById('apptDate').value = a.date;
+  document.getElementById('apptTime').value = a.time||'';
+  document.getElementById('apptEmployee').value = a.employeeId||'';
+  document.getElementById('apptNotes').value = a.notes||'';
+  document.getElementById('appointmentModalTitle').textContent = 'Editar Cita';
+  fillAppointmentSelects();
+  document.getElementById('apptClient').value = a.clientId;
+  document.getElementById('apptService').value = a.serviceId||'';
+  openModal('appointmentModal');
+}
+
+function quickAppt(dateStr) {
+  document.getElementById('apptEditId').value = '';
+  document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
+  document.getElementById('apptTime').value = '10:00';
+  document.getElementById('apptTime').value = '10:00';
+  document.getElementById('apptEmployee').value = '';
+  document.getElementById('apptNotes').value = '';
+  document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
+  fillAppointmentSelects();
+  openModal('appointmentModal');
+}
+
+function fillAppointmentSelects() {
+  const clientSel = document.getElementById('apptClient');
+  clientSel.innerHTML = '<option value="">Seleccionar cliente...</option>' + 
+    data.clients.filter(c => !c._deleted).sort((a,b) => a.name.localeCompare(b.name))
+      .map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  const svcSel = document.getElementById('apptService');
+  svcSel.innerHTML = '<option value="">Sin servicio</option>' + 
+    data.services.filter(s => !s._deleted).map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  const empSel = document.getElementById('apptEmployee');
+  empSel.innerHTML = '<option value="">Sin asignar</option>' + 
+    data.employees.filter(e => !e._deleted).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
+}
+
+function saveAppointment() {
+  const id_ = document.getElementById('apptEditId').value;
+  const clientId = document.getElementById('apptClient').value;
+  const date = document.getElementById('apptDate').value;
+  const time = document.getElementById('apptTime').value;
+  if (!clientId || !date) { alert('Cliente y fecha son obligatorios'); return; }
+  const obj = {
+    clientId, serviceId: document.getElementById('apptService').value||'',
+    employeeId: document.getElementById('apptEmployee').value||'',
+    date, time, notes: document.getElementById('apptNotes').value.trim(),
+    status: 'pending',
+    _modified: Date.now(),
+    _deleted: false
+  };
+  if (id_) { const a = data.appointments.find(x => x.id === id_); if (a) Object.assign(a, obj); }
+  else { obj.id = id(); data.appointments.push(obj); }
+  saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
+}
+
+function deleteAppt(id) {
+  if (!confirm('¿Cancelar esta cita?')) return;
+  const a = data.appointments.find(x => x.id === id);
+  if (a) { a._deleted = true; a._modified = Date.now(); }
+  saveKey('appointments'); renderAgenda(); syncPush();
+}
+
+function exportToIcs() {
+  const appts = data.appointments.sort((a,b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+  if (!appts.length) { alert('No hay citas para exportar'); return; }
+  const s = data.settings;
+  const location = [s.businessAddress, s.businessCity, s.businessProvince].filter(Boolean).join(', ');
+  let ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//TPV Peluqueria//ES','CALSCALE:GREGORIAN','METHOD:PUBLISH'];
+  appts.forEach(a => {
+    const client = data.clients.find(c => c.id === a.clientId);
+    const service = data.services.find(s => s.id === a.serviceId);
+    const employee = data.employees.find(e => e.id === a.employeeId);
+    const startDate = a.date.replace(/-/g, '');
+    const startTime = (a.time||'10:00').replace(':','');
+    const dtStart = startDate + 'T' + startTime + '00';
+    const durationMin = service ? (service.duration||60) : 60;
+    const start = new Date(a.date + 'T' + (a.time||'10:00'));
+    const end = new Date(start.getTime() + durationMin*60000);
+    const dtEnd = end.getFullYear() + String(end.getMonth()+1).padStart(2,'0') + String(end.getDate()).padStart(2,'0') +
+      'T' + String(end.getHours()).padStart(2,'0') + String(end.getMinutes()).padStart(2,'0') + '00';
+    const summary = (client?client.name:'Cliente') + (service?' - '+service.name:'');
+    let desc = a.notes||'';
+    if (employee) desc += (desc?'\\n':'') + 'Empleado: ' + employee.name;
+    ics.push('BEGIN:VEVENT');
+    ics.push('UID:' + a.id + '@tpv');
+    ics.push('DTSTART:' + dtStart);
+    ics.push('DTEND:' + dtEnd);
+    ics.push('SUMMARY:' + summary);
+    if (desc) ics.push('DESCRIPTION:' + desc);
+    if (location) ics.push('LOCATION:' + location);
+    ics.push('END:VEVENT');
+  });
+  ics.push('END:VCALENDAR');
+  const content = ics.join('\r\n');
+  const blob = new Blob([content], {type:'text/calendar;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = 'agenda_tpv.ics';
+  document.body.appendChild(link); link.click(); document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+// ============ POS (PUNTO DE VENTA) ============
+let ticket = { items: [], clientId: '', paymentMethod: 'cash' };
+let editingSaleId = null;
+let originalSaleForRectify = null;
+
+function renderPosItems(filter) {
+  const div = document.getElementById('posItems');
+  const q = (document.getElementById('posSearch').value||'').toLowerCase();
+  let items = [];
+  
+  data.services.forEach(s => items.push({type:'service', id:s.id, name:s.name, price:s.price, extra: s.duration+' min', ref:s}));
+  data.products.forEach(p => items.push({type:'product', id:p.id, name:p.name, price:p.price, extra: 'Stock: '+(p.stock||0), ref:p}));
+  data.projects.forEach(p => {
+    const total = (p.services||[]).reduce((sum, sid) => { const s = data.services.find(x => x.id===sid); return sum + (s? s.price:0) },0);
+    const final = total * (1 - (p.discount||0)/100);
+    items.push({type:'project', id:p.id, name:p.name, price:final, extra: (p.discount||0)>0?p.discount+'% desc.':'Paquete', ref:p});
+  });
+  
+  if (filter && filter !== 'all') items = items.filter(i => i.type === filter || (filter==='services'&&i.type==='service')||(filter==='products'&&i.type==='product')||(filter==='projects'&&i.type==='project'));
+  if (q) items = items.filter(i => i.name.toLowerCase().includes(q));
+  if (!filter) items = items.filter(i => i.type === 'service');
+  
+  if (!items.length) { div.innerHTML = '<div class="empty-state" style="grid-column:span 2;"><p>Sin resultados</p></div>'; return; }
+  
+  div.innerHTML = items.map(i => {
+    return `<div class="pos-item" onclick="addToTicket('${i.type}','${i.id}','${escAttr(i.name)}',${i.price})">
+      <div class="item-name">${esc(i.name)}</div>
+      <div class="item-price">${cur(i.price)}</div>
+      <div class="item-stock">${esc(i.extra)}</div>
+    </div>`;
+  }).join('');
+}
+
+function filterPosItems(filter) {
+  document.querySelectorAll('#posTabs .btn').forEach(b => b.className = 'btn btn-secondary');
+  if (!filter) filter = 'all';
+  const map = {all:0, services:0, products:1, projects:2};
+  const btns = document.querySelectorAll('#posTabs .btn');
+  if (btns[map[filter]||0]) btns[map[filter]||0].className = 'btn btn-primary';
+  renderPosItems(filter);
+}
+
+function addToTicket(type, id, name, price) {
+  if (type === 'product') {
+    const prod = data.products.find(p => p.id === id);
+    if (prod && prod.stock === 0) { alert('⚠️ Stock 0 - Producto sin existencias'); }
+  }
+  const existing = ticket.items.find(i => i.type === type && i.id === id);
+  if (existing) { existing.qty++; }
+  else { ticket.items.push({type, id, name, price, qty: 1}); }
+  updateTicket();
+}
+
+function updateTicket() {
+  document.getElementById('ticketDate').textContent = new Date().toLocaleString('es-ES');
+  document.getElementById('posTicketHeader').textContent = data.settings.businessName || 'TPV Peluquería';
+  const editBadge = document.getElementById('editBadge');
+  if (editingSaleId && originalSaleForRectify) {
+    editBadge.style.display = 'block';
+    const label = originalSaleForRectify.isRectifying
+      ? 'Editando rectificativo #' + originalSaleForRectify.number + ' (base: #' + originalSaleForRectify.originalNumber + ')'
+      : '#' + originalSaleForRectify.number + ' → ticket rectificativo';
+    document.getElementById('editBadgeNum').textContent = label;
+  } else {
+    editBadge.style.display = 'none';
+  }
+  const div = document.getElementById('ticketItems');
+  if (!ticket.items.length) {
+    div.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);font-size:13px;">Ticket vacío<br>Añade servicios o productos</div>';
+  } else {
+    div.innerHTML = ticket.items.map((item, idx) => {
+      const removed = item._removed;
+      const displayQty = removed ? -item.qty : item.qty;
+      const displayTotal = removed ? -(item.price * item.qty) : item.price * item.qty;
+      return `<div class="ticket-item" style="${removed?'opacity:.7;text-decoration:line-through;color:var(--danger);':''}">
+      <span class="qty">${displayQty}x</span>
+      <span class="name">${esc(item.name)}</span>
+      <span class="price">${cur(displayTotal)}</span>
+      <button class="remove-item" onclick="removeTicketItem(${idx})">${removed ? '↩' : '×'}</button>
+    </div>`;
+    }).join('');
+  }
+  
+  const subtotal = ticket.items.reduce((sum, i) => sum + i.price * i.qty * (i._removed ? -1 : 1), 0);
+  const iva = ivaAmount(subtotal);
+  const base = basePrice(subtotal);
+  document.getElementById('ticketSubtotal').textContent = cur(subtotal);
+  document.getElementById('ticketBase').textContent = cur(base);
+  document.getElementById('ticketIva').textContent = cur(iva);
+  document.getElementById('ticketIvaLabel').textContent = getIvaRate();
+  document.getElementById('ticketTotal').textContent = cur(subtotal);
+  
+  setPayment(ticket.paymentMethod || 'cash');
+  
+  // Update client select
+  const sel = document.getElementById('ticketClientSelect');
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Mostrador</option>' +
+    data.clients.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  sel.value = ticket.clientId || '';
+  updateTicketClient();
+}
+
+function updateTicketClient() {
+  const sel = document.getElementById('ticketClientSelect');
+  ticket.clientId = sel.value;
+  const client = data.clients.find(c => c.id === sel.value);
+  document.getElementById('ticketClient').textContent = client ? client.name : 'Mostrador';
+  const invoiceDiv = document.getElementById('ticketClientInvoice');
+  if (client) {
+    let info = '';
+    if (client.nif) info += `<strong>NIF:</strong> ${esc(client.nif)}<br>`;
+    if (client.address) info += `${esc(client.address)}<br>`;
+    if (client.city || client.province) info += `${esc(client.city||'')} ${esc(client.province||'')} ${esc(client.zip||'')}`.trim();
+    if (info) { invoiceDiv.innerHTML = info; invoiceDiv.style.display = 'block'; }
+    else { invoiceDiv.style.display = 'none'; }
+  } else {
+    invoiceDiv.style.display = 'none';
+  }
+}
+
+function setPayment(method) {
+  ticket.paymentMethod = method;
+  document.getElementById('payCash').style.borderColor = method === 'cash' ? 'var(--primary)' : 'var(--border)';
+  document.getElementById('payCash').style.background = method === 'cash' ? '#f4ecf7' : 'var(--card)';
+  document.getElementById('payCard').style.borderColor = method === 'card' ? 'var(--primary)' : 'var(--border)';
+  document.getElementById('payCard').style.background = method === 'card' ? '#f4ecf7' : 'var(--card)';
+}
+
+function removeTicketItem(idx) {
+  if (editingSaleId && originalSaleForRectify) {
+    const item = ticket.items[idx];
+    if (item._removed) {
+      item._removed = false;
+    } else {
+      item._removed = true;
+    }
+  } else {
+    ticket.items.splice(idx, 1);
+  }
+  updateTicket();
+}
+
+function cancelEditTicket() {
+  editingSaleId = null;
+  originalSaleForRectify = null;
+  clearTicket();
+  document.querySelector('.nav-item[data-section="reports"]')?.click();
+}
+
+function clearTicket() {
+  ticket.items = [];
+  ticket.clientId = '';
+  setPayment('cash');
+  editingSaleId = null;
+  originalSaleForRectify = null;
+  updateTicket();
+}
+
+function editTicket(id) {
+  const sale = data.sales.find(s => s.id === id);
+  if (!sale || sale.invoiceNumber) return;
+  editingSaleId = id;
+  originalSaleForRectify = JSON.parse(JSON.stringify(sale));
+  // If rectifying, reconstruct combined state (original + rectifying) for editing
+  if (sale.isRectifying) {
+    const origSale = data.sales.find(s => s.id === sale.rectifiesSaleId);
+    if (origSale) {
+      const combined = JSON.parse(JSON.stringify(origSale.items));
+      sale.items.forEach(ri => {
+        const existing = combined.find(i => i.type === ri.type && i.id === ri.id);
+        if (existing) {
+          existing.qty += ri.qty;
+        } else if (ri.qty > 0) {
+          combined.push({ type: ri.type, id: ri.id, name: ri.name, price: ri.price, qty: ri.qty });
+        }
+      });
+      ticket.items = combined.filter(i => i.qty > 0);
+    } else {
+      ticket.items = JSON.parse(JSON.stringify(sale.items));
+    }
+  } else {
+    ticket.items = JSON.parse(JSON.stringify(sale.items));
+  }
+  ticket.clientId = sale.clientId || '';
+  ticket.paymentMethod = sale.paymentMethod || 'cash';
+  document.querySelector('.nav-item[data-section="pos"]')?.click();
+  updateTicket();
+}
+
+function deleteTicket(id) {
+  const sale = data.sales.find(s => s.id === id);
+  if (!sale || sale.invoiceNumber) return;
+  if (!confirm('¿Eliminar este ticket definitivamente?')) return;
+  data.sales = data.sales.filter(s => s.id !== id);
+  saveKey('sales');
+  renderReports();
+  renderDashboard();
+}
+
+function completeSale() {
+  if (!ticket.items.length) { alert('El ticket está vacío'); return; }
+  
+  const total = ticket.items.reduce((sum, i) => sum + i.price * i.qty, 0);
+  const iva = ivaAmount(total);
+  const base = basePrice(total);
+  
+  if (editingSaleId && originalSaleForRectify) {
+    const existing = data.sales.find(s => s.id === editingSaleId);
+    if (existing) {
+      // Editing a rectifying ticket: compute new diff against the original sale
+      if (originalSaleForRectify.isRectifying) {
+        const origSale = data.sales.find(s => s.id === originalSaleForRectify.rectifiesSaleId);
+        if (!origSale) { alert('Error: no se encuentra el ticket original'); return; }
+        // Build effective qty map from current POS display
+        const newEffMap = {};
+        ticket.items.forEach(i => {
+          const k = i.type+'_'+i.id;
+          newEffMap[k] = (newEffMap[k]||0) + (i._removed ? 0 : i.qty);
+        });
+        // Build original qty map
+        const origMap = {};
+        origSale.items.forEach(i => { const k = i.type+'_'+i.id; origMap[k] = (origMap[k]||0) + i.qty; });
+        // Compute new diff
+        const allKeys = new Set([...Object.keys(origMap), ...Object.keys(newEffMap)]);
+        const newDiffItems = [];
+        allKeys.forEach(k => {
+          const origQty = origMap[k]||0;
+          const newQty = newEffMap[k]||0;
+          const diffQty = newQty - origQty;
+          if (diffQty === 0) return;
+          const [type, id] = [k.substring(0, k.indexOf('_')), k.substring(k.indexOf('_')+1)];
+          let item = origSale.items.find(i => i.type === type && i.id === id);
+          if (!item) item = ticket.items.find(i => i.type === type && i.id === id);
+          if (item) newDiffItems.push({ type, id, name: item.name, price: item.price, qty: diffQty });
+        });
+        if (!newDiffItems.length) { alert('No hay cambios respecto al ticket original'); return; }
+        const newTotal = newDiffItems.reduce((sum, i) => sum + i.price * i.qty, 0);
+        const newIva = ivaAmount(Math.abs(newTotal)) * (newTotal < 0 ? -1 : 1);
+        const newBase = basePrice(Math.abs(newTotal)) * (newTotal < 0 ? -1 : 1);
+        // Reverse old rectifying stock adjustments, apply new ones
+        originalSaleForRectify.items.filter(i => i.type === 'product').forEach(i => {
+          const prod = data.products.find(p => p.id === i.id);
+          if (prod) prod.stock = Math.max(0, (prod.stock||0) + i.qty);
+        });
+        newDiffItems.filter(i => i.type === 'product').forEach(i => {
+          const prod = data.products.find(p => p.id === i.id);
+          if (prod) prod.stock = Math.max(0, (prod.stock||0) - i.qty);
+        });
+        existing.items = newDiffItems;
+        existing.total = newTotal;
+        existing.base = newBase;
+        existing.iva = newIva;
+        existing.date = new Date().toISOString();
+        saveKey('sales');
+        saveKey('products');
+        editingSaleId = null;
+        originalSaleForRectify = null;
+        clearTicket();
+        renderPosItems();
+        renderDashboard();
+        showRectifyingReceipt(existing, newBase, newIva);
+        return;
+      }
+      // Compute diff items between original and new
+      const originalItems = originalSaleForRectify.items;
+      const newItems = ticket.items;
+      const origMap = {};
+      originalItems.forEach(i => { const k = i.type+'_'+i.id; origMap[k] = (origMap[k]||0) + i.qty; });
+      const newMap = {};
+      newItems.forEach(i => { const k = i.type+'_'+i.id; newMap[k] = (newMap[k]||0) + (i._removed ? 0 : i.qty); });
+      
+      const allKeys = new Set([...Object.keys(origMap), ...Object.keys(newMap)]);
+      const diffItems = [];
+      allKeys.forEach(k => {
+        const origQty = origMap[k]||0;
+        const newQty = newMap[k]||0;
+        const diffQty = newQty - origQty;
+        if (diffQty === 0) return;
+        const [type, id] = [k.substring(0, k.indexOf('_')), k.substring(k.indexOf('_')+1)];
+        // Find name and price from whichever source has it
+        let item = originalItems.find(i => i.type === type && i.id === id);
+        if (!item) item = newItems.find(i => i.type === type && i.id === id);
+        if (item) diffItems.push({ type, id, name: item.name, price: item.price, qty: diffQty });
+      });
+      
+      if (!diffItems.length) { alert('No hay cambios respecto al ticket original'); return; }
+      
+      const diffTotal = diffItems.reduce((sum, i) => sum + i.price * i.qty, 0);
+      const diffIva = ivaAmount(Math.abs(diffTotal)) * (diffTotal < 0 ? -1 : 1);
+      const diffBase = basePrice(Math.abs(diffTotal)) * (diffTotal < 0 ? -1 : 1);
+      
+      // Adjust product stock based on diff
+      diffItems.filter(i => i.type === 'product').forEach(i => {
+        const prod = data.products.find(p => p.id === i.id);
+        if (prod) prod.stock = Math.max(0, (prod.stock||0) - i.qty);
+      });
+      
+      const refNumber = existing.number + 'REF';
+      const rectifyingSale = {
+        id: id(),
+        number: refNumber,
+        items: diffItems,
+        total: diffTotal,
+        base: diffBase,
+        iva: diffIva,
+        ivaRate: getIvaRate(),
+        clientId: ticket.clientId || '',
+        date: new Date().toISOString(),
+        paymentMethod: ticket.paymentMethod || 'cash',
+        isRectifying: true,
+        rectifiesSaleId: existing.id,
+        originalNumber: existing.number
+      };
+      data.sales.push(rectifyingSale);
+      saveKey('sales');
+      saveKey('products');
+      // Update client total spent with the diff
+      if (ticket.clientId && diffTotal !== 0) {
+        const client = data.clients.find(c => c.id === ticket.clientId);
+        if (client) {
+          client.totalSpent = (client.totalSpent||0) + diffTotal;
+          saveKey('clients');
+        }
+      }
+      editingSaleId = null;
+      originalSaleForRectify = null;
+      clearTicket();
+      renderPosItems();
+      renderDashboard();
+      showRectifyingReceipt(rectifyingSale, diffBase, diffIva);
+      return;
+    }
+    editingSaleId = null;
+    originalSaleForRectify = null;
+  }
+  
+  const sale = {
+    id: id(),
+    number: (data.sales.length + 1),
+    items: JSON.parse(JSON.stringify(ticket.items)),
+    total,
+    base,
+    iva,
+    ivaRate: getIvaRate(),
+    clientId: ticket.clientId || '',
+    date: new Date().toISOString(),
+    paymentMethod: ticket.paymentMethod || 'cash'
+  };
+  data.sales.push(sale);
+  
+  // Update client stats
+  if (ticket.clientId) {
+    const client = data.clients.find(c => c.id === ticket.clientId);
+    if (client) {
+      client.visits = (client.visits||0) + 1;
+      client.totalSpent = (client.totalSpent||0) + total;
+      saveKey('clients');
+    }
+  }
+  
+  // Deduct product stock
+  ticket.items.filter(i => i.type === 'product').forEach(i => {
+    const prod = data.products.find(p => p.id === i.id);
+    if (prod) {
+      prod.stock = Math.max(0, (prod.stock||0) - i.qty);
+      const mov = {id:id(), productId:i.id, type:'out', qty:i.qty, resultStock:prod.stock,
+        reason:'Venta ticket '+sale.id, date:new Date().toISOString()};
+      data.movements.push(mov);
+    }
+  });
+  
+  saveKey('sales'); saveKey('products'); saveKey('movements');
+  
+  // Show receipt or invoice
+  if (sale.clientId) {
+    showInvoice(sale.id);
+  } else {
+    showReceipt(sale, base, iva);
+  }
+  
+  clearTicket();
+  renderPosItems();
+  renderDashboard();
+}
+
+function showReceipt(sale, base, iva) {
+  const client = data.clients.find(c => c.id === sale.clientId);
+  const bs = data.settings;
+  const itemsHtml = sale.items.map(i => `
+    <tr>
+      <td style="padding:4px 0;font-size:12px;">${i.qty}x ${esc(i.name)}</td>
+      <td style="padding:4px 0;font-size:12px;text-align:right;white-space:nowrap;">${cur(i.price*i.qty)}</td>
+    </tr>`).join('');
+  
+  const html = `
+    <div style="text-align:center;margin-bottom:12px;">
+      <div style="font-size:14px;font-weight:700;color:var(--primary);">${esc(bs.businessName||'TPV PELUQUERÍA')}</div>
+      ${bs.businessNif ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessNif)}</div>` : ''}
+      ${bs.businessAddress ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessAddress)}</div>` : ''}
+      ${(bs.businessCity||bs.businessProvince) ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessCity||'')} ${esc(bs.businessProvince||'')}</div>` : ''}
+      ${bs.businessPhone ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessPhone)}</div>` : ''}
+    </div>
+    <div style="border-top:2px dashed var(--primary);border-bottom:2px dashed var(--primary);padding:8px 0;margin-bottom:10px;text-align:center;">
+      <div style="font-size:11px;font-weight:600;color:var(--primary);">TICKET #${sale.number||''}</div>
+      <div style="font-size:11px;color:var(--text-light);">${new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})} ${new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;">
+      ${itemsHtml}
+    </table>
+    <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-light);"><span>Base</span><span>${cur(base)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-light);"><span>IVA (${getIvaRate()}%)</span><span>${cur(iva)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:var(--primary);margin-top:4px;padding-top:4px;border-top:2px solid var(--primary);"><span>TOTAL</span><span>${cur(sale.total)}</span></div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px;font-size:11px;color:var(--text-light);">
+      <div>Cliente: ${esc(client?client.name:'Mostrador')}</div>
+      ${client && client.nif ? `<div>NIF: ${esc(client.nif)}</div>` : ''}
+      <div>Pago: ${sale.paymentMethod==='card' ? 'Tarjeta' : 'Contado'}</div>
+    </div>
+    <div style="text-align:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text-light);font-style:italic;">${esc(bs.ticketFooter||'¡Gracias por su visita!')}</div>`;
+  
+  document.getElementById('receiptContent').innerHTML = html;
+  openModal('receiptModal');
+}
+
+function showRectifyingReceipt(sale, base, iva) {
+  const client = data.clients.find(c => c.id === sale.clientId);
+  const bs = data.settings;
+  const isNegative = sale.total < 0;
+  const itemsHtml = sale.items.map(i => {
+    const isNeg = i.qty < 0;
+    return `<tr>
+      <td style="padding:4px 0;font-size:12px;${isNeg?'color:var(--danger);':''}">${isNeg?'− ':'+ '}${Math.abs(i.qty)}x ${esc(i.name)}</td>
+      <td style="padding:4px 0;font-size:12px;text-align:right;white-space:nowrap;${isNeg?'color:var(--danger);':''}">${cur(i.price*i.qty)}</td>
+    </tr>`;
+  }).join('');
+
+  const html = `
+    <div style="text-align:center;margin-bottom:12px;">
+      <div style="font-size:14px;font-weight:700;color:var(--primary);">${esc(bs.businessName||'TPV PELUQUERÍA')}</div>
+      ${bs.businessNif ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessNif)}</div>` : ''}
+      ${bs.businessAddress ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessAddress)}</div>` : ''}
+      ${(bs.businessCity||bs.businessProvince) ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessCity||'')} ${esc(bs.businessProvince||'')}</div>` : ''}
+      ${bs.businessPhone ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessPhone)}</div>` : ''}
+    </div>
+    <div style="border-top:2px dashed var(--primary);border-bottom:2px dashed var(--primary);padding:8px 0;margin-bottom:10px;text-align:center;">
+      <div style="font-size:11px;font-weight:600;color:var(--primary);">TICKET RECTIFICATIVO #${sale.number||''}</div>
+      <div style="font-size:10px;color:var(--text-light);">Rectifica al ticket #${sale.originalNumber||''}</div>
+      <div style="font-size:11px;color:var(--text-light);">${new Date().toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})} ${new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+    </div>
+    <div style="font-size:11px;font-weight:600;margin-bottom:6px;padding:4px 0;border-bottom:1px solid var(--border);">Diferencias:</div>
+    <table style="width:100%;border-collapse:collapse;">
+      ${itemsHtml}
+    </table>
+    <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-light);"><span>Base</span><span>${cur(base)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-light);"><span>IVA (${getIvaRate()}%)</span><span>${cur(iva)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;${isNegative?'color:var(--danger);':'color:var(--primary);'}margin-top:4px;padding-top:4px;border-top:2px solid ${isNegative?'var(--danger)':'var(--primary)'};"><span>${isNegative?'A DEVOLVER':'TOTAL'}</span><span>${cur(Math.abs(sale.total))}</span></div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px;font-size:11px;color:var(--text-light);">
+      <div>Cliente: ${esc(client?client.name:'Mostrador')}</div>
+      ${client && client.nif ? `<div>NIF: ${esc(client.nif)}</div>` : ''}
+      <div>Pago: ${sale.paymentMethod==='card' ? 'Tarjeta' : 'Contado'}</div>
+    </div>
+    <div style="text-align:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text-light);font-style:italic;">${esc(bs.ticketFooter||'¡Gracias por su visita!')}</div>`;
+
+  document.getElementById('receiptContent').innerHTML = html;
+  openModal('receiptModal');
+}
+
+function printReceipt() {
+  const content = document.getElementById('receiptContent').innerHTML;
+  const printWin = window.open('', '', 'width=350,height=600');
+  printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Ticket</title>
+    <style>
+      @page { margin: 0; size: 80mm auto; }
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; padding: 15px; color: #2c3e50; width: 80mm; }
+      table { width: 100%; border-collapse: collapse; }
+      @media print { body { padding: 10px; } }
+    </style></head><body>${content}</body></html>`);
+  printWin.document.close();
+  printWin.focus();
+  setTimeout(() => { printWin.print(); }, 300);
+}
+
+function showInvoice(saleId) {
+  const sale = data.sales.find(x => x.id === saleId);
+  if (!sale) return;
+  const client = data.clients.find(c => c.id === sale.clientId);
+  const bs = data.settings;
+  if (!sale.invoiceNumber) {
+    sale.invoiceNumber = data.invoiceCounter++;
+    saveKey('sales'); saveKey('invoiceCounter');
+  }
+  const invNum = (bs.invoicePrefix||'FACT-') + String(sale.invoiceNumber).padStart(4,'0');
+  const itemsHtml = sale.items.map(i => `
+    <tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:13px;">${i.qty}x ${esc(i.name)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:13px;text-align:right;white-space:nowrap;">${cur(i.price)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:13px;text-align:right;white-space:nowrap;">${cur(i.price*i.qty)}</td>
+    </tr>`).join('');
+
+  const html = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;padding-bottom:15px;border-bottom:3px solid var(--primary);">
+      <div>
+        <div style="font-size:16px;font-weight:700;color:var(--primary);">${esc(bs.businessName||'TPV PELUQUERÍA')}</div>
+        ${bs.businessNif ? `<div style="font-size:12px;color:#555;">NIF: ${esc(bs.businessNif)}</div>` : ''}
+        ${bs.businessAddress ? `<div style="font-size:12px;color:#555;">${esc(bs.businessAddress)}</div>` : ''}
+        ${(bs.businessCity||bs.businessProvince) ? `<div style="font-size:12px;color:#555;">${esc(bs.businessCity||'')} ${esc(bs.businessProvince||'')} ${esc(bs.businessZip||'')}</div>` : ''}
+        ${bs.businessPhone ? `<div style="font-size:12px;color:#555;">Tel: ${esc(bs.businessPhone)}</div>` : ''}
+        ${bs.businessEmail ? `<div style="font-size:12px;color:#555;">${esc(bs.businessEmail)}</div>` : ''}
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:18px;font-weight:700;color:var(--primary);">FACTURA</div>
+        <div style="font-size:14px;font-weight:600;color:#555;">${esc(invNum)}</div>
+        <div style="font-size:12px;color:#555;">${new Date(sale.date).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})}</div>
+      </div>
+    </div>
+    <div style="margin-bottom:20px;padding:12px;background:#f8f9fa;border-radius:8px;">
+      <div style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:4px;">DATOS DEL CLIENTE</div>
+      <div style="font-size:13px;">${esc(client?client.name:'')}</div>
+      ${client && client.nif ? `<div style="font-size:12px;color:#555;">NIF: ${esc(client.nif)}</div>` : ''}
+      ${client && client.address ? `<div style="font-size:12px;color:#555;">${esc(client.address)}</div>` : ''}
+      ${client && (client.city||client.province) ? `<div style="font-size:12px;color:#555;">${esc(client.city||'')} ${esc(client.province||'')} ${esc(client.zip||'')}</div>` : ''}
+    </div>
+    <table style="width:100%;border-collapse:collapse;margin-bottom:15px;">
+      <thead>
+        <tr style="background:var(--primary);color:#fff;">
+          <th style="padding:8px;text-align:left;font-size:12px;">Concepto</th>
+          <th style="padding:8px;text-align:right;font-size:12px;">Precio</th>
+          <th style="padding:8px;text-align:right;font-size:12px;">Importe</th>
+        </tr>
+      </thead>
+      <tbody>${itemsHtml}</tbody>
+    </table>
+    <div style="border-top:2px solid var(--primary);padding-top:10px;margin-bottom:15px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;padding:2px 0;"><span>Base Imponible</span><span>${cur(sale.base||0)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;padding:2px 0;"><span>IVA (${sale.ivaRate||getIvaRate()}%)</span><span>${cur(sale.iva||0)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700;color:var(--primary);padding-top:8px;margin-top:4px;border-top:2px solid var(--primary);"><span>TOTAL</span><span>${cur(sale.total)}</span></div>
+    </div>
+    <div style="font-size:12px;color:#555;text-align:center;padding-top:10px;border-top:1px solid #ddd;">
+      <div>Pago: ${sale.paymentMethod==='card' ? 'Tarjeta 💳' : 'Contado 💰'}</div>
+      ${bs.invoiceFooter ? `<div style="margin-top:6px;font-style:italic;">${esc(bs.invoiceFooter)}</div>` : ''}
+    </div>`;
+
+  document.getElementById('invoiceContent').innerHTML = html;
+  openModal('invoiceModal');
+}
+
+function printInvoice() {
+  const content = document.getElementById('invoiceContent').innerHTML;
+  const printWin = window.open('', '', 'width=600,height=700');
+  printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Factura</title>
+    <style>
+      @page { margin: 15mm; }
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; font-size: 12px; padding: 20px; color: #2c3e50; line-height: 1.5; }
+      table { width: 100%; border-collapse: collapse; }
+    </style></head><body>${content}</body></html>`);
+  printWin.document.close();
+  printWin.focus();
+  setTimeout(() => { printWin.print(); }, 300);
+}
+
+let reportTab = 'sales';
+
+function switchReportTab(tab, el) {
+  reportTab = tab;
+  document.querySelectorAll('#sec-reports .tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  renderReports();
+}
+
+function renderReports() {
+  const div = document.getElementById('reportContent');
+  const from = document.getElementById('reportFrom').value;
+  const to = document.getElementById('reportTo').value;
+  
+  if (reportTab === 'sales') {
+    let sales = data.sales;
+    if (from) sales = sales.filter(s => s.date >= from);
+    if (to) sales = sales.filter(s => s.date <= to+'T23:59:59');
+    sales = sales.sort((a,b) => new Date(b.date) - new Date(a.date));
+    
+    const total = sales.reduce((sum, s) => sum + s.total, 0);
+    const totalIva = sales.reduce((sum, s) => sum + (s.iva||0), 0);
+    const totalBase = sales.reduce((sum, s) => sum + (s.base||0), 0);
+    if (!sales.length) { div.innerHTML = '<div class="empty-state"><p>Sin ventas en este período</p></div>'; return; }
+    div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${sales.length} ventas · Total: <strong>${cur(total)}</strong> · Base: <strong>${cur(totalBase)}</strong> · IVA: <strong>${cur(totalIva)}</strong> · Media: <strong>${cur(total/sales.length)}</strong></p>
+      <div style="overflow-x:auto;"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Items</th><th>Base</th><th>IVA</th><th>Total</th><th>Pago</th><th>Tipo</th><th>Acción</th></tr></thead><tbody>` +
+      sales.map(s => {
+        const client = data.clients.find(c => c.id === s.clientId);
+        const items = s.items.map(i => `${i.qty}x ${i.name}`).join(', ');
+        const isInvoice = !!s.invoiceNumber;
+        const invoiceNum = isInvoice ? (data.settings.invoicePrefix||'FACT-') + String(s.invoiceNumber).padStart(4,'0') : '';
+        return `<tr><td>${new Date(s.date).toLocaleString('es-ES')}</td><td>${esc(client?client.name:'Mostrador')}</td>
+          <td>${esc(items)}</td><td>${cur(s.base||0)}</td><td>${cur(s.iva||0)}</td><td><strong>${cur(s.total)}</strong></td>
+          <td>${s.paymentMethod === 'card' ? '💳 Tarjeta' : '💰 Contado'}</td>
+          <td>${isInvoice ? '<span class="badge badge-info">Factura</span>' : s.isRectifying ? '<span class="badge badge-warning">Rectif.</span>' : '<span class="badge badge-success">Ticket</span>'}${invoiceNum ? `<br><small style="font-size:10px;color:var(--text-light);">${esc(invoiceNum)}</small>` : ''}${s.isRectifying ? `<br><small style="font-size:10px;color:var(--text-light);">→ #${s.originalNumber||''}</small>` : ''}</td>
+          <td><div class="btn-group">
+            ${isInvoice ? '' : `<button class="btn btn-primary btn-sm" onclick="editTicket('${s.id}')" title="Editar ticket">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteTicket('${s.id}')" title="Eliminar ticket">🗑️</button>`}
+            <button class="btn btn-secondary btn-sm" onclick="showSaleDetail('${s.id}')">Ver</button>
+          </div></td></tr>`;
+      }).join('') + '</tbody></table></div>';
+  } else if (reportTab === 'clients') {
+    const list = data.clients.sort((a,b) => (b.totalSpent||0) - (a.totalSpent||0));
+    if (!list.length) { div.innerHTML = '<div class="empty-state"><p>Sin clientes</p></div>'; return; }
+    div.innerHTML = `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Nombre</th><th>NIF/CIF</th><th>Teléfono</th><th>Población</th><th>Visitas</th><th>Gasto Total</th></tr></thead><tbody>` +
+      list.map((c,i) => `<tr><td>${i+1}</td><td><strong>${esc(c.name)}</strong></td><td>${esc(c.nif||'-')}</td><td>${esc(c.phone||'-')}</td>
+        <td>${esc(c.city||'-')}</td><td>${c.visits||0}</td><td>${cur(c.totalSpent||0)}</td></tr>`).join('') + '</tbody></table></div>';
+  } else if (reportTab === 'services') {
+    const svcCount = {};
+    data.sales.forEach(s => s.items.forEach(i => {
+      if (i.type === 'service') { svcCount[i.id] = svcCount[i.id]||{name:i.name,qty:0,total:0}; svcCount[i.id].qty+=i.qty; svcCount[i.id].total+=i.price*i.qty; }
+    }));
+    const list = Object.entries(svcCount).sort((a,b) => b[1].qty - a[1].qty);
+    if (!list.length) { div.innerHTML = '<div class="empty-state"><p>Sin datos de servicios</p></div>'; return; }
+    div.innerHTML = `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Servicio</th><th>Veces Realizado</th><th>Total Recaudado</th></tr></thead><tbody>` +
+      list.map(([id,o],i) => `<tr><td>${i+1}</td><td>${esc(o.name)}</td><td>${o.qty}</td><td>${cur(o.total)}</td></tr>`).join('') + '</tbody></table></div>';
+  } else if (reportTab === 'products') {
+    const prodCount = {};
+    data.sales.forEach(s => s.items.forEach(i => {
+      if (i.type === 'product') { prodCount[i.id] = prodCount[i.id]||{name:i.name,qty:0,total:0}; prodCount[i.id].qty+=i.qty; prodCount[i.id].total+=i.price*i.qty; }
+    }));
+    const list = Object.entries(prodCount).sort((a,b) => b[1].qty - a[1].qty);
+    div.innerHTML = `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Producto</th><th>Unidades Vendidas</th><th>Total</th><th>Stock Actual</th></tr></thead><tbody>` +
+      list.map(([id,o],i) => {
+        const prod = data.products.find(p => p.id === id);
+        return `<tr><td>${i+1}</td><td>${esc(o.name)}</td><td>${o.qty}</td><td>${cur(o.total)}</td><td>${prod?prod.stock:0}</td></tr>`;
+      }).join('') + '</tbody></table></div>';
+  }
+}
+
+function showSaleDetail(id) {
+  const s = data.sales.find(x => x.id === id);
+  if (!s) return;
+  const client = data.clients.find(c => c.id === s.clientId);
+  const isRectifying = s.isRectifying;
+  let html = `<p><strong>${isRectifying ? 'Ticket Rectificativo' : 'Ticket'} #${s.number||''}</strong></p>`;
+  if (isRectifying) html += `<p><strong>Rectifica al ticket #${s.originalNumber||''}</strong></p>`;
+  html += `<p><strong>Fecha:</strong> ${new Date(s.date).toLocaleString('es-ES')}</p>
+    <p><strong>Cliente:</strong> ${client?esc(client.name):'Mostrador'}</p>`;
+  if (client && client.nif) html += `<p><strong>NIF/CIF:</strong> ${esc(client.nif)}</p>`;
+  if (client && client.address) html += `<p><strong>Dirección:</strong> ${esc(client.address)}</p>`;
+  if (client && (client.city||client.province)) html += `<p><strong>Población:</strong> ${esc(client.city||'')} ${esc(client.province||'')}</p>`;
+  html += `<p><strong>Pago:</strong> ${s.paymentMethod === 'card' ? '💳 Tarjeta' : '💰 Contado'}</p>
+    <p><strong>Base:</strong> ${cur(s.base||0)}</p>
+    <p><strong>IVA (${s.ivaRate||getIvaRate()}%):</strong> ${cur(s.iva||0)}</p>
+    <p><strong>${s.total < 0 ? 'A devolver' : 'Total'}:</strong> ${cur(Math.abs(s.total))}</p>
+    <hr style="margin:10px 0;border:none;border-top:1px solid var(--border);">
+    ${isRectifying ? '<p style="font-size:12px;font-weight:500;margin-bottom:4px;">Diferencias:</p>' : ''}
+    <table><thead><tr><th>Item</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>`;
+  s.items.forEach(i => {
+    const isNeg = i.qty < 0;
+    html += `<tr${isNeg ? ' style="color:var(--danger);"' : ''}><td>${esc(i.name)}</td><td>${isNeg ? '− ' : ''}${Math.abs(i.qty)}</td><td>${cur(i.price)}</td><td>${cur(i.price*i.qty)}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('saleDetailContent').innerHTML = html;
+  openModal('saleDetailModal');
+}
+
+function exportCSV() {
+  if (!data.sales.length) { alert('No hay datos para exportar'); return; }
+  const from = document.getElementById('reportFrom').value;
+  const to = document.getElementById('reportTo').value;
+  let sales = data.sales;
+  if (from) sales = sales.filter(s => s.date >= from);
+  if (to) sales = sales.filter(s => s.date <= to+'T23:59:59');
+  
+  let csv = 'Fecha,Cliente,Items,Base,IVA,Total,Pago\n';
+  sales.forEach(s => {
+    const client = data.clients.find(c => c.id === s.clientId);
+    const items = s.items.map(i => `${i.qty}x ${i.name}`).join('; ');
+    csv += `"${new Date(s.date).toLocaleString('es-ES')}","${client?client.name:'Mostrador'}","${items}",${(s.base||0).toFixed(2)},${(s.iva||0).toFixed(2)},${s.total.toFixed(2)},"${s.paymentMethod === 'card' ? 'Tarjeta' : 'Contado'}"\n`;
+  });
+  
+  const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'ventas_export.csv';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function printReport() {
+  const content = document.getElementById('reportContent').innerHTML;
+  const title = document.querySelector('#sec-reports .tab.active')?.textContent || 'Listado';
+  const printWin = window.open('', '', 'width=800,height=600');
+  printWin.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title>
+    <style>
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 30px; color: #2c3e50; }
+      h2 { margin-bottom: 5px; }
+      .date { color: #7f8c8d; font-size: 13px; margin-bottom: 20px; }
+      table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #dfe6e9; }
+      th { background: #f0f2f5; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: #7f8c8d; }
+      tr:hover td { background: #f8f9fa; }
+      @media print { body { padding: 15px; } }
+    </style></head><body>
+    <h2>${title}</h2>
+    <div class="date">${new Date().toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
+    ${content}</body></html>`);
+  printWin.document.close();
+  printWin.focus();
+  setTimeout(() => { printWin.print(); }, 300);
+}
+
+// ============ DASHBOARD ============
+function renderDashboard() {
+  const today = new Date().toISOString().split('T')[0];
+  const todaySales = data.sales.filter(s => s.date.startsWith(today));
+  const todayTotal = todaySales.reduce((sum, s) => sum + s.total, 0);
+  const todayIva = todaySales.reduce((sum, s) => sum + (s.iva||0), 0);
+  const todayAppts = data.appointments.filter(a => a.date === today).length;
+  const totalSales = data.sales.reduce((sum, s) => sum + s.total, 0);
+  const lowStock = data.products.filter(p => (p.stock||0) <= (p.minStock||5)).length;
+  
+  document.getElementById('dashboardStats').innerHTML = `
+    <div class="stat-card"><div class="stat-number">${cur(todayTotal)}</div><div class="stat-label">Ventas Hoy</div></div>
+    <div class="stat-card"><div class="stat-number">${todaySales.length}</div><div class="stat-label">Ventas Hoy</div></div>
+    <div class="stat-card"><div class="stat-number">${cur(todayIva)}</div><div class="stat-label">IVA Hoy</div></div>
+    <div class="stat-card"><div class="stat-number">${todayAppts}</div><div class="stat-label">Citas Hoy</div></div>
+    <div class="stat-card"><div class="stat-number">${data.clients.length}</div><div class="stat-label">Clientes</div></div>
+    <div class="stat-card"><div class="stat-number">${data.employees.length}</div><div class="stat-label">Empleados</div></div>`;
+  
+  // Recent sales
+  const recentSales = data.sales.sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,5);
+  const salesDiv = document.getElementById('dashboardSales');
+  if (!recentSales.length) { salesDiv.innerHTML = '<div class="empty-state"><p>Sin ventas registradas</p></div>'; }
+  else {
+    salesDiv.innerHTML = '<div style="overflow-x:auto;"><table><thead><tr><th>Fecha</th><th>Total</th><th>IVA</th><th>Cliente</th><th>Pago</th></tr></thead><tbody>' +
+      recentSales.map(s => {
+        const client = data.clients.find(c => c.id === s.clientId);
+        return `<tr><td>${new Date(s.date).toLocaleString('es-ES')}</td><td><strong>${cur(s.total)}</strong></td><td>${cur(s.iva||0)}</td><td>${client?esc(client.name):'Mostrador'}</td><td>${s.paymentMethod === 'card' ? '💳 Tarjeta' : '💰 Contado'}</td></tr>`;
+      }).join('') + '</tbody></table></div>';
+  }
+  
+  // Today's appointments
+  const apptsDiv = document.getElementById('dashboardAppts');
+  const tAppts = data.appointments.filter(a => a.date === today).sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  if (!tAppts.length) { apptsDiv.innerHTML = '<div class="empty-state"><p>Sin citas para hoy</p></div>'; }
+  else {
+    apptsDiv.innerHTML = tAppts.map(a => {
+      const client = data.clients.find(c => c.id === a.clientId);
+      const service = data.services.find(s => s.id === a.serviceId);
+      const employee = data.employees.find(e => e.id === a.employeeId);
+      return `<div style="display:flex;justify-content:space-between;padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;">
+        <span><strong>${esc(a.time||'')}</strong> — ${esc(client?client.name:'?')} ${service?`<span style="color:var(--text-light)">(${esc(service.name)})</span>`:''} ${employee?`<span style="color:var(--text-light);font-size:11px;">👤 ${esc(employee.name)}</span>`:''}</span>
+      </div>`;
+    }).join('');
+  }
+}
+
+// ============ UTILITY ============
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function escAttr(s) { return s.replace(/"/g,'&quot;'); }
+
+// ============ INIT ============
+function init() {
+  // Set today's date for appointment form
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('apptDate').value = today;
+  document.getElementById('reportTo').value = today;
+  const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth()-1);
+  document.getElementById('reportFrom').value = monthAgo.toISOString().split('T')[0];
+  
+  // Fix project modal opening
+  document.querySelector('#sec-projects .btn-primary').onclick = openProjectForm;
+  
+  renderDashboard();
+}
+
+init();
+</script>
+</body>
+</html>

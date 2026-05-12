@@ -1,0 +1,9 @@
+node_modules
+dist/
+android-agenda/android/.gradle/
+android-agenda/android/.gradle_local/
+android-agenda/android/app/build/
+android-agenda/android/capacitor-cordova-android-plugins/build/
+android-agenda/node_modules/
+android-agenda/AgendaTPV.apk
+*.apk
