@@ -4,7 +4,7 @@ services:
     runtime: node
     region: ohio
     plan: free
-    buildCommand: ""
+    buildCommand: npm install --production
     startCommand: node sync-helper.js
     healthCheckPath: /health
     envVars:
