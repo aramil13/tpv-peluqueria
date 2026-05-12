@@ -4,11 +4,6 @@ services:
     runtime: node
     region: ohio
     plan: free
-    buildCommand: npm install --production
+    buildCommand: ""
     startCommand: node sync-helper.js
     healthCheckPath: /health
-    envVars:
-      - key: SYNC_PORT
-        value: "3456"
-      - key: SYNC_FILE
-        value: /tmp/appointments.json
