@@ -1,0 +1,16 @@
+{
+  "appId": "com.peluqueria.tpv",
+  "files": [
+    "index.html",
+    "main.js",
+    "sync-helper.js",
+    "package.json"
+  ],
+  "win": {
+    "target": "portable",
+    "icon": "icon.ico"
+  },
+  "directories": {
+    "output": "dist"
+  }
+}

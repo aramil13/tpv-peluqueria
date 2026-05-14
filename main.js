@@ -32,8 +32,16 @@ function startSyncHelper() {
     return;
   }
   const helperPath = path.join(__dirname, 'sync-helper.js');
+  const userDataPath = app.getPath('userData');
+  const syncFile = path.join(userDataPath, 'appointments.json');
+  console.log('Sync file location:', syncFile);
+  
   syncHelperProcess = fork(helperPath, [], {
-    env: { ...process.env, NO_LOCAL_SYNC: undefined }
+    env: { 
+      ...process.env, 
+      SYNC_FILE: syncFile,
+      NO_LOCAL_SYNC: undefined 
+    }
   });
   
   syncHelperProcess.on('error', (err) => {

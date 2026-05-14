@@ -143,7 +143,7 @@ tr:hover td { background: #f8f9fa; }
 
 <div class="sidebar">
   <div class="sidebar-header">
-    <h1><span>TPV</span> Peluquería</h1>
+    <h1 id="mainTitle"><span>TPV</span> Peluquería</h1>
     <small>Terminal Punto de Venta</small>
   </div>
   <nav class="sidebar-nav">
@@ -164,6 +164,7 @@ tr:hover td { background: #f8f9fa; }
   <div class="topbar">
     <h2 id="sectionTitle">Dashboard <small>Panel de control</small></h2>
     <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
+      <span id="syncStatus" style="font-size:11px;color:var(--text-light);"></span>
       <span id="clock" style="color:var(--text-light);"></span>
       <button class="btn btn-secondary btn-sm" onclick="openSettings()" title="Configuración">⚙️</button>
     </div>
@@ -515,7 +516,16 @@ tr:hover td { background: #f8f9fa; }
 <script>
 // ============ DATA LAYER ============
 const DB = {
-  get(key, def) { try { return JSON.parse(localStorage.getItem('tpv_'+key)) || def } catch { return def } },
+  get(key, def) { 
+    try { 
+      const val = JSON.parse(localStorage.getItem('tpv_'+key));
+      if (val === null || val === undefined) return def;
+      if (Array.isArray(def) && !Array.isArray(val)) return def; // Force array if expected
+      return val;
+    } catch { 
+      return def;
+    } 
+  },
   set(key, val) { localStorage.setItem('tpv_'+key, JSON.stringify(val)) }
 }
 
@@ -541,9 +551,14 @@ let data = {
     businessEmail: '',
     ticketFooter: '¡Gracias por su visita!',
     invoiceFooter: '¡Gracias por su visita!',
-    invoicePrefix: 'FACT-'
+    invoicePrefix: 'FACT-',
+    sync: { enabled: false, url: 'http://localhost:3456' }
   })
 }
+
+// Ensure all list fields are arrays (fix localStorage corruption)
+const ARRAY_KEYS = ['clients','employees','services','projects','products','appointments','sales','movements'];
+ARRAY_KEYS.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
 // Migrate old sales without IVA data
 data.sales.forEach(s => {
@@ -603,7 +618,7 @@ function saveSettings() {
   const rate = parseFloat(document.getElementById('ivaRate').value);
   if (isNaN(rate) || rate < 0) { alert('Introduce un tipo de IVA válido'); return; }
   data.ivaRate = rate;
-  data.settings = {
+    data.settings = {
     businessName: document.getElementById('setBizName').value.trim(),
     businessNif: document.getElementById('setBizNif').value.trim(),
     businessAddress: document.getElementById('setBizAddress').value.trim(),
@@ -621,32 +636,54 @@ function saveSettings() {
     }
   };
   saveKey('ivaRate'); saveKey('settings');
+  updateAppHeader();
   if (data.settings.sync.enabled) { syncPush(); startSyncPoller(); }
   else stopSyncPoller();
   closeModal('settingsModal');
   updateTicket();
 }
 
+function updateAppHeader() {
+  const name = (data.settings && data.settings.businessName) ? data.settings.businessName : 'TPV Peluquería';
+  const mainTitle = document.getElementById('mainTitle');
+  const posTicketHeader = document.getElementById('posTicketHeader');
+  if (mainTitle) mainTitle.textContent = name;
+  if (posTicketHeader) posTicketHeader.textContent = name;
+}
+
 // ============ SYNC ============
-function getSyncCfg() { return data.settings.sync || { enabled: false, url: 'http://localhost:3456' } }
+function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: false, url: 'http://localhost:3456' } }
 
 function syncPush() {
   const c = getSyncCfg();
   if (!c.enabled) return;
+  const status = document.getElementById('syncStatus');
+  if (status) status.textContent = '🔄 Sincronizando...';
   fetch(c.url.replace(/\/+$/,'') + '/sync', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      appointments: data.appointments,
-      clients: data.clients,
-      services: data.services,
-      employees: data.employees,
-      products: data.products
+      appointments: Array.isArray(data.appointments) ? data.appointments : [],
+      clients: Array.isArray(data.clients) ? data.clients : [],
+      services: Array.isArray(data.services) ? data.services : [],
+      employees: Array.isArray(data.employees) ? data.employees : [],
+      products: Array.isArray(data.products) ? data.products : []
     })
-  }).catch(() => {});
+  }).then(async r => {
+    if (r.ok && status) status.textContent = '✅ Sincronizado';
+    else if (status) {
+      const errData = await r.json().catch(() => ({}));
+      status.textContent = '❌ Error: ' + (errData.error || r.status);
+    }
+    setTimeout(() => { if (status) status.textContent = ''; }, 5000);
+  }).catch(e => {
+    if (status) status.textContent = '❌ ' + e.message;
+    setTimeout(() => { if (status) status.textContent = ''; }, 5000);
+  });
 }
 
 function mergeRemote(type, remote) {
-  if (!remote || !remote.length) return false;
+  if (!Array.isArray(remote) || !remote.length) return false;
+  if (!Array.isArray(data[type])) data[type] = [];
   const localMap = new Map(data[type].map(item => [item.id, item]));
   let changed = false;
   remote.forEach(item => {
@@ -689,6 +726,7 @@ function stopSyncPoller() { if (syncTimer) { clearInterval(syncTimer); syncTimer
 
 // Start sync on load
 startSyncPoller();
+if (getSyncCfg().enabled) syncPush();
 
 // ============ NAVIGATION ============
 document.querySelectorAll('.nav-item').forEach(el => {
@@ -1145,7 +1183,6 @@ function renderWarehouse() {
       html += `<tr><td>${esc(p.name)}</td><td class="stock-low">${p.stock||0}</td><td>${p.minStock||5}</td><td class="stock-low">Faltan ${diff}</td></tr>`;
     });
   html += '</tbody></table>';
-  html += `<div style="margin-top:15px;text-align:center;"><button class="btn btn-primary" onclick="showInvoice('${s.id}')">📄 Factura</button></div>`;
     div.innerHTML = html;
   }
 }
@@ -1307,27 +1344,26 @@ function showDayAppts(dateStr) {
 function editAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
+  fillAppointmentSelects();
   document.getElementById('apptEditId').value = id;
   document.getElementById('apptDate').value = a.date;
   document.getElementById('apptTime').value = a.time||'';
   document.getElementById('apptEmployee').value = a.employeeId||'';
   document.getElementById('apptNotes').value = a.notes||'';
   document.getElementById('appointmentModalTitle').textContent = 'Editar Cita';
-  fillAppointmentSelects();
   document.getElementById('apptClient').value = a.clientId;
   document.getElementById('apptService').value = a.serviceId||'';
   openModal('appointmentModal');
 }
 
 function quickAppt(dateStr) {
+  fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
   document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
-  document.getElementById('apptTime').value = '10:00';
   document.getElementById('apptTime').value = '10:00';
   document.getElementById('apptEmployee').value = '';
   document.getElementById('apptNotes').value = '';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
-  fillAppointmentSelects();
   openModal('appointmentModal');
 }
 
@@ -1827,7 +1863,8 @@ function showReceipt(sale, base, iva) {
     </div>
     <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px;font-size:11px;color:var(--text-light);">
       <div>Cliente: ${esc(client?client.name:'Mostrador')}</div>
-      ${client && client.nif ? `<div>NIF: ${esc(client.nif)}</div>` : ''}
+      ${client && client.nif ? `<div>DNI/NIF: ${esc(client.nif)}</div>` : ''}
+      ${client && client.address ? `<div>Dirección: ${esc(client.address)}${client.city ? ', ' + esc(client.city) : ''}</div>` : ''}
       <div>Pago: ${sale.paymentMethod==='card' ? 'Tarjeta' : 'Contado'}</div>
     </div>
     <div style="text-align:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text-light);font-style:italic;">${esc(bs.ticketFooter||'¡Gracias por su visita!')}</div>`;
@@ -1872,7 +1909,8 @@ function showRectifyingReceipt(sale, base, iva) {
     </div>
     <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px;font-size:11px;color:var(--text-light);">
       <div>Cliente: ${esc(client?client.name:'Mostrador')}</div>
-      ${client && client.nif ? `<div>NIF: ${esc(client.nif)}</div>` : ''}
+      ${client && client.nif ? `<div>DNI/NIF: ${esc(client.nif)}</div>` : ''}
+      ${client && client.address ? `<div>Dirección: ${esc(client.address)}${client.city ? ', ' + esc(client.city) : ''}</div>` : ''}
       <div>Pago: ${sale.paymentMethod==='card' ? 'Tarjeta' : 'Contado'}</div>
     </div>
     <div style="text-align:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text-light);font-style:italic;">${esc(bs.ticketFooter||'¡Gracias por su visita!')}</div>`;
@@ -1931,9 +1969,9 @@ function showInvoice(saleId) {
     </div>
     <div style="margin-bottom:20px;padding:12px;background:#f8f9fa;border-radius:8px;">
       <div style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:4px;">DATOS DEL CLIENTE</div>
-      <div style="font-size:13px;">${esc(client?client.name:'')}</div>
-      ${client && client.nif ? `<div style="font-size:12px;color:#555;">NIF: ${esc(client.nif)}</div>` : ''}
-      ${client && client.address ? `<div style="font-size:12px;color:#555;">${esc(client.address)}</div>` : ''}
+      <div style="font-size:13px;font-weight:700;">${esc(client?client.name:'')}</div>
+      ${client && client.nif ? `<div style="font-size:12px;color:#555;">DNI/NIF: ${esc(client.nif)}</div>` : ''}
+      ${client && client.address ? `<div style="font-size:12px;color:#555;">Dirección: ${esc(client.address)}</div>` : ''}
       ${client && (client.city||client.province) ? `<div style="font-size:12px;color:#555;">${esc(client.city||'')} ${esc(client.province||'')} ${esc(client.zip||'')}</div>` : ''}
     </div>
     <table style="width:100%;border-collapse:collapse;margin-bottom:15px;">
@@ -2181,6 +2219,8 @@ function init() {
   document.querySelector('#sec-projects .btn-primary').onclick = openProjectForm;
   
   renderDashboard();
+  updateAppHeader();
+  if (getSyncCfg().enabled) syncPush();
 }
 
 init();

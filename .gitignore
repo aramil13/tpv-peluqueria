@@ -11,3 +11,7 @@ android-agenda/AgendaTPV.apk
 *.docx
 *.doc
 *github*token*
+
+# Sync data (persiste en Render Disk, no en git)
+sync/appointments.json
+/data/

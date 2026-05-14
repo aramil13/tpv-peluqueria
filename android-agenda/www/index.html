@@ -103,10 +103,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 <body>
 
 <div class="header">
-  <h1><div id="syncDot" class="sync-indicator"></div> <span>Agenda</span></h1>
+  <h1><div id="syncDot" class="sync-indicator"></div> <span id="appBusinessName">Agenda</span></h1>
   <div class="header-actions">
-    <button class="btn btn-sm btn-warning" onclick="document.getElementById('importIcsInput').click()" style="font-size:10px;">📥 ICS</button>
-    <button class="btn btn-sm btn-secondary" onclick="exportToIcs()" style="font-size:10px;">📤 ICS</button>
+    <button class="btn btn-sm btn-warning" onclick="exportToIcs()" style="font-size:10px;">📤 ICS</button>
     <input type="file" id="importIcsInput" accept=".ics" onchange="importIcs(event)">
   </div>
 </div>
@@ -167,6 +166,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
   <div class="card">
     <div class="card-header"><h3>Sincronización</h3></div>
     <div style="padding:10px 14px;">
+      <hr style="margin:0 0 15px 0;border:none;border-top:1px solid #ddd;">
+
       <div class="form-group" style="margin-bottom:4px;"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="syncEnabled" style="width:auto;" onchange="saveSyncSettings()"> Activar sync automático</label></div>
       <div class="form-group"><label>URL del servidor Sync</label><input type="text" id="syncUrl" placeholder="https://tuservidor.onrender.com" onchange="saveSyncSettings()">
         <div style="font-size:10px;color:var(--text-light);margin-top:2px;">Ej: http://192.168.1.100:3456 (local) o https://tuservidor.onrender.com (cloud)</div>
@@ -175,26 +176,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
       <button class="btn btn-sm btn-primary" onclick="testSync()" style="margin-top:6px;width:100%;">Probar conexión</button>
     </div>
   </div>
-  <div class="card">
-    <div class="card-header"><h3>Empresa</h3></div>
-    <div style="padding:10px 14px;">
-      <div class="form-group"><label>Nombre del negocio</label><input type="text" id="setBizName" placeholder="Nombre de la peluquería"></div>
-      <div class="form-group"><label>NIF/CIF</label><input type="text" id="setBizNif" placeholder="NIF/CIF"></div>
-      <div class="form-group"><label>Dirección</label><input type="text" id="setBizAddress" placeholder="Dirección"></div>
-      <div class="form-row">
-        <div class="form-group"><label>Ciudad</label><input type="text" id="setBizCity" placeholder="Ciudad"></div>
-        <div class="form-group"><label>Provincia</label><input type="text" id="setBizProvince" placeholder="Provincia"></div>
-      </div>
-      <div class="form-row">
-        <div class="form-group"><label>Código Postal</label><input type="text" id="setBizZip" placeholder="CP"></div>
-        <div class="form-group"><label>Teléfono</label><input type="text" id="setBizPhone" placeholder="Teléfono"></div>
-      </div>
-      <div class="form-group"><label>Email</label><input type="email" id="setBizEmail" placeholder="Email"></div>
-      <div class="form-group"><label>IVA (%)</label><input type="number" id="ivaRate" step="0.01" value="21"></div>
-      <div class="form-group"><label>Pie de ticket</label><input type="text" id="setTicketFooter" placeholder="Gracias por su visita"></div>
-      <button class="btn btn-primary" onclick="saveSettings()" style="width:100%;margin-top:4px;">Guardar</button>
-    </div>
-  </div>
+
   <div class="card">
     <div style="padding:14px;text-align:center;color:var(--text-light);font-size:11px;">
       <div id="versionText" onclick="handleVersionClick()" style="cursor:pointer;user-select:none;">Agenda TPV v3.0 — Sincronización Cloud</div>
@@ -339,9 +321,9 @@ let data = {
   services: DB.get('services') || [],
   employees: DB.get('employees') || [],
   products: DB.get('products') || [],
-  ivaRate: DB.get('ivaRate') || 21,
-  settings: DB.get('settings') || { businessName:'', businessNif:'', businessAddress:'', businessCity:'', businessProvince:'', businessZip:'', businessPhone:'', businessEmail:'', ticketFooter:'', invoicePrefix:'FACT-', invoiceFooter:'' }
+  ivaRate: DB.get('ivaRate') || 21
 };
+['appointments','clients','services','employees','products'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
 function saveAll() { for (let k in data) DB.set(k, data[k]) }
 function saveKey(k) { DB.set(k, data[k]) }
@@ -480,26 +462,26 @@ function showDayAppts(dateStr) {
 function editAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
+  fillAppointmentSelects();
   document.getElementById('apptEditId').value = id;
   document.getElementById('apptDate').value = a.date;
   document.getElementById('apptTime').value = a.time||'';
   document.getElementById('apptEmployee').value = a.employeeId||'';
   document.getElementById('apptNotes').value = a.notes||'';
   document.getElementById('appointmentModalTitle').textContent = 'Editar Cita';
-  fillAppointmentSelects();
   document.getElementById('apptClient').value = a.clientId;
   document.getElementById('apptService').value = a.serviceId||'';
   document.getElementById('appointmentModal').classList.add('show');
 }
 
 function quickAppt(dateStr) {
+  fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
   document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
   document.getElementById('apptTime').value = new Date().toTimeString().slice(0,5);
   document.getElementById('apptEmployee').value = '';
   document.getElementById('apptNotes').value = '';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
-  fillAppointmentSelects();
   document.getElementById('appointmentModal').classList.add('show');
 }
 
@@ -818,18 +800,6 @@ function loadSyncSettings() {
   const c = getSyncCfg();
   if (document.getElementById('syncEnabled')) document.getElementById('syncEnabled').checked = c.enabled;
   if (document.getElementById('syncUrl')) document.getElementById('syncUrl').value = c.url;
-  
-  const s = data.settings || {};
-  if (document.getElementById('setBizName')) document.getElementById('setBizName').value = s.businessName || '';
-  if (document.getElementById('setBizNif')) document.getElementById('setBizNif').value = s.businessNif || '';
-  if (document.getElementById('setBizAddress')) document.getElementById('setBizAddress').value = s.businessAddress || '';
-  if (document.getElementById('setBizCity')) document.getElementById('setBizCity').value = s.businessCity || '';
-  if (document.getElementById('setBizProvince')) document.getElementById('setBizProvince').value = s.businessProvince || '';
-  if (document.getElementById('setBizZip')) document.getElementById('setBizZip').value = s.businessZip || '';
-  if (document.getElementById('setBizPhone')) document.getElementById('setBizPhone').value = s.businessPhone || '';
-  if (document.getElementById('setBizEmail')) document.getElementById('setBizEmail').value = s.businessEmail || '';
-  if (document.getElementById('setTicketFooter')) document.getElementById('setTicketFooter').value = s.ticketFooter || '';
-  if (document.getElementById('ivaRate')) document.getElementById('ivaRate').value = getIvaRate();
 }
 
 function saveSyncSettings() {
@@ -837,6 +807,7 @@ function saveSyncSettings() {
   const enabled = document.getElementById('syncEnabled') ? document.getElementById('syncEnabled').checked : cfg.enabled;
   const url = document.getElementById('syncUrl') ? normalizeUrl(document.getElementById('syncUrl').value) : cfg.url;
   setSyncCfg({ enabled, url });
+
   const c = getSyncCfg();
   if (c.enabled) { syncPush(); startSyncPoller(); } else stopSyncPoller();
   updateSyncStatus();
@@ -888,17 +859,18 @@ function syncPush() {
   fetchWithTimeout(syncBase()+'/sync', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      appointments: data.appointments,
-      clients: data.clients,
-      services: data.services,
-      employees: data.employees,
-      products: data.products
+      appointments: Array.isArray(data.appointments) ? data.appointments : [],
+      clients: Array.isArray(data.clients) ? data.clients : [],
+      services: Array.isArray(data.services) ? data.services : [],
+      employees: Array.isArray(data.employees) ? data.employees : [],
+      products: Array.isArray(data.products) ? data.products : []
     })
   }).then(() => updateSyncStatus('✅ Sincronizado ✓')).catch(e => updateSyncStatus('❌ Error sync', true));
 }
 
 function mergeRemote(type, remote) {
-  if (!remote || !remote.length) return false;
+  if (!Array.isArray(remote) || !remote.length) return false;
+  if (!Array.isArray(data[type])) data[type] = [];
   const localMap = new Map(data[type].map(item => [item.id, item]));
   let changed = false;
   remote.forEach(item => {
@@ -958,27 +930,6 @@ function handleVersionClick() {
 }
 
 // ============ SETTINGS ============
-function saveSettings() {
-  const rate = parseFloat(document.getElementById('ivaRate').value);
-  if (isNaN(rate) || rate < 0) { alert('Introduce un tipo de IVA válido'); return; }
-  data.ivaRate = rate;
-  data.settings = {
-    businessName: document.getElementById('setBizName').value.trim(),
-    businessNif: document.getElementById('setBizNif').value.trim(),
-    businessAddress: document.getElementById('setBizAddress').value.trim(),
-    businessCity: document.getElementById('setBizCity').value.trim(),
-    businessProvince: document.getElementById('setBizProvince').value.trim(),
-    businessZip: document.getElementById('setBizZip').value.trim(),
-    businessPhone: document.getElementById('setBizPhone').value.trim(),
-    businessEmail: document.getElementById('setBizEmail').value.trim(),
-    ticketFooter: document.getElementById('setTicketFooter').value.trim(),
-    invoicePrefix: 'FACT-',
-    invoiceFooter: ''
-  };
-  saveKey('ivaRate'); saveKey('settings');
-  alert('Ajustes guardados');
-  syncPush();
-}
 
 // ============ MODAL HELPERS ============
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
@@ -990,8 +941,7 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
 function exportToIcs() {
   const appts = data.appointments.sort((a,b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
   if (!appts.length) { alert('No hay citas para exportar'); return; }
-  const s = data.settings;
-  const location = [s.businessAddress, s.businessCity, s.businessProvince].filter(Boolean).join(', ');
+  const location = '';
   let ics = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Agenda TPV//ES','CALSCALE:GREGORIAN','METHOD:PUBLISH'];
   appts.forEach(a => {
     const client = data.clients.find(c => c.id === a.clientId);
