@@ -147,13 +147,15 @@ tr:hover td { background: #f8f9fa; }
     <small>Terminal Punto de Venta</small>
   </div>
   <nav class="sidebar-nav">
-    <div class="nav-item active" data-section="dashboard"><span class="icon">📊</span><span>Dashboard</span></div>
+    <div class="nav-item active" data-section="dashboard"><span class="icon">📊</span><span>PANEL DE CONTROL</span></div>
     <div class="nav-item" data-section="pos"><span class="icon">🛒</span><span>Punto de Venta</span></div>
     <div class="nav-item" data-section="clients"><span class="icon">👥</span><span>Clientes</span></div>
     <div class="nav-item" data-section="employees"><span class="icon">🧑‍💼</span><span>Empleados</span></div>
     <div class="nav-item" data-section="services"><span class="icon">✂️</span><span>Servicios</span></div>
+    <div class="nav-item" data-section="sections"><span class="icon">📂</span><span>Secciones</span></div>
     <div class="nav-item" data-section="projects"><span class="icon">📦</span><span>Proyectos</span></div>
     <div class="nav-item" data-section="products"><span class="icon">🧴</span><span>Productos</span></div>
+    <div class="nav-item" data-section="providers"><span class="icon">🏭</span><span>Proveedores</span></div>
     <div class="nav-item" data-section="warehouse"><span class="icon">📦</span><span>Almacén</span></div>
     <div class="nav-item" data-section="agenda"><span class="icon">📅</span><span>Agenda</span></div>
     <div class="nav-item" data-section="reports"><span class="icon">📈</span><span>Listados</span></div>
@@ -162,7 +164,7 @@ tr:hover td { background: #f8f9fa; }
 
 <div class="main">
   <div class="topbar">
-    <h2 id="sectionTitle">Dashboard <small>Panel de control</small></h2>
+    <h2 id="sectionTitle">PANEL DE CONTROL</h2>
     <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
       <span id="syncStatus" style="font-size:11px;color:var(--text-light);"></span>
       <span id="clock" style="color:var(--text-light);"></span>
@@ -247,9 +249,18 @@ tr:hover td { background: #f8f9fa; }
     <!-- SERVICES -->
     <div class="section" id="sec-services">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Servicios</h3><button class="btn btn-primary" onclick="openModal('serviceModal')">+ Nuevo Servicio</button></div>
+        <div class="card-header"><h3>Gestión de Servicios</h3><button class="btn btn-primary" onclick="openServiceModal()">+ Nuevo Servicio</button></div>
         <div class="search-bar"><input type="text" id="searchService" placeholder="Buscar servicio..." oninput="renderServices()"></div>
-        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Duración</th><th>Precio</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="servicesTable"></tbody></table></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Sección</th><th>Duración</th><th>Precio</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="servicesTable"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- SECTIONS -->
+    <div class="section" id="sec-sections">
+      <div class="card">
+        <div class="card-header"><h3>Gestión de Secciones</h3><button class="btn btn-primary" onclick="openModal('sectionModal')">+ Nueva Sección</button></div>
+        <div class="search-bar"><input type="text" id="searchSection" placeholder="Buscar sección..." oninput="renderSections()"></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="sectionsTable"></tbody></table></div>
       </div>
     </div>
 
@@ -265,9 +276,18 @@ tr:hover td { background: #f8f9fa; }
     <!-- PRODUCTS -->
     <div class="section" id="sec-products">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Productos</h3><button class="btn btn-primary" onclick="openModal('productModal')">+ Nuevo Producto</button></div>
+        <div class="card-header"><h3>Gestión de Productos</h3><button class="btn btn-primary" onclick="openProductModal()">+ Nuevo Producto</button></div>
         <div class="search-bar"><input type="text" id="searchProduct" placeholder="Buscar producto..." oninput="renderProducts()"></div>
-        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Precio Venta</th><th>Stock</th><th>Stock Mín.</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="productsTable"></tbody></table></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Proveedor</th><th>Precio Venta</th><th>Stock</th><th>Stock Mín.</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="productsTable"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- PROVIDERS -->
+    <div class="section" id="sec-providers">
+      <div class="card">
+        <div class="card-header"><h3>Gestión de Proveedores</h3><button class="btn btn-primary" onclick="openModal('providerModal')">+ Nuevo Proveedor</button></div>
+        <div class="search-bar"><input type="text" id="searchProvider" placeholder="Buscar proveedor..." oninput="renderProviders()"></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Acciones</th></tr></thead><tbody id="providersTable"></tbody></table></div>
       </div>
     </div>
 
@@ -361,10 +381,21 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Nombre *</label><input type="text" id="serviceName" placeholder="Nombre del servicio"></div>
       <div class="form-group"><label>Precio *</label><input type="number" id="servicePrice" placeholder="0.00" step="0.01" min="0"></div>
       <div class="form-group"><label>Duración (min)</label><input type="number" id="serviceDuration" placeholder="30" min="0"></div>
+      <div class="form-group"><label>Sección</label><select id="serviceSection"><option value="">Sin sección</option></select></div>
     </div>
     <div class="form-group"><label>Descripción</label><textarea id="serviceDesc" placeholder="Descripción..."></textarea></div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('serviceModal')">Cancelar</button><button class="btn btn-primary" onclick="saveService()">Guardar</button></div>
     <input type="hidden" id="serviceEditId">
+  </div>
+</div>
+
+<div class="modal" id="sectionModal">
+  <div class="modal-content" style="max-width:450px;">
+    <div class="modal-header"><h3 id="sectionModalTitle">Nueva Sección</h3><button class="modal-close" onclick="closeModal('sectionModal')">&times;</button></div>
+    <div class="form-group"><label>Nombre *</label><input type="text" id="sectionName" placeholder="Nombre de la sección"></div>
+    <div class="form-group"><label>Descripción</label><textarea id="sectionDesc" placeholder="Descripción..."></textarea></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('sectionModal')">Cancelar</button><button class="btn btn-primary" onclick="saveSection()">Guardar</button></div>
+    <input type="hidden" id="sectionEditId">
   </div>
 </div>
 
@@ -394,9 +425,24 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Stock Inicial</label><input type="number" id="productStock" placeholder="0" min="0" value="0"></div>
       <div class="form-group"><label>Stock Mínimo</label><input type="number" id="productMinStock" placeholder="5" min="0" value="5"></div>
       <div class="form-group"><label>IVA (%)</label><input type="number" id="productIva" placeholder="21" step="0.01" min="0" max="100" value="21"></div>
+      <div class="form-group"><label>Proveedor</label><select id="productProvider"><option value="">Sin proveedor</option></select></div>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('productModal')">Cancelar</button><button class="btn btn-primary" onclick="saveProduct()">Guardar</button></div>
     <input type="hidden" id="productEditId">
+  </div>
+</div>
+
+<div class="modal" id="providerModal">
+  <div class="modal-content" style="max-width:450px;">
+    <div class="modal-header"><h3 id="providerModalTitle">Nuevo Proveedor</h3><button class="modal-close" onclick="closeModal('providerModal')">&times;</button></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Nombre *</label><input type="text" id="providerName" placeholder="Nombre del proveedor"></div>
+      <div class="form-group"><label>Teléfono</label><input type="text" id="providerPhone" placeholder="Teléfono"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="providerEmail" placeholder="email@ejemplo.com"></div>
+      <div class="form-group"><label>Dirección</label><input type="text" id="providerAddress" placeholder="Dirección"></div>
+    </div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('providerModal')">Cancelar</button><button class="btn btn-primary" onclick="saveProvider()">Guardar</button></div>
+    <input type="hidden" id="providerEditId">
   </div>
 </div>
 
@@ -533,8 +579,10 @@ let data = {
   clients: DB.get('clients', []),
   employees: DB.get('employees', []),
   services: DB.get('services', []),
+  sections: DB.get('sections', []),
   projects: DB.get('projects', []),
   products: DB.get('products', []),
+  providers: DB.get('providers', []),
   appointments: DB.get('appointments', []),
   sales: DB.get('sales', []),
   movements: DB.get('movements', []),
@@ -557,7 +605,7 @@ let data = {
 }
 
 // Ensure all list fields are arrays (fix localStorage corruption)
-const ARRAY_KEYS = ['clients','employees','services','projects','products','appointments','sales','movements'];
+const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','movements'];
 ARRAY_KEYS.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
 // Migrate old sales without IVA data
@@ -665,8 +713,10 @@ function syncPush() {
       appointments: Array.isArray(data.appointments) ? data.appointments : [],
       clients: Array.isArray(data.clients) ? data.clients : [],
       services: Array.isArray(data.services) ? data.services : [],
+      sections: Array.isArray(data.sections) ? data.sections : [],
       employees: Array.isArray(data.employees) ? data.employees : [],
-      products: Array.isArray(data.products) ? data.products : []
+      products: Array.isArray(data.products) ? data.products : [],
+      providers: Array.isArray(data.providers) ? data.providers : []
     })
   }).then(async r => {
     if (r.ok && status) status.textContent = '✅ Sincronizado';
@@ -703,10 +753,12 @@ function syncPull() {
       if (mergeRemote('appointments', remote.appointments)) changed = true;
       if (mergeRemote('clients', remote.clients)) changed = true;
       if (mergeRemote('services', remote.services)) changed = true;
+      if (mergeRemote('sections', remote.sections)) changed = true;
       if (mergeRemote('employees', remote.employees)) changed = true;
       if (mergeRemote('products', remote.products)) changed = true;
+      if (mergeRemote('providers', remote.providers)) changed = true;
       if (changed) {
-        saveKey('appointments'); saveKey('clients'); saveKey('services'); saveKey('employees'); saveKey('products');
+        saveKey('appointments'); saveKey('clients'); saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products'); saveKey('providers');
         const active = document.querySelector('.nav-item.active');
         if (active) {
           const sec = active.dataset.section;
@@ -737,12 +789,14 @@ document.querySelectorAll('.nav-item').forEach(el => {
     const sec = document.getElementById('sec-'+this.dataset.section);
     if (sec) sec.classList.add('active');
     const titles = {
-      dashboard:'Dashboard', pos:'Punto de Venta', clients:'Clientes', services:'Servicios',
-      projects:'Proyectos', products:'Productos', warehouse:'Almacén', agenda:'Agenda', employees:'Empleados', reports:'Listados'
+      dashboard:'PANEL DE CONTROL', pos:'Punto de Venta', clients:'Clientes', services:'Servicios',
+      sections:'Secciones', projects:'Proyectos', products:'Productos',
+      providers:'Proveedores', warehouse:'Almacén', agenda:'Agenda', employees:'Empleados', reports:'Listados'
     };
     const t = titles[this.dataset.section]||'';
     const subs = {pos:'Terminal de cobro', clients:'Gestión de clientes', employees:'Gestión de empleados', services:'Servicios y tratamientos',
-      projects:'Paquetes de servicios', products:'Productos para la venta', warehouse:'Control de inventario',
+      sections:'Categorías de servicios', projects:'Paquetes de servicios', products:'Productos para la venta',
+      providers:'Proveedores de productos', warehouse:'Control de inventario',
       agenda:'Gestión de citas', reports:'Informes y estadísticas'};
     document.getElementById('sectionTitle').innerHTML = t+' <small>'+(subs[this.dataset.section]||'')+'</small>';
     if (this.dataset.section === 'dashboard') renderDashboard();
@@ -750,8 +804,10 @@ document.querySelectorAll('.nav-item').forEach(el => {
     if (this.dataset.section === 'clients') renderClients();
     if (this.dataset.section === 'employees') renderEmployees();
     if (this.dataset.section === 'services') renderServices();
+    if (this.dataset.section === 'sections') renderSections();
     if (this.dataset.section === 'projects') renderProjects();
     if (this.dataset.section === 'products') renderProducts();
+    if (this.dataset.section === 'providers') renderProviders();
     if (this.dataset.section === 'warehouse') renderWarehouse();
     if (this.dataset.section === 'agenda') renderAgenda();
     if (this.dataset.section === 'reports') renderReports();
@@ -916,13 +972,26 @@ function clearEmployeeForm() {
 }
 
 // ============ SERVICES ============
+function populateSectionSelect() {
+  const sel = document.getElementById('serviceSection');
+  sel.innerHTML = '<option value="">Sin sección</option>'+data.sections.filter(s => !s._deleted).sort((a,b) => a.name.localeCompare(b.name)).map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+}
+
+function openServiceModal() {
+  populateSectionSelect();
+  openModal('serviceModal');
+}
+
 function renderServices() {
   const q = (document.getElementById('searchService').value||'').toLowerCase();
   const tbody = document.getElementById('servicesTable');
   const list = data.services.filter(s => !s._deleted && s.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No hay servicios</td></tr>'; return; }
-  tbody.innerHTML = list.map(s => `<tr>
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No hay servicios</td></tr>'; return; }
+  tbody.innerHTML = list.map(s => {
+    const sec = data.sections.find(x => x.id === s.sectionId);
+    return `<tr>
     <td><strong>${esc(s.name)}</strong></td>
+    <td>${sec ? esc(sec.name) : '-'}</td>
     <td>${s.duration||'-'} min</td>
     <td><strong>${cur(s.price)}</strong></td>
     <td>${esc(s.desc||'-')}</td>
@@ -930,7 +999,7 @@ function renderServices() {
       <button class="btn btn-primary btn-sm" onclick="editService('${s.id}')">✏️</button>
       <button class="btn btn-danger btn-sm" onclick="deleteService('${s.id}')">🗑️</button>
     </div></td>
-  </tr>`).join('');
+  </tr>`}).join('');
 }
 
 function saveService() {
@@ -942,6 +1011,7 @@ function saveService() {
     name, price,
     duration: parseInt(document.getElementById('serviceDuration').value)||0,
     desc: document.getElementById('serviceDesc').value.trim(),
+    sectionId: document.getElementById('serviceSection').value || '',
     _modified: Date.now(),
     _deleted: false
   };
@@ -956,11 +1026,13 @@ function saveService() {
 
 function editService(id) {
   const s = data.services.find(x => x.id === id); if (!s) return;
+  populateSectionSelect();
   document.getElementById('serviceEditId').value = id;
   document.getElementById('serviceName').value = s.name;
   document.getElementById('servicePrice').value = s.price;
   document.getElementById('serviceDuration').value = s.duration||'';
   document.getElementById('serviceDesc').value = s.desc||'';
+  document.getElementById('serviceSection').value = s.sectionId||'';
   document.getElementById('serviceModalTitle').textContent = 'Editar Servicio'; openModal('serviceModal');
 }
 
@@ -973,7 +1045,63 @@ function deleteService(id) {
 
 function clearServiceForm() {
   ['serviceEditId','serviceName','servicePrice','serviceDuration','serviceDesc'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('serviceSection').value = '';
   document.getElementById('serviceModalTitle').textContent = 'Nuevo Servicio';
+}
+
+// ============ SECTIONS ============
+function renderSections() {
+  const q = (document.getElementById('searchSection').value||'').toLowerCase();
+  const tbody = document.getElementById('sectionsTable');
+  const list = data.sections.filter(s => !s._deleted && s.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No hay secciones</td></tr>'; return; }
+  tbody.innerHTML = list.map(s => `<tr>
+    <td><strong>${esc(s.name)}</strong></td>
+    <td>${esc(s.desc||'-')}</td>
+    <td><div class="btn-group">
+      <button class="btn btn-primary btn-sm" onclick="editSection('${s.id}')">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteSection('${s.id}')">🗑️</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+function saveSection() {
+  const id_ = document.getElementById('sectionEditId').value;
+  const name = document.getElementById('sectionName').value.trim();
+  if (!name) { alert('El nombre es obligatorio'); return; }
+  const obj = {
+    name,
+    desc: document.getElementById('sectionDesc').value.trim(),
+    _modified: Date.now(),
+    _deleted: false
+  };
+  if (id_) {
+    const s = data.sections.find(x => x.id === id_);
+    if (s) Object.assign(s, obj);
+  } else {
+    obj.id = id(); data.sections.push(obj);
+  }
+  saveKey('sections'); clearSectionForm(); closeModal('sectionModal'); renderSections(); syncPush();
+}
+
+function editSection(id) {
+  const s = data.sections.find(x => x.id === id); if (!s) return;
+  document.getElementById('sectionEditId').value = id;
+  document.getElementById('sectionName').value = s.name;
+  document.getElementById('sectionDesc').value = s.desc||'';
+  document.getElementById('sectionModalTitle').textContent = 'Editar Sección'; openModal('sectionModal');
+}
+
+function deleteSection(id) {
+  if (!confirm('¿Eliminar esta sección?')) return;
+  const s = data.sections.find(x => x.id === id);
+  if (s) { s._deleted = true; s._modified = Date.now(); }
+  saveKey('sections'); renderSections(); syncPush();
+}
+
+function clearSectionForm() {
+  ['sectionEditId','sectionName','sectionDesc'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('sectionModalTitle').textContent = 'Nueva Sección';
 }
 
 // ============ PROJECTS ============
@@ -1068,17 +1196,29 @@ function deleteProject(id) {
 }
 
 // ============ PRODUCTS ============
+function populateProviderSelect() {
+  const sel = document.getElementById('productProvider');
+  sel.innerHTML = '<option value="">Sin proveedor</option>'+data.providers.filter(p => !p._deleted).sort((a,b) => a.name.localeCompare(b.name)).map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+}
+
+function openProductModal() {
+  populateProviderSelect();
+  openModal('productModal');
+}
+
 function renderProducts() {
   const q = (document.getElementById('searchProduct').value||'').toLowerCase();
   const tbody = document.getElementById('productsTable');
   const list = data.products.filter(p => !p._deleted && p.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No hay productos</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay productos</td></tr>'; return; }
   tbody.innerHTML = list.map(p => {
     const stock = p.stock||0;
     const min = p.minStock||5;
     const low = stock <= min;
+    const prov = data.providers.find(x => x.id === p.providerId);
     return `<tr>
       <td><strong>${esc(p.name)}</strong></td>
+      <td>${prov ? esc(prov.name) : '-'}</td>
       <td><strong>${cur(p.price)}</strong></td>
       <td class="${low?'stock-low':''}">${stock}</td>
       <td>${min}</td>
@@ -1102,6 +1242,7 @@ function saveProduct() {
     stock: parseInt(document.getElementById('productStock').value)||0,
     minStock: parseInt(document.getElementById('productMinStock').value)||5,
     ivaRate: parseFloat(document.getElementById('productIva').value) || 21,
+    providerId: document.getElementById('productProvider').value || '',
     _modified: Date.now(),
     _deleted: false
   };
@@ -1112,6 +1253,7 @@ function saveProduct() {
 
 function editProduct(id) {
   const p = data.products.find(x => x.id === id); if (!p) return;
+  populateProviderSelect();
   document.getElementById('productEditId').value = id;
   document.getElementById('productName').value = p.name;
   document.getElementById('productPrice').value = p.price;
@@ -1119,6 +1261,7 @@ function editProduct(id) {
   document.getElementById('productStock').value = p.stock||0;
   document.getElementById('productMinStock').value = p.minStock||5;
   document.getElementById('productIva').value = p.ivaRate||21;
+  document.getElementById('productProvider').value = p.providerId||'';
   document.getElementById('productModalTitle').textContent = 'Editar Producto'; openModal('productModal');
 }
 
@@ -1133,7 +1276,68 @@ function clearProductForm() {
   ['productEditId','productName','productPrice','productCost','productStock','productMinStock'].forEach(id => document.getElementById(id).value='');
   document.getElementById('productMinStock').value = '5';
   document.getElementById('productIva').value = '21';
+  document.getElementById('productProvider').value = '';
   document.getElementById('productModalTitle').textContent = 'Nuevo Producto';
+}
+
+// ============ PROVIDERS ============
+function renderProviders() {
+  const q = (document.getElementById('searchProvider').value||'').toLowerCase();
+  const tbody = document.getElementById('providersTable');
+  const list = data.providers.filter(p => !p._deleted && p.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="4" class="empty-state">No hay proveedores</td></tr>'; return; }
+  tbody.innerHTML = list.map(p => `<tr>
+    <td><strong>${esc(p.name)}</strong></td>
+    <td>${esc(p.phone||'-')}</td>
+    <td>${esc(p.email||'-')}</td>
+    <td><div class="btn-group">
+      <button class="btn btn-primary btn-sm" onclick="editProvider('${p.id}')">✏️</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteProvider('${p.id}')">🗑️</button>
+    </div></td>
+  </tr>`).join('');
+}
+
+function saveProvider() {
+  const id_ = document.getElementById('providerEditId').value;
+  const name = document.getElementById('providerName').value.trim();
+  if (!name) { alert('El nombre es obligatorio'); return; }
+  const obj = {
+    name,
+    phone: document.getElementById('providerPhone').value.trim(),
+    email: document.getElementById('providerEmail').value.trim(),
+    address: document.getElementById('providerAddress').value.trim(),
+    _modified: Date.now(),
+    _deleted: false
+  };
+  if (id_) {
+    const p = data.providers.find(x => x.id === id_);
+    if (p) Object.assign(p, obj);
+  } else {
+    obj.id = id(); data.providers.push(obj);
+  }
+  saveKey('providers'); clearProviderForm(); closeModal('providerModal'); renderProviders(); syncPush();
+}
+
+function editProvider(id) {
+  const p = data.providers.find(x => x.id === id); if (!p) return;
+  document.getElementById('providerEditId').value = id;
+  document.getElementById('providerName').value = p.name;
+  document.getElementById('providerPhone').value = p.phone||'';
+  document.getElementById('providerEmail').value = p.email||'';
+  document.getElementById('providerAddress').value = p.address||'';
+  document.getElementById('providerModalTitle').textContent = 'Editar Proveedor'; openModal('providerModal');
+}
+
+function deleteProvider(id) {
+  if (!confirm('¿Eliminar este proveedor?')) return;
+  const p = data.providers.find(x => x.id === id);
+  if (p) { p._deleted = true; p._modified = Date.now(); }
+  saveKey('providers'); renderProviders(); syncPush();
+}
+
+function clearProviderForm() {
+  ['providerEditId','providerName','providerPhone','providerEmail','providerAddress'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('providerModalTitle').textContent = 'Nuevo Proveedor';
 }
 
 // ============ WAREHOUSE ============
