@@ -1,17 +1,13 @@
 {
-  "name": "tpv-peluqueria",
-  "version": "1.5.1",
-  "description": "TPV Agenda para Peluquería",
-  "main": "main.js",
+  "name": "tpv-peluqueria-sync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sync server for TPV Peluquería",
+  "main": "sync-helper.js",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "start": "electron .",
-    "build": "electron-builder --config electron-builder.json"
-  },
-  "devDependencies": {
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
+    "start": "node sync-helper.js"
   }
 }
