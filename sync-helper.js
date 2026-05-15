@@ -447,6 +447,10 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cita no encontrada' }));
           return;
         }
+        if (appt.source !== 'online') {
+          res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Solo puedes cancelar citas creadas online' }));
+          return;
+        }
         if (appt.date < new Date().toISOString().split('T')[0]) {
           res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'No puedes cancelar una cita pasada' }));
           return;
@@ -484,6 +488,10 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && !a._deleted);
         if (!appt) {
           res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cita no encontrada' }));
+          return;
+        }
+        if (appt.source !== 'online') {
+          res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Solo puedes modificar citas creadas online' }));
           return;
         }
         const newDate = b.newDate || appt.date;
