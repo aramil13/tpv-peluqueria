@@ -20,9 +20,8 @@ async function loadData() {
     clients = (d.clients||[]).filter(c => !c._deleted);
 
     const settings = d.settings || {};
-    if (settings.businessName) document.getElementById('businessName').textContent = settings.businessName;
     document.getElementById('businessSub').textContent = 'Elige tu servicio y confirma tu cita';
-    document.getElementById('footerInfo').textContent = settings.businessName || 'Reserva Online';
+    document.getElementById('footerInfo').textContent = settings.businessName || 'Nymara Estilistas';
 
     renderServices();
 
