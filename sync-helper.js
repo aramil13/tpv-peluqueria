@@ -107,6 +107,8 @@ function mergeArray(local, remote) {
   if (Array.isArray(remote)) remote.forEach(item => {
     if (map.has(item.id)) {
       const existing = map.get(item.id);
+      if (existing._deleted && !item._deleted) return;
+      if (item._deleted) { map.set(item.id, item); return; }
       if ((item._modified || 0) > (existing._modified || 0)) map.set(item.id, item);
     } else {
       map.set(item.id, item);
@@ -597,6 +599,14 @@ function pullFromSync() {
             if (current[k].length !== before) changed = true;
           }
         });
+        if (Array.isArray(remote.appointments)) {
+          const remoteMap = {};
+          remote.appointments.forEach(a => { if (a.id) remoteMap[a.id] = a; });
+          (current.appointments||[]).forEach(a => {
+            const r = remoteMap[a.id];
+            if (r && r._deleted) { a._deleted = true; changed = true; }
+          });
+        }
         if (changed) { writeData(current); console.log('Sync pull: data updated from', url); }
         else console.log('Sync pull: no changes from', url);
       } catch (e) { console.warn('Sync pull parse error:', e.message); }
