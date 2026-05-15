@@ -111,6 +111,8 @@ tr:hover td { background: #f8f9fa; }
 
 .agenda-day .day-num { font-weight: 600; font-size: 12px; margin-bottom: 3px; color: var(--text); }
 .agenda-day .appt { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-bottom: 1px; background: #d6eaf8; color: #1a5276; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agenda-day .appt-online { background: #d5f5e3; color: #1a6e3a; }
+.agenda-day .appt-online::after { content: ' 🌐'; font-size: 7px; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
 .stat-card { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 20px; text-align: center; }
 .stat-card .stat-number { font-size: 28px; font-weight: 700; color: var(--primary); }
@@ -1538,7 +1540,7 @@ function renderAgenda() {
       ${appts.slice(0,3).map(a => {
         const client = data.clients.find(c => c.id === a.clientId);
         const employee = data.employees.find(e => e.id === a.employeeId);
-        return `<div class="appt">${esc(a.time||'')} ${esc(client?client.name:'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(employee.name)})</span>`:''}</div>`;
+        return `<div class="appt${a.source==='online'?' appt-online':''}">${esc(a.time||'')} ${esc(client?client.name:'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(employee.name)})</span>`:''}</div>`;
       }).join('')}
       ${appts.length>3?`<div style="font-size:9px;color:var(--primary);">+${appts.length-3} más</div>`:''}
     </div>`;
@@ -1595,7 +1597,7 @@ function showDayAppts(dateStr) {
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;">
           <div><strong>${esc(a.time||'')}</strong> — ${esc(client?client.name:'?')} ${service?`<span style="color:var(--text-light)">(${esc(service.name)})</span>`:''}
           ${employee?`<br><small style="color:var(--text-light)">👤 ${esc(employee.name)}</small>`:''}
-          ${a.notes?`<br><small style="color:var(--text-light)">${esc(a.notes)}</small>`:''}</div>
+          ${a.notes?`<br><small style="color:var(--text-light)">${esc(a.notes)}</small>`:''}${a.source==='online'?` <span style="display:inline-block;background:#d5f5e3;color:#1a6e3a;font-size:10px;padding:1px 6px;border-radius:4px;margin-top:3px;">🌐 Online</span>`:''}</div>
           <div class="btn-group">
             <button class="btn btn-primary btn-sm" onclick="editAppt('${a.id}')">✏️</button>
             <button class="btn btn-danger btn-sm" onclick="deleteAppt('${a.id}')">🗑️</button>
@@ -1621,7 +1623,7 @@ function showDayAppts(dateStr) {
           <div style="font-weight:600;font-size:12px;">${esc(a.time||'')}</div>
           <div style="font-size:12px;">${esc(client?client.name:'?')}</div>
           ${service?`<div style="font-size:11px;color:var(--text-light);">${esc(service.name)}</div>`:''}
-          ${a.notes?`<div style="font-size:11px;color:var(--text-light);margin-top:2px;">${esc(a.notes)}</div>`:''}
+          ${a.notes?`<div style="font-size:11px;color:var(--text-light);margin-top:2px;">${esc(a.notes)}</div>`:''}${a.source==='online'?` <span style="display:inline-block;background:#d5f5e3;color:#1a6e3a;font-size:10px;padding:1px 6px;border-radius:4px;">🌐 Online</span>`:''}
           <div style="margin-top:4px;display:flex;gap:4px;"><button class="btn btn-primary btn-sm" style="padding:2px 6px;font-size:10px;" onclick="editAppt('${a.id}')">✏️</button><button class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:10px;" onclick="deleteAppt('${a.id}')">🗑️</button></div>
         </div>`;
       }).join('')}
