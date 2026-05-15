@@ -380,7 +380,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'not found' }));
       return;
     }
-    const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && !a._deleted).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+    const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.source === 'online' && !a._deleted).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
     const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
     res.end(JSON.stringify({

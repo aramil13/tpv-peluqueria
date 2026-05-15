@@ -1,0 +1,16 @@
+{
+  "name": "tpv-peluqueria-sync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sync server for TPV Peluquería",
+  "main": "sync-helper.js",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node sync-helper.js"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.0"
+  }
+}
