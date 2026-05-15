@@ -9,6 +9,7 @@ function showLoading(v) { document.getElementById('loadingOverlay').style.displa
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function escAttr(s) { return s.replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 function cur(n) { return parseFloat(n||0).toFixed(2)+'\u20AC'; }
+function fmtDate(d) { if (!d || typeof d !== 'string') return d; const p = d.split('-'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : d; }
 
 function goStep(n) {
   document.querySelectorAll('.step-indicator .step').forEach((s,i) => { s.classList.toggle('active', i===n); s.classList.toggle('done', i<n); });
@@ -84,7 +85,7 @@ function renderMyAppts() {
     const isPast = a.date < today;
     return '<div class="appt-card'+(isPast?' appt-past':'')+'">'+
       '<div class="appt-card-date">'+
-        '<span class="appt-card-day">'+esc(a.date)+'</span>'+
+        '<span class="appt-card-day">'+esc(fmtDate(a.date))+'</span>'+
         '<span class="appt-card-time">'+esc(a.time)+'</span>'+
       '</div>'+
       '<div class="appt-card-info">'+
@@ -133,7 +134,7 @@ async function modifyAppt(id) {
   modifyingApptId = id;
   const appt = currentAppointments.find(a => a.id === id);
   if (!appt) return;
-  document.getElementById('modifyTitle').textContent = 'Modificar cita: '+appt.date+' '+appt.time;
+  document.getElementById('modifyTitle').textContent = 'Modificar cita: '+fmtDate(appt.date)+' '+appt.time;
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const dateInput = document.getElementById('modifyDate');
   dateInput.value = appt.date;
@@ -302,7 +303,7 @@ function updateSummary() {
   if (!selectedService || !selectedSlot) { div.innerHTML = ''; return; }
   div.innerHTML = '<strong>Resumen</strong><br>'+
     'Servicio: '+esc(selectedService.name)+'<br>'+
-    'Fecha: '+selectedDate+'<br>'+
+    'Fecha: '+fmtDate(selectedDate)+'<br>'+
     'Horario: '+selectedSlot.time+(selectedSlot.employeeName?' con '+selectedSlot.employeeName:'')+'<br>'+
     '<strong>Total: '+cur(selectedService.price)+'</strong>';
 }
@@ -337,7 +338,7 @@ async function confirmBooking() {
       let extra = '';
       if (d.emailSent) extra = '✅ Te hemos enviado un email de confirmación.<br><br>';
       extra += '💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Recibir confirmación por WhatsApp</a>';
-      document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido registrada para el <strong>'+selectedDate+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+extra;
+      document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido registrada para el <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+extra;
     } else {
       alert('Error: '+(d.error||'No se pudo reservar'));
       document.getElementById('confirmBtn').disabled = false;
