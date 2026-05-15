@@ -47,6 +47,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .agenda-day.today { background: #fdebd0; }
 .agenda-day .day-num { font-weight: 600; font-size: 11px; margin-bottom: 1px; color: var(--text); }
 .agenda-day .appt { font-size: 7px; padding: 1px 2px; border-radius: 2px; margin-bottom: 1px; background: #d6eaf8; color: #1a5276; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agenda-day .appt-online { background: #d5f5e3; color: #0d4a2a; }
+.agenda-day .appt-online::after { content: ' 🌐'; font-size: 8px; }
 .empty-state { text-align: center; padding: 25px 16px; color: var(--text-light); }
 .empty-state p { font-size: 13px; margin-bottom: 6px; }
 .appt-list { padding: 10px 14px; }
@@ -374,7 +376,7 @@ function renderAgenda() {
       <div class="day-num">${d}</div>
       ${appts.slice(0,2).map(a => {
         const client = data.clients.find(c => c.id === a.clientId);
-        return `<div class="appt">${esc(a.time||'')} ${esc(client?client.name:'?')}</div>`;
+        return `<div class="appt${a.source==='online'?' appt-online':''}">${esc(a.time||'')} ${esc(client?client.name:'?')}</div>`;
       }).join('')}
       ${appts.length>2?`<div style="font-size:7px;color:var(--primary);">+${appts.length-2}</div>`:''}
     </div>`;
@@ -422,7 +424,7 @@ function showDayAppts(dateStr) {
           <div class="appt-time">${esc(a.time||'')}</div>
           <div class="appt-info">
             <div class="name">${esc(client?client.name:'?')}</div>
-            <div class="detail">${service?esc(service.name):''}${employee?' · '+esc(employee.name):''}${a.notes?' · '+esc(a.notes):''}</div>
+            <div class="detail">${service?esc(service.name):''}${employee?' · '+esc(employee.name):''}${a.notes?' · '+esc(a.notes):''}${a.source==='online'?' <span style="color:#0d4a2a;font-size:13px;">🌐</span>':''}</div>
           </div>
           <div class="btn-group" style="flex-shrink:0;">
             <button class="btn btn-xs btn-secondary" onclick="editAppt('${a.id}')">✏️</button>
@@ -446,7 +448,7 @@ function showDayAppts(dateStr) {
           <div class="time">${esc(a.time||'')}</div>
           <div>${esc(client?client.name:'?')}</div>
           ${service?`<div style="color:var(--text-light);font-size:10px;">${esc(service.name)}</div>`:''}
-          ${a.notes?`<div style="color:var(--text-light);font-size:10px;margin-top:1px;">${esc(a.notes)}</div>`:''}
+          ${a.notes?`<div style="color:var(--text-light);font-size:10px;margin-top:1px;">${esc(a.notes)}</div>`:''}${a.source==='online'?` <span style="color:#0d4a2a;font-size:12px;font-weight:600;">🌐 Online</span>`:''}
           <div style="margin-top:3px;display:flex;gap:3px;">
             <button class="btn btn-xs btn-secondary" onclick="editAppt('${a.id}')">✏️</button>
             <button class="btn btn-xs btn-danger" onclick="deleteAppt('${a.id}')">🗑️</button>

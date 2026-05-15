@@ -306,7 +306,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     req.on('end', () => {
       try {
         const b = JSON.parse(body);
-        const data = readData();
+            const data = readData();
         if (!b.serviceId || !b.date || !b.time || !b.clientName || !b.clientPhone) {
           res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Faltan campos obligatorios' }));
@@ -413,6 +413,34 @@ function parseTime(t) {
   return (parseInt(p[0])||0) + (parseInt(p[1])||0) / 60;
 }
 
+function pullFromSync() {
+  if (!SYNC_FORWARD_URL) return;
+  const url = SYNC_FORWARD_URL.replace(/\/+$/, '') + '/sync';
+  const mod = url.startsWith('https') ? https : http;
+  mod.get(url, (res) => {
+    let data = '';
+    res.on('data', c => data += c);
+    res.on('end', () => {
+      if (res.statusCode !== 200) return;
+      try {
+        const remote = JSON.parse(data);
+        const current = readData();
+        const LIST_KEYS = ['appointments', 'clients', 'services', 'sections', 'employees', 'products', 'providers'];
+        let changed = false;
+        LIST_KEYS.forEach(k => {
+          if (Array.isArray(remote[k])) {
+            const before = (current[k]||[]).length;
+            current[k] = mergeArray(Array.isArray(current[k]) ? current[k] : [], remote[k]);
+            if (current[k].length !== before) changed = true;
+          }
+        });
+        if (changed) { writeData(current); console.log('Sync pull: data updated from', url); }
+        else console.log('Sync pull: no changes from', url);
+      } catch (e) { console.warn('Sync pull parse error:', e.message); }
+    });
+  }).on('error', e => console.warn('Sync pull error:', e.message));
+}
+
 function forwardAppointment(appt, client) {
   if (!SYNC_FORWARD_URL) { console.log('Forward: no SYNC_FORWARD_URL set'); return; }
   const url = SYNC_FORWARD_URL.replace(/\/+$/, '') + '/sync';
@@ -438,6 +466,12 @@ function forwardAppointment(appt, client) {
 }
 
 seedInitialData();
+
+if (SYNC_FORWARD_URL) {
+  pullFromSync();
+  setInterval(pullFromSync, 30000);
+  console.log('Sync pull: polling', SYNC_FORWARD_URL, 'every 30s');
+}
 
 server.listen(PORT, HOST, () => {
   const addr = typeof HOST === 'string' && HOST === '0.0.0.0'

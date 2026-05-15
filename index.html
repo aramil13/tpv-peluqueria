@@ -111,8 +111,8 @@ tr:hover td { background: #f8f9fa; }
 
 .agenda-day .day-num { font-weight: 600; font-size: 12px; margin-bottom: 3px; color: var(--text); }
 .agenda-day .appt { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-bottom: 1px; background: #d6eaf8; color: #1a5276; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.agenda-day .appt-online { background: #d5f5e3; color: #1a6e3a; }
-.agenda-day .appt-online::after { content: ' 🌐'; font-size: 7px; }
+.agenda-day .appt-online { background: #d5f5e3; color: #0d4a2a; }
+.agenda-day .appt-online::after { content: ' 🌐'; font-size: 9px; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
 .stat-card { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 20px; text-align: center; }
 .stat-card .stat-number { font-size: 28px; font-weight: 700; color: var(--primary); }
@@ -1597,7 +1597,7 @@ function showDayAppts(dateStr) {
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;">
           <div><strong>${esc(a.time||'')}</strong> — ${esc(client?client.name:'?')} ${service?`<span style="color:var(--text-light)">(${esc(service.name)})</span>`:''}
           ${employee?`<br><small style="color:var(--text-light)">👤 ${esc(employee.name)}</small>`:''}
-          ${a.notes?`<br><small style="color:var(--text-light)">${esc(a.notes)}</small>`:''}${a.source==='online'?` <span style="display:inline-block;background:#d5f5e3;color:#1a6e3a;font-size:10px;padding:1px 6px;border-radius:4px;margin-top:3px;">🌐 Online</span>`:''}</div>
+          ${a.notes?`<br><small style="color:var(--text-light)">${esc(a.notes)}</small>`:''}${a.source==='online'?` <span style="display:inline-block;background:#d5f5e3;color:#0d4a2a;font-size:12px;padding:2px 8px;border-radius:4px;margin-top:3px;font-weight:600;">🌐 Online</span>`:''}</div>
           <div class="btn-group">
             <button class="btn btn-primary btn-sm" onclick="editAppt('${a.id}')">✏️</button>
             <button class="btn btn-danger btn-sm" onclick="deleteAppt('${a.id}')">🗑️</button>
