@@ -317,7 +317,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         if (!client) {
           client = {
             id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
-            name: b.clientName, phone: b.clientPhone, email: b.clientEmail||'',
+            name: (b.clientName||'')+' (Online)', phone: b.clientPhone, email: b.clientEmail||'',
             address: '', city: '', province: '', zip: '', nif: '', notes: '',
             visits: 0, totalSpent: 0, created: new Date().toISOString(),
             _modified: Date.now(), _deleted: false
@@ -410,7 +410,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         }
         const client = {
           id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
-          name: b.name, phone: b.phone, email: b.email||'',
+          name: (b.name||'')+' (Online)', phone: b.phone, email: b.email||'',
           address: '', city: '', province: '', zip: '', nif: '', notes: '',
           visits: 0, totalSpent: 0, created: new Date().toISOString(),
           _modified: Date.now(), _deleted: false
