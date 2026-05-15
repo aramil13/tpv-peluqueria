@@ -21,7 +21,7 @@ async function loadData() {
 
     const settings = d.settings || {};
     if (settings.businessName) document.getElementById('businessName').textContent = settings.businessName;
-    document.getElementById('businessSub').textContent = 'Reserva online - Elige tu servicio y confirma tu cita';
+    document.getElementById('businessSub').textContent = 'Elige tu servicio y confirma tu cita';
     document.getElementById('footerInfo').textContent = settings.businessName || 'Reserva Online';
 
     renderServices();

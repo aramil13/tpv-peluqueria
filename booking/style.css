@@ -8,7 +8,8 @@
 body { font-family: 'Segoe UI', Tahoma, sans-serif; background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); min-height: 100vh; display: flex; justify-content: center; padding: 20px; }
 .container { max-width: 700px; width: 100%; background: var(--card); border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,.12); overflow: hidden; }
 .header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: #fff; padding: 30px; text-align: center; }
-.header h1 { font-size: 24px; margin-bottom: 5px; }
+.business-name { font-size: 28px; font-weight: 800; margin-bottom: 4px; }
+.header h1 { font-size: 18px; font-weight: 400; opacity: .9; margin-bottom: 5px; }
 .header p { font-size: 14px; opacity: .8; }
 .steps { padding: 25px; }
 .step-indicator { display: flex; justify-content: space-between; margin-bottom: 30px; gap: 5px; }
