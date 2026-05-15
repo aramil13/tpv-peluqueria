@@ -1,7 +1,9 @@
 const http = require('http');
+const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
+console.log('Starting sync-helper... Forward URL:', process.env.SYNC_FORWARD_URL || '(none)');
 const PORT = parseInt(process.env.PORT) || parseInt(process.env.SYNC_PORT) || 3456;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = (() => {
@@ -176,8 +178,25 @@ const server = http.createServer((req, res) => {
       clients: (data.clients || []).length,
       services: (data.services || []).length,
       employees: (data.employees || []).length,
+      forwardUrl: SYNC_FORWARD_URL || '(none)',
       lastModified: data.lastModified
     }));
+    return;
+  }
+
+  if (url === '/debug') {
+    const data = readData();
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'text/html' });
+    const appts = (data.appointments || []).filter(a => !a._deleted);
+    res.end(`<pre>
+SYNC_FORWARD_URL: ${SYNC_FORWARD_URL || '(not set)'}
+SYNC_FORWARD_KEY: ${SYNC_FORWARD_KEY ? '(set)' : '(not set)'}
+DATA_DIR: ${DATA_DIR}
+SYNC_FILE: ${SYNC_FILE}
+Appointments: ${appts.length}
+Clients: ${(data.clients||[]).length}
+${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
+</pre>`);
     return;
   }
 
@@ -334,7 +353,7 @@ function parseTime(t) {
 }
 
 function forwardAppointment(appt, client) {
-  if (!SYNC_FORWARD_URL) return;
+  if (!SYNC_FORWARD_URL) { console.log('Forward: no SYNC_FORWARD_URL set'); return; }
   const url = SYNC_FORWARD_URL.replace(/\/+$/, '') + '/sync';
   const headers = { 'Content-Type': 'application/json' };
   if (SYNC_FORWARD_KEY) headers['Authorization'] = 'Bearer ' + SYNC_FORWARD_KEY;
@@ -342,16 +361,17 @@ function forwardAppointment(appt, client) {
     appointments: [appt],
     clients: [client]
   });
-  const parsed = new URL(url);
-  const mod = parsed.protocol === 'https:' ? require('https') : require('http');
+  const mod = url.startsWith('https') ? https : http;
+  console.log('Forward: sending to ' + url + ' (appt=' + appt.id + ')');
   const req = mod.request(url, { method: 'POST', headers }, (res) => {
     let data = '';
     res.on('data', c => data += c);
     res.on('end', () => {
-      if (res.statusCode !== 200) console.warn('Forward sync returned ' + res.statusCode);
+      if (res.statusCode === 200) console.log('Forward: success for ' + appt.id);
+      else console.warn('Forward: returned HTTP ' + res.statusCode + ' for ' + appt.id + ' - ' + data);
     });
   });
-  req.on('error', e => console.warn('Forward sync error: ' + e.message));
+  req.on('error', e => console.error('Forward: error for ' + appt.id + ' - ' + e.message));
   req.write(body);
   req.end();
 }
