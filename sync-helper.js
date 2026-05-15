@@ -324,8 +324,24 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           };
           data.clients.push(client);
         }
+        // Check availability
+        const empAppts = (data.appointments||[]).filter(a => a.date === b.date && !a._deleted && (!a.employeeId || a.employeeId === (b.employeeId||'')));
+        const srv = (data.services||[]).find(s => s.id === b.serviceId);
+        const srvDuration = srv ? srv.duration : 30;
+        const reqStart = parseTime(b.time);
+        const reqEnd = reqStart + srvDuration / 60;
+        const conflict = empAppts.some(a => {
+          const as = (data.services||[]).find(s => s.id === a.serviceId);
+          const aStart = parseTime(a.time);
+          const aEnd = aStart + (as ? (as.duration || 30) : 30) / 60;
+          return reqStart < aEnd && reqEnd > aStart;
+        });
+        if (conflict) {
+          res.writeHead(409, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Este horario ya no está disponible. Por favor, elige otro.' }));
+          return;
+        }
         // Create appointment
-        const appt = {
           id: 'a'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
           clientId: client.id, serviceId: b.serviceId,
           employeeId: b.employeeId || '', date: b.date, time: b.time,
