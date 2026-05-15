@@ -73,7 +73,11 @@ function selectService(id) {
 
 function onDateChange() {
   selectedDate = document.getElementById('bookingDate').value;
-  if (selectedService) fetchSlots();
+  if (!selectedService) return;
+  selectedSlot = null;
+  document.getElementById('selectedSlot').textContent = '';
+  document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+  fetchSlots();
 }
 
 async function fetchSlots() {
@@ -107,7 +111,7 @@ function selectSlot(el, time, employeeId, employeeName) {
   el.classList.add('selected');
   selectedSlot = { time, employeeId, employeeName };
   document.getElementById('selectedSlot').textContent = 'Horario: '+time+(employeeName?' con '+employeeName:'');
-  goStep(4);
+  goStep(3);
   updateSummary();
 }
 
@@ -147,7 +151,7 @@ async function confirmBooking() {
     });
     const d = await r.json();
     if (d.ok) {
-      goStep(5);
+      goStep(4);
       document.getElementById('doneMsg').textContent = 'Tu cita ha sido registrada para el '+selectedDate+' a las '+selectedSlot.time+(selectedSlot.employeeName?' con '+selectedSlot.employeeName:'')+'. Te esperamos!';
     } else {
       alert('Error: '+(d.error||'No se pudo reservar'));

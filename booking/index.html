@@ -16,9 +16,8 @@
   <div class="steps">
     <div class="step-indicator">
       <div class="step active" id="step1ind"><span class="step-num">1</span> Servicio</div>
-      <div class="step" id="step2ind"><span class="step-num">2</span> Fecha</div>
-      <div class="step" id="step3ind"><span class="step-num">3</span> Horario</div>
-      <div class="step" id="step4ind"><span class="step-num">4</span> Datos</div>
+      <div class="step" id="step2ind"><span class="step-num">2</span> Fecha y Hora</div>
+      <div class="step" id="step3ind"><span class="step-num">3</span> Datos</div>
     </div>
 
     <div class="step-content active" id="step1">
@@ -31,16 +30,12 @@
       <h2>Elige una fecha</h2>
       <div class="date-picker"><input type="date" id="bookingDate" onchange="onDateChange()"></div>
       <p id="selectedService" class="selected-info"></p>
-    </div>
-
-    <div class="step-content" id="step3">
-      <h2>Elige un horario</h2>
-      <div id="slotsContainer" class="slots-grid"></div>
+      <div id="slotsContainer" class="slots-grid" style="margin-top:15px;"></div>
       <p id="noSlots" class="no-slots" style="display:none;">No hay horarios disponibles para esta fecha</p>
       <p id="selectedSlot" class="selected-info"></p>
     </div>
 
-    <div class="step-content" id="step4">
+    <div class="step-content" id="step3">
       <h2>Tus datos</h2>
       <div class="form-group"><label>Nombre *</label><input type="text" id="clientName" placeholder="Tu nombre completo"></div>
       <div class="form-group"><label>Teléfono *</label><input type="tel" id="clientPhone" placeholder="Ej: 612345678"></div>
@@ -50,7 +45,7 @@
       <button class="btn btn-primary btn-block" onclick="confirmBooking()" id="confirmBtn">Confirmar Reserva</button>
     </div>
 
-    <div class="step-content" id="stepDone">
+    <div class="step-content" id="step4">
       <div class="done-icon">✅</div>
       <h2>Reserva Confirmada</h2>
       <p id="doneMsg">Tu cita ha sido registrada. Te esperamos!</p>
