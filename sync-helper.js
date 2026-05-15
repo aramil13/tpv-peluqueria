@@ -455,6 +455,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         appt._modified = Date.now();
         appt.notes = (appt.notes||'') + ' [Cancelada por cliente]';
         writeData(d);
+        forwardAppointment(appt, client);
         res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch(e) {
@@ -509,6 +510,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         appt._modified = Date.now();
         appt.notes = (appt.notes||'') + ' [Modificada por cliente]';
         writeData(d);
+        forwardAppointment(appt, client);
         res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, appointment: { id: appt.id, date: appt.date, time: appt.time } }));
       } catch(e) {
