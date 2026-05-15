@@ -1,22 +1,15 @@
 services:
   - type: web
-    name: tpv-peluqueria-sync
-    runtime: node
-    region: ohio
-    plan: free
-    buildCommand: ""
+    name: tpv-peluqueria-booking
+    env: node
+    buildCommand: npm install
     startCommand: node sync-helper.js
-    healthCheckPath: /health
     envVars:
-      - key: HOST
-        value: 0.0.0.0
-      - key: SYNC_DATA_DIR
-        value: /data
       - key: CORS_ORIGIN
         value: "*"
-      - key: NODE_ENV
-        value: production
+      - key: SYNC_DATA_DIR
+        value: /data
     disk:
-      name: sync-data
+      name: data
       mountPath: /data
       sizeGB: 1

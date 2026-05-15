@@ -1,6 +1,6 @@
 {
   "name": "tpv-peluqueria",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "description": "TPV Agenda para Peluquería",
   "main": "main.js",
   "scripts": {
@@ -17,7 +17,8 @@
       "index.html",
       "main.js",
       "sync-helper.js",
-      "package.json"
+      "package.json",
+      "booking/**"
     ],
     "win": {
       "target": "portable",

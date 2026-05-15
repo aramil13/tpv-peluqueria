@@ -192,6 +192,7 @@ tr:hover td { background: #f8f9fa; }
             <button class="btn btn-primary" onclick="filterPosItems('services')">Servicios</button>
             <button class="btn btn-secondary" onclick="filterPosItems('products')">Productos</button>
             <button class="btn btn-secondary" onclick="filterPosItems('projects')">Packs</button>
+            <span id="posSectionTabs"></span>
             <button class="btn btn-secondary" onclick="filterPosItems('all')">Todos</button>
           </div>
           <div class="pos-items-grid" id="posItems"></div>
@@ -760,7 +761,8 @@ function syncPush() {
       sections: Array.isArray(data.sections) ? data.sections : [],
       employees: Array.isArray(data.employees) ? data.employees : [],
       products: Array.isArray(data.products) ? data.products : [],
-      providers: Array.isArray(data.providers) ? data.providers : []
+      providers: Array.isArray(data.providers) ? data.providers : [],
+      settings: data.settings || {}
     })
   }).then(async r => {
     if (r.ok && status) status.textContent = '✅ Sincronizado';
@@ -844,7 +846,7 @@ document.querySelectorAll('.nav-item').forEach(el => {
       agenda:'Gestión de citas', reports:'Informes y estadísticas'};
     document.getElementById('sectionTitle').innerHTML = t+' <small>'+(subs[this.dataset.section]||'')+'</small>';
     if (this.dataset.section === 'dashboard') renderDashboard();
-    if (this.dataset.section === 'pos') { renderPosItems(); updateTicket(); }
+    if (this.dataset.section === 'pos') { renderPosSectionTabs(); renderPosItems(); updateTicket(); }
     if (this.dataset.section === 'clients') renderClients();
     if (this.dataset.section === 'employees') renderEmployees();
     if (this.dataset.section === 'services') renderServices();
@@ -1183,13 +1185,15 @@ function calcProjectDuration(p) {
 }
 
 function openProjectForm() {
-  document.getElementById('projectEditId').value = '';
-  document.getElementById('projectName').value = '';
-  document.getElementById('projectDiscount').value = '0';
-  document.getElementById('projectModalTitle').textContent = 'Nuevo Pack';
-  renderProjectServices();
-  calcProjectTotal();
-  openModal('projectModal');
+  try {
+    document.getElementById('projectEditId').value = '';
+    document.getElementById('projectName').value = '';
+    document.getElementById('projectDiscount').value = '0';
+    document.getElementById('projectModalTitle').textContent = 'Nuevo Pack';
+    renderProjectServices();
+    calcProjectTotal();
+    openModal('projectModal');
+  } catch(e) { alert('Error: '+e.message); }
 }
 
 function renderProjectServices() {
@@ -1739,27 +1743,35 @@ let editingSaleId = null;
 let originalSaleForRectify = null;
 
 function renderPosItems(filter) {
+  renderPosSectionTabs();
   const div = document.getElementById('posItems');
   const q = (document.getElementById('posSearch').value||'').toLowerCase();
   let items = [];
   
-  data.services.forEach(s => {
-    const sec = data.sections.find(x => x.id === s.sectionId);
+  data.services.filter(s => !s._deleted).forEach(s => {
+    const sec = data.sections.find(x => x.id === s.sectionId && !x._deleted);
     const se = sec ? sec.name + ' · ' : '';
     items.push({type:'service', id:s.id, name:s.name, price:s.price, extra: se + s.duration+' min', ref:s, secColor: sec&&sec.color ? sec.color : null});
   });
-  data.products.forEach(p => {
-    const prov = data.providers.find(x => x.id === p.providerId);
+  data.products.filter(p => !p._deleted).forEach(p => {
+    const prov = data.providers.find(x => x.id === p.providerId && !x._deleted);
     const pe = prov ? prov.name + ' · ' : '';
     items.push({type:'product', id:p.id, name:p.name, price:p.price, extra: 'Stock: '+(p.stock||0), ref:p, provColor: prov&&prov.color ? prov.color : null});
   });
-  data.projects.forEach(p => {
+  data.projects.filter(p => !p._deleted).forEach(p => {
     const total = (p.services||[]).reduce((sum, sid) => { const s = data.services.find(x => x.id===sid); return sum + (s? s.price:0) },0);
     const final = total * (1 - (p.discount||0)/100);
     items.push({type:'project', id:p.id, name:p.name, price:final, extra: (p.discount||0)>0?p.discount+'% desc.':'Paquete', ref:p});
   });
   
-  if (filter && filter !== 'all') items = items.filter(i => i.type === filter || (filter==='services'&&i.type==='service')||(filter==='products'&&i.type==='product')||(filter==='projects'&&i.type==='project'));
+  if (filter && filter !== 'all') {
+    if (filter.startsWith('sec-')) {
+      const secId = filter.slice(4);
+      items = items.filter(i => i.type === 'service' && i.ref && i.ref.sectionId === secId);
+    } else {
+      items = items.filter(i => i.type === filter || (filter==='services'&&i.type==='service')||(filter==='products'&&i.type==='product')||(filter==='projects'&&i.type==='project'));
+    }
+  }
   if (q) items = items.filter(i => i.name.toLowerCase().includes(q));
   if (!filter) items = items.filter(i => i.type === 'service');
   
@@ -1776,12 +1788,24 @@ function renderPosItems(filter) {
 }
 
 function filterPosItems(filter) {
-  document.querySelectorAll('#posTabs .btn').forEach(b => b.className = 'btn btn-secondary');
+  document.querySelectorAll('#posTabs .btn, #posSectionTabs .btn').forEach(b => b.className = 'btn btn-secondary');
   if (!filter) filter = 'all';
-  const map = {all:0, services:0, products:1, projects:2};
-  const btns = document.querySelectorAll('#posTabs .btn');
-  if (btns[map[filter]||0]) btns[map[filter]||0].className = 'btn btn-primary';
+  if (filter.startsWith('sec-')) {
+    const el = document.querySelector('#posSectionTabs .btn[data-section="'+filter+'"]');
+    if (el) el.className = 'btn btn-primary';
+  } else {
+    const map = {all:0, services:0, products:1, projects:2};
+    const btns = document.querySelectorAll('#posTabs > .btn');
+    if (btns[map[filter]||0]) btns[map[filter]||0].className = 'btn btn-primary';
+  }
   renderPosItems(filter);
+}
+
+function renderPosSectionTabs() {
+  const span = document.getElementById('posSectionTabs');
+  const active = data.sections.filter(s => !s._deleted);
+  if (!active.length) { span.innerHTML = ''; return; }
+  span.innerHTML = active.map(s => `<button class="btn btn-secondary" onclick="filterPosItems('sec-${s.id}')" data-section="sec-${s.id}" style="${s.color ? 'border-color:'+s.color+';color:'+s.color+';' : ''}">${s.color ? '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+s.color+';margin-right:4px;vertical-align:middle;"></span>' : ''}${esc(s.name)}</button>`).join('');
 }
 
 function addToTicket(type, id, name, price) {

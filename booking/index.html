@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reserva Online</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1 id="businessName">Reserva Online</h1>
+    <p id="businessSub">Elige servicio, fecha y confirma tu cita</p>
+  </div>
+
+  <div class="steps">
+    <div class="step-indicator">
+      <div class="step active" id="step1ind"><span class="step-num">1</span> Servicio</div>
+      <div class="step" id="step2ind"><span class="step-num">2</span> Fecha</div>
+      <div class="step" id="step3ind"><span class="step-num">3</span> Horario</div>
+      <div class="step" id="step4ind"><span class="step-num">4</span> Datos</div>
+    </div>
+
+    <div class="step-content active" id="step1">
+      <h2>Elige un servicio</h2>
+      <div class="search-box"><input type="text" id="searchService" placeholder="Buscar servicio..." oninput="filterServices()"></div>
+      <div id="servicesList" class="services-grid"></div>
+    </div>
+
+    <div class="step-content" id="step2">
+      <h2>Elige una fecha</h2>
+      <div class="date-picker"><input type="date" id="bookingDate" onchange="onDateChange()"></div>
+      <p id="selectedService" class="selected-info"></p>
+    </div>
+
+    <div class="step-content" id="step3">
+      <h2>Elige un horario</h2>
+      <div id="slotsContainer" class="slots-grid"></div>
+      <p id="noSlots" class="no-slots" style="display:none;">No hay horarios disponibles para esta fecha</p>
+      <p id="selectedSlot" class="selected-info"></p>
+    </div>
+
+    <div class="step-content" id="step4">
+      <h2>Tus datos</h2>
+      <div class="form-group"><label>Nombre *</label><input type="text" id="clientName" placeholder="Tu nombre completo"></div>
+      <div class="form-group"><label>Teléfono *</label><input type="tel" id="clientPhone" placeholder="Ej: 612345678"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="clientEmail" placeholder="email@ejemplo.com"></div>
+      <div class="form-group"><label>Notas</label><textarea id="bookingNotes" placeholder="Alguna observación..."></textarea></div>
+      <div class="summary" id="bookingSummary"></div>
+      <button class="btn btn-primary btn-block" onclick="confirmBooking()" id="confirmBtn">Confirmar Reserva</button>
+    </div>
+
+    <div class="step-content" id="stepDone">
+      <div class="done-icon">✅</div>
+      <h2>Reserva Confirmada</h2>
+      <p id="doneMsg">Tu cita ha sido registrada. Te esperamos!</p>
+      <button class="btn btn-primary" onclick="resetBooking()">Nueva Reserva</button>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p id="footerInfo">Reserva Online</p>
+  </div>
+</div>
+
+<div class="loading" id="loadingOverlay" style="display:none;"><div class="spinner"></div><p>Cargando...</p></div>
+
+<script src="booking.js"></script>
+</body>
+</html>

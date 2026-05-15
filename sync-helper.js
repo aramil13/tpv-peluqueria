@@ -29,10 +29,13 @@ function readData() {
       if (!Array.isArray(raw.products)) raw.products = [];
       if (!Array.isArray(raw.projects)) raw.projects = [];
       if (!Array.isArray(raw.movements)) raw.movements = [];
+      if (!Array.isArray(raw.sections)) raw.sections = [];
+      if (!Array.isArray(raw.providers)) raw.providers = [];
+      if (!raw.settings) raw.settings = {};
       return raw;
     }
   } catch (e) { /* fall through */ }
-  return { appointments: [], clients: [], services: [], employees: [], products: [], projects: [], movements: [], lastModified: 0 };
+  return { appointments: [], clients: [], services: [], employees: [], products: [], projects: [], movements: [], sections: [], providers: [], settings: {}, lastModified: 0 };
 }
 
 function writeData(data) {
@@ -63,6 +66,49 @@ function mergeArray(local, remote) {
 
 function pathname(url) { return url.split('?')[0].split('#')[0] }
 
+// === SEED DATA for fresh deployments (Render) ===
+function seedInitialData() {
+  if (fs.existsSync(SYNC_FILE)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(SYNC_FILE, 'utf8'));
+      if (existing.services && existing.services.length > 0) return;
+    } catch (_) { /* recreate */ }
+  }
+  ensureDir(SYNC_FILE);
+  const sections = [
+    { id:'sec1', name:'Corte', color:'#8E44AD', _deleted:false, _modified:Date.now() },
+    { id:'sec2', name:'Color', color:'#E74C3C', _deleted:false, _modified:Date.now() },
+    { id:'sec3', name:'Tratamiento', color:'#27AE60', _deleted:false, _modified:Date.now() },
+    { id:'sec4', name:'Peinado', color:'#F39C12', _deleted:false, _modified:Date.now() },
+    { id:'sec5', name:'Manicura', color:'#3498DB', _deleted:false, _modified:Date.now() }
+  ];
+  const services = [
+    { id:'srv1', name:'Corte de cabello', price:15, duration:30, sectionId:'sec1', _deleted:false, _modified:Date.now() },
+    { id:'srv2', name:'Corte infantíl', price:10, duration:20, sectionId:'sec1', _deleted:false, _modified:Date.now() },
+    { id:'srv3', name:'Tinte completo', price:45, duration:90, sectionId:'sec2', _deleted:false, _modified:Date.now() },
+    { id:'srv4', name:'Mechas', price:55, duration:120, sectionId:'sec2', _deleted:false, _modified:Date.now() },
+    { id:'srv5', name:'Lavado y secado', price:8, duration:20, sectionId:'sec3', _deleted:false, _modified:Date.now() },
+    { id:'srv6', name:'Tratamiento keratina', price:35, duration:60, sectionId:'sec3', _deleted:false, _modified:Date.now() },
+    { id:'srv7', name:'Peinado de fiesta', price:25, duration:45, sectionId:'sec4', _deleted:false, _modified:Date.now() },
+    { id:'srv8', name:'Recogido', price:30, duration:40, sectionId:'sec4', _deleted:false, _modified:Date.now() },
+    { id:'srv9', name:'Manicura básica', price:18, duration:30, sectionId:'sec5', _deleted:false, _modified:Date.now() },
+    { id:'srv10', name:'Uñas de gel', price:35, duration:60, sectionId:'sec5', _deleted:false, _modified:Date.now() }
+  ];
+  const employees = [
+    { id:'emp1', name:'Laura García', color:'#8E44AD', phone:'', email:'', commission:50, _deleted:false, _modified:Date.now() },
+    { id:'emp2', name:'Carlos Martínez', color:'#3498DB', phone:'', email:'', commission:50, _deleted:false, _modified:Date.now() },
+    { id:'emp3', name:'Ana López', color:'#E74C3C', phone:'', email:'', commission:50, _deleted:false, _modified:Date.now() }
+  ];
+  const data = {
+    sections, services, employees,
+    clients: [], products: [], projects: [], movements: [], appointments: [],
+    providers: [], settings: { businessName:'Peluquería Ejemplo', businessPhone:'612345678' },
+    lastModified: Date.now()
+  };
+  writeData(data);
+  console.log('Seed data created with ' + services.length + ' services, ' + employees.length + ' employees');
+}
+
 const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') {
     res.writeHead(204, CORS_HEADERS);
@@ -88,7 +134,7 @@ const server = http.createServer((req, res) => {
           const remote = JSON.parse(body);
           const current = readData();
           const merged = { ...current };
-          const LIST_KEYS = ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements'];
+          const LIST_KEYS = ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers'];
           LIST_KEYS.forEach(k => {
             if (Array.isArray(remote[k])) {
               merged[k] = mergeArray(Array.isArray(current[k]) ? current[k] : [], remote[k]);
@@ -96,6 +142,7 @@ const server = http.createServer((req, res) => {
           });
     writeData(merged);
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+    merged.settings = remote.settings || current.settings || {};
     res.end(JSON.stringify({
       ok: true,
       appointments: (Array.isArray(merged.appointments) ? merged.appointments : []).length,
@@ -128,8 +175,158 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // === BOOKING API ===
+  if (url === '/api/slots') {
+    const data = readData();
+    const q = new URLSearchParams(req.url.split('?')[1]||'');
+    const date = q.get('date');
+    const serviceId = q.get('serviceId');
+    if (!date || !serviceId) {
+      res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'date and serviceId required' }));
+      return;
+    }
+    const service = (data.services||[]).find(s => s.id === serviceId && !s._deleted);
+    if (!service) {
+      res.writeHead(404, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Service not found' }));
+      return;
+    }
+    const duration = service.duration || 30;
+    const employeesList = (data.employees||[]).filter(e => !e._deleted);
+    const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted);
+    const now = new Date();
+    const isToday = date === now.toISOString().split('T')[0];
+    const currentHour = now.getHours() + now.getMinutes() / 60;
+
+    const BUSINESS_START = 9;
+    const BUSINESS_END = 19;
+    const SLOT_INTERVAL = 15;
+
+    const slots = [];
+    const availableEmps = employeesList.length ? employeesList : [{ id: '', name: 'Sin asignar' }];
+
+    availableEmps.forEach(emp => {
+      const empAppts = appts.filter(a => !a.employeeId || a.employeeId === emp.id);
+      for (let h = BUSINESS_START; h < BUSINESS_END; h++) {
+        for (let m = 0; m < 60; m += SLOT_INTERVAL) {
+          const start = h + m / 60;
+          const end = start + duration / 60;
+          if (end > BUSINESS_END) break;
+          if (isToday && start <= currentHour + 1) continue;
+          const timeStr = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+          const occupied = empAppts.some(a => {
+            const srv = (data.services||[]).find(s => s.id === a.serviceId);
+            const aStart = parseTime(a.time);
+            const aEnd = aStart + (srv ? (srv.duration || 30) : 30) / 60;
+            return start < aEnd && end > aStart;
+          });
+          if (!occupied) {
+            slots.push({ time: timeStr, employeeId: emp.id, employeeName: emp.name || '' });
+          }
+        }
+      }
+    });
+
+    slots.sort((a,b) => a.time.localeCompare(b.time) || a.employeeName.localeCompare(b.employeeName));
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ slots, date, serviceId, duration }));
+    return;
+  }
+
+  if (url === '/api/book' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(body);
+        const data = readData();
+        if (!b.serviceId || !b.date || !b.time || !b.clientName || !b.clientPhone) {
+          res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Faltan campos obligatorios' }));
+          return;
+        }
+        // Find or create client
+        let client = (data.clients||[]).find(c => c.phone === b.clientPhone && !c._deleted);
+        if (!client) {
+          client = {
+            id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
+            name: b.clientName, phone: b.clientPhone, email: b.clientEmail||'',
+            address: '', city: '', province: '', zip: '', nif: '', notes: '',
+            visits: 0, totalSpent: 0, created: new Date().toISOString(),
+            _modified: Date.now(), _deleted: false
+          };
+          data.clients.push(client);
+        }
+        // Create appointment
+        const appt = {
+          id: 'a'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
+          clientId: client.id, serviceId: b.serviceId,
+          employeeId: b.employeeId || '', date: b.date, time: b.time,
+          notes: b.notes || 'Reserva online',
+          status: 'pending', _modified: Date.now(), _deleted: false
+        };
+        data.appointments.push(appt);
+        writeData(data);
+        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, appointmentId: appt.id }));
+      } catch(e) {
+        res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  // === BOOKING STATIC FILES ===
+  const BOOKING_DIR = path.join(__dirname, 'booking');
+  const BOOKING_PATHS = ['/booking', '/booking/', '/index.html', '/', ''];
+  if (BOOKING_PATHS.includes(url) || (url.startsWith('/booking/') && url.length > 9)) {
+    let filePath;
+    if (url.startsWith('/booking/') && url.length > 9) {
+      filePath = url.replace('/booking', '');
+    } else {
+      filePath = '/index.html';
+    }
+    sendStaticFile(res, BOOKING_DIR, filePath);
+    return;
+  }
+
+  // === BOOKING ASSETS (css, js) ===
+  if (url.startsWith('/style.css') || url.startsWith('/booking.js')) {
+    sendStaticFile(res, BOOKING_DIR, url);
+    return;
+  }
+
   res.writeHead(404, CORS_HEADERS); res.end('Not found');
+  return;
 });
+
+function sendStaticFile(res, baseDir, filePath) {
+  const fullPath = path.join(baseDir, filePath);
+  if (!fullPath.startsWith(baseDir)) {
+    res.writeHead(403, CORS_HEADERS); res.end('Forbidden');
+    return;
+  }
+  fs.readFile(fullPath, (err, content) => {
+    if (err) {
+      res.writeHead(404, CORS_HEADERS); res.end('Not found');
+      return;
+    }
+    const ext = path.extname(fullPath);
+    const mimes = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': mimes[ext] || 'application/octet-stream' });
+    res.end(content);
+  });
+}
+
+function parseTime(t) {
+  if (!t || typeof t !== 'string') return 0;
+  const p = t.split(':');
+  return (parseInt(p[0])||0) + (parseInt(p[1])||0) / 60;
+}
+
+seedInitialData();
 
 server.listen(PORT, HOST, () => {
   const addr = typeof HOST === 'string' && HOST === '0.0.0.0'
@@ -139,5 +336,7 @@ server.listen(PORT, HOST, () => {
   console.log(`Sync file: ${SYNC_FILE}`);
   console.log(`Health: http://localhost:${PORT}/health`);
   console.log(`Data directory: ${DATA_DIR}`);
+  console.log(`Booking: http://localhost:${PORT}/`);
+  console.log(`Booking (alt): http://localhost:${PORT}/booking`);
   console.log(`CORS origin: ${CORS_ORIGIN}`);
 });
