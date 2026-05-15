@@ -38,15 +38,17 @@ h2 { font-size: 18px; margin-bottom: 15px; color: var(--text); }
 .date-picker input { width: 100%; padding: 12px 14px; border: 2px solid var(--border); border-radius: 10px; font-size: 15px; outline: none; }
 .date-picker input:focus { border-color: var(--primary); }
 .selected-info { font-size: 13px; color: var(--text-light); margin-top: 8px; padding: 8px 12px; background: var(--bg); border-radius: 8px; }
-.slots-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; max-height: 350px; overflow-y: auto; }
-.slot-btn { padding: 10px 6px; border: 2px solid var(--border); border-radius: 8px; background: var(--card); cursor: pointer; font-size: 13px; font-weight: 500; text-align: center; transition: all .2s; }
-.slot-free { border-color: #27ae60; background: #eafaf1; color: #1a6e3a; }
-.slot-free:hover { border-color: #1e8449; background: #d5f5e3; }
-.slot-btn.selected { border-color: var(--primary); background: rgba(108,52,131,.06); color: var(--primary); }
-.slot-occupied { border-color: #f39c12; background: #fef9e7; color: #935d0a; cursor: not-allowed; opacity: .7; }
-.slot-btn .s-employee { font-size: 10px; color: var(--text-light); display: block; margin-top: 2px; }
-.slot-free .s-employee { color: #1a6e3a; }
-.slot-occupied .s-employee { color: #935d0a; }
+.slots-grid { max-height: 400px; overflow-y: auto; }
+.slots-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+.slots-table th { position: sticky; top: 0; background: var(--primary); color: #fff; padding: 8px 6px; font-weight: 600; text-align: center; white-space: nowrap; z-index: 2; }
+.slots-table th:first-child { background: var(--primary-dark); z-index: 3; left: 0; }
+.slots-table td { padding: 4px; text-align: center; border: 1px solid var(--border); min-width: 60px; height: 32px; }
+.slots-table .st-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; position: sticky; left: 0; z-index: 1; min-width: 44px; font-size: 11px; }
+.st-free { background: #eafaf1; cursor: pointer; border-color: #27ae60 !important; }
+.st-free:hover { background: #d5f5e3; }
+.st-free.selected { background: rgba(108,52,131,.15); border-color: var(--primary) !important; }
+.st-occupied { background: #fef9e7; cursor: not-allowed; }
+.st-na { background: #f8f9fa; }
 .no-slots { text-align: center; padding: 30px; color: var(--text-light); font-size: 14px; }
 .form-group { margin-bottom: 12px; }
 .form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: var(--text); }

@@ -164,20 +164,38 @@ async function loadModifySlots(dateStr) {
 function renderModifySlots(slotsData, preSelectTime) {
   const container = document.getElementById('modifySlots');
   const noSlots = document.getElementById('modifyNoSlots');
-  const avail = (slotsData.slots||[]).filter(s => s.available);
+  const slots = slotsData.slots || [];
+  const avail = slots.filter(s => s.available);
   if (!avail.length) { container.innerHTML = ''; noSlots.style.display = 'block'; document.getElementById('modifyBtn').disabled = true; return false; }
   noSlots.style.display = 'none';
+
+  const empMap = {}; const timeMap = {};
+  slots.forEach(s => { empMap[s.employeeId||''] = s.employeeName||'Sin asignar'; timeMap[s.time] = true; });
+  const empIds = Object.keys(empMap);
+  const times = Object.keys(timeMap).sort();
+
   let found = false;
-  container.innerHTML = slotsData.slots.map(s => {
-    const empName = s.employeeName ? ' <span style="font-size:10px;color:var(--text-light);">'+esc(s.employeeName)+'</span>' : '';
-    if (!s.available) return '<button class="slot-btn slot-occupied" disabled>'+s.time+empName+'</button>';
-    const selected = s.time === preSelectTime && !found ? ' selected' : '';
-    if (s.time === preSelectTime && !found) { found = true; selectedModifySlot = { time: s.time, employeeId: s.employeeId }; }
-    return '<button class="slot-btn slot-free'+selected+'" onclick="selectModifySlot(this,\''+s.time+'\',\''+s.employeeId+'\')">'+s.time+empName+'</button>';
-  }).join('');
+  let html = '<table class="slots-table"><thead><tr><th></th>';
+  empIds.forEach(eid => { html += '<th>'+esc(empMap[eid])+'</th>'; });
+  html += '</tr></thead><tbody>';
+  times.forEach(t => {
+    html += '<tr><td class="st-time">'+esc(t)+'</td>';
+    empIds.forEach(eid => {
+      const s = slots.find(x => x.time === t && x.employeeId === eid);
+      if (!s) { html += '<td class="st-na"></td>'; return; }
+      if (!s.available) { html += '<td class="st-occupied"></td>'; return; }
+      const selected = s.time === preSelectTime && !found ? ' selected' : '';
+      if (s.time === preSelectTime && !found) { found = true; selectedModifySlot = { time: s.time, employeeId: s.employeeId }; }
+      html += '<td class="st-free'+selected+'" data-time="'+s.time+'" data-eid="'+s.employeeId+'" data-ename="'+escAttr(empMap[eid])+'" onclick="selectModifySlot(this)"></td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
   if (found) document.getElementById('modifyBtn').disabled = false;
   else { document.getElementById('modifyBtn').disabled = true; selectedModifySlot = null; }
   return true;
+}
 }
 
 async function modifyAppt(id) {
@@ -225,10 +243,10 @@ document.getElementById('modifyDate').addEventListener('change', async function(
   showLoading(false);
 });
 
-function selectModifySlot(el, time, employeeId) {
-  document.querySelectorAll('#modifySlots .slot-btn').forEach(b => b.classList.remove('selected'));
+function selectModifySlot(el) {
+  document.querySelectorAll('#modifySlots .st-free').forEach(b => b.classList.remove('selected'));
   el.classList.add('selected');
-  selectedModifySlot = { time, employeeId };
+  selectedModifySlot = { time: el.getAttribute('data-time'), employeeId: el.getAttribute('data-eid') };
   document.getElementById('modifyBtn').disabled = false;
 }
 
@@ -332,18 +350,37 @@ function renderSlots(slots) {
   const avail = slots.filter(s => s.available);
   if (!avail.length && !slots.some(s => !s.available)) { container.innerHTML = ''; noSlots.style.display = 'block'; return; }
   noSlots.style.display = 'none';
-  container.innerHTML = slots.map(s => {
-    const empName = s.employeeName ? ' <span class="s-employee">'+esc(s.employeeName)+'</span>' : '';
-    if (!s.available) return '<button class="slot-btn slot-occupied" disabled>'+s.time+empName+'</button>';
-    return '<button class="slot-btn slot-free" onclick="selectSlot(this,\''+s.time+'\',\''+s.employeeId+'\',\''+escAttr(s.employeeName||'')+'\')">'+s.time+empName+'</button>';
-  }).join('');
+
+  const empMap = {}; const timeMap = {};
+  slots.forEach(s => { empMap[s.employeeId||''] = s.employeeName||'Sin asignar'; timeMap[s.time] = true; });
+  const empIds = Object.keys(empMap);
+  const times = Object.keys(timeMap).sort();
+
+  let html = '<table class="slots-table"><thead><tr><th></th>';
+  empIds.forEach(eid => { html += '<th>'+esc(empMap[eid])+'</th>'; });
+  html += '</tr></thead><tbody>';
+  times.forEach(t => {
+    html += '<tr><td class="st-time">'+esc(t)+'</td>';
+    empIds.forEach(eid => {
+      const s = slots.find(x => x.time === t && x.employeeId === eid);
+      if (!s) { html += '<td class="st-na"></td>'; return; }
+      if (!s.available) { html += '<td class="st-occupied"></td>'; return; }
+      html += '<td class="st-free" data-time="'+t+'" data-eid="'+eid+'" data-ename="'+escAttr(empMap[eid])+'" onclick="selectSlotFromTable(this)"></td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table>';
+  container.innerHTML = html;
 }
 
-function selectSlot(el, time, employeeId, employeeName) {
-  document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+function selectSlotFromTable(el) {
+  document.querySelectorAll('.st-free').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
+  const time = el.getAttribute('data-time');
+  const employeeId = el.getAttribute('data-eid');
+  const employeeName = el.getAttribute('data-ename') || '';
   selectedSlot = { time, employeeId, employeeName };
-  document.getElementById('selectedSlot').textContent = 'Horario: '+time+(employeeName?' con '+employeeName:'');
+  document.getElementById('selectedSlot').textContent = employeeName ? esc(employeeName)+' · '+time : time;
   goStep(4);
   updateSummary();
 }
