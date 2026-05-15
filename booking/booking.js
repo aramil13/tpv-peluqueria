@@ -1,12 +1,18 @@
 const API = window.location.origin;
-let services = [], sections = [], employees = [], clients = [];
+let services = [], sections = [], employees = [], allClients = [];
 let selectedService = null, selectedDate = '', selectedSlot = null;
+let currentClient = null, currentAppointments = [];
+let modifyingApptId = null;
 
 function showLoading(v) { document.getElementById('loadingOverlay').style.display = v ? 'flex' : 'none'; }
 
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function escAttr(s) { return s.replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
+function cur(n) { return parseFloat(n||0).toFixed(2)+'\u20AC'; }
+
 function goStep(n) {
-  document.querySelectorAll('.step-indicator .step').forEach((s,i) => { s.classList.toggle('active', i+1===n); s.classList.toggle('done', i+1<n); });
-  document.querySelectorAll('.step-content').forEach((s,i) => s.classList.toggle('active', i+1===n));
+  document.querySelectorAll('.step-indicator .step').forEach((s,i) => { s.classList.toggle('active', i===n); s.classList.toggle('done', i<n); });
+  document.querySelectorAll('.step-content').forEach((s,i) => s.classList.toggle('active', i===n));
 }
 
 async function loadData() {
@@ -17,24 +23,201 @@ async function loadData() {
     services = (d.services||[]).filter(s => !s._deleted);
     sections = (d.sections||[]).filter(s => !s._deleted);
     employees = (d.employees||[]).filter(e => !e._deleted);
-    clients = (d.clients||[]).filter(c => !c._deleted);
-
+    allClients = (d.clients||[]).filter(c => !c._deleted);
     const settings = d.settings || {};
-    document.getElementById('businessSub').textContent = 'Elige tu servicio y confirma tu cita';
     document.getElementById('footerInfo').textContent = settings.businessName || 'Nymara Estilistas';
-
     renderServices();
-
-    const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
-    document.getElementById('bookingDate').value = tomorrow.toISOString().split('T')[0];
-    document.getElementById('bookingDate').min = tomorrow.toISOString().split('T')[0];
-    selectedDate = document.getElementById('bookingDate').value;
   } catch(e) { alert('Error al cargar datos: '+e.message); }
   showLoading(false);
 }
 
-function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
-function cur(n) { return parseFloat(n||0).toFixed(2)+'\u20AC'; }
+// === LOGIN / REGISTER ===
+async function loginClient() {
+  const phone = document.getElementById('loginPhone').value.trim();
+  if (!phone) { alert('Introduce tu teléfono'); return; }
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client?phone='+encodeURIComponent(phone));
+    if (r.status === 404) { alert('No encontramos un cliente con ese teléfono. Regístrate abajo.'); showLoading(false); return; }
+    const d = await r.json();
+    currentClient = d.client;
+    currentAppointments = d.appointments;
+    showLoading(false);
+    renderMyAppts();
+  } catch(e) { alert('Error: '+e.message); showLoading(false); }
+}
+
+async function registerClient() {
+  const name = document.getElementById('regName').value.trim();
+  const phone = document.getElementById('regPhone').value.trim();
+  if (!name || !phone) { alert('Nombre y teléfono son obligatorios'); return; }
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, phone })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error||'Error al registrarse'); showLoading(false); return; }
+    currentClient = d.client;
+    currentAppointments = [];
+    showLoading(false);
+    renderMyAppts();
+  } catch(e) { alert('Error: '+e.message); showLoading(false); }
+}
+
+// === MY APPOINTMENTS ===
+function renderMyAppts() {
+  document.getElementById('clientInfo').innerHTML = '<strong>Cliente:</strong> '+esc(currentClient.name)+' &middot; 📞 '+esc(currentClient.phone);
+  goStep(1);
+  const div = document.getElementById('myApptsList');
+  const noMsg = document.getElementById('noApptsMsg');
+  if (!currentAppointments.length) {
+    div.innerHTML = '';
+    noMsg.style.display = 'block';
+    return;
+  }
+  noMsg.style.display = 'none';
+  const today = new Date().toISOString().split('T')[0];
+  div.innerHTML = currentAppointments.map(a => {
+    const isPast = a.date < today;
+    return '<div class="appt-card'+(isPast?' appt-past':'')+'">'+
+      '<div class="appt-card-date">'+
+        '<span class="appt-card-day">'+esc(a.date)+'</span>'+
+        '<span class="appt-card-time">'+esc(a.time)+'</span>'+
+      '</div>'+
+      '<div class="appt-card-info">'+
+        '<div class="appt-card-service">'+esc(a.serviceName)+'</div>'+
+        (a.notes?'<div class="appt-card-notes">'+esc(a.notes)+'</div>':'')+
+        (a.status==='cancelled'?'<div style="color:#e74c3c;font-weight:600;">Cancelada</div>':'')+
+      '</div>'+
+      (!isPast && a.status!=='cancelled' ? '<div class="appt-card-actions">'+
+        '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>'+
+        '<button class="btn btn-sm btn-danger" onclick="cancelAppt(\''+a.id+'\')">Cancelar</button>'+
+      '</div>' : '')+
+    '</div>';
+  }).join('');
+}
+
+async function cancelAppt(id) {
+  if (!confirm('¿Estás seguro de cancelar esta cita?')) return;
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointmentId: id, phone: currentClient.phone })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error||'Error al cancelar'); showLoading(false); return; }
+    showLoading(false);
+    alert('Cita cancelada correctamente');
+    refreshMyAppts();
+  } catch(e) { alert('Error: '+e.message); showLoading(false); }
+}
+
+async function refreshMyAppts() {
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client?phone='+encodeURIComponent(currentClient.phone));
+    const d = await r.json();
+    currentAppointments = d.appointments;
+    showLoading(false);
+    renderMyAppts();
+  } catch(e) { alert('Error: '+e.message); showLoading(false); }
+}
+
+// === MODIFY APPOINTMENT ===
+async function modifyAppt(id) {
+  modifyingApptId = id;
+  const appt = currentAppointments.find(a => a.id === id);
+  if (!appt) return;
+  document.getElementById('modifyTitle').textContent = 'Modificar cita: '+appt.date+' '+appt.time;
+  const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
+  const dateInput = document.getElementById('modifyDate');
+  dateInput.value = appt.date;
+  dateInput.min = tomorrow.toISOString().split('T')[0];
+  document.getElementById('modifyBtn').disabled = true;
+  document.getElementById('modifySlots').innerHTML = '';
+  document.getElementById('modifyNoSlots').style.display = 'none';
+  document.getElementById('modifyError').style.display = 'none';
+  document.getElementById('modifyModal').style.display = 'flex';
+}
+
+function closeModify() {
+  document.getElementById('modifyModal').style.display = 'none';
+  modifyingApptId = null;
+}
+
+document.getElementById('modifyDate').addEventListener('change', async function() {
+  if (!modifyingApptId) return;
+  const appt = currentAppointments.find(a => a.id === modifyingApptId);
+  if (!appt) return;
+  showLoading(true);
+  try {
+    const svcId = appt.serviceId || '';
+    const r = await fetch(API+'/api/slots?date='+this.value+'&serviceId='+svcId);
+    const d = await r.json();
+    const container = document.getElementById('modifySlots');
+    const noSlots = document.getElementById('modifyNoSlots');
+    const avail = (d.slots||[]).filter(s => s.available);
+    if (!avail.length) { container.innerHTML = ''; noSlots.style.display = 'block'; document.getElementById('modifyBtn').disabled = true; showLoading(false); return; }
+    noSlots.style.display = 'none';
+    container.innerHTML = d.slots.map(s => {
+      const empName = s.employeeName ? ' <span style="font-size:10px;color:var(--text-light);">'+esc(s.employeeName)+'</span>' : '';
+      if (!s.available) return '<button class="slot-btn slot-occupied" disabled>'+s.time+empName+'</button>';
+      return '<button class="slot-btn slot-free" onclick="selectModifySlot(this,\''+s.time+'\',\''+s.employeeId+'\')">'+s.time+empName+'</button>';
+    }).join('');
+  } catch(e) { document.getElementById('modifySlots').innerHTML = ''; }
+  showLoading(false);
+});
+
+let selectedModifySlot = null;
+function selectModifySlot(el, time, employeeId) {
+  document.querySelectorAll('#modifySlots .slot-btn').forEach(b => b.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedModifySlot = { time, employeeId };
+  document.getElementById('modifyBtn').disabled = false;
+}
+
+async function confirmModify() {
+  if (!selectedModifySlot) return;
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/modify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        appointmentId: modifyingApptId,
+        phone: currentClient.phone,
+        newDate: document.getElementById('modifyDate').value,
+        newTime: selectedModifySlot.time,
+        newEmployeeId: selectedModifySlot.employeeId
+      })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error||'Error al modificar'); showLoading(false); return; }
+    closeModify();
+    showLoading(false);
+    alert('Cita modificada correctamente');
+    refreshMyAppts();
+  } catch(e) { alert('Error: '+e.message); showLoading(false); }
+}
+
+// === NEW BOOKING FLOW ===
+function startNewBooking() {
+  selectedService = null; selectedSlot = null;
+  document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('clientName').value = currentClient.name;
+  document.getElementById('clientPhone').value = currentClient.phone;
+  document.getElementById('clientEmail').value = currentClient.email || '';
+  document.getElementById('bookingNotes').value = '';
+  document.getElementById('confirmBtn').disabled = false;
+  document.getElementById('confirmBtn').textContent = 'Confirmar Reserva';
+  goStep(2);
+}
 
 function renderServices(q) {
   const div = document.getElementById('servicesList');
@@ -44,14 +227,14 @@ function renderServices(q) {
   div.innerHTML = list.map(s => {
     const sec = sections.find(x => x.id === s.sectionId);
     const sc = sec && sec.color ? sec.color : '#999';
-    return `<div class="service-card" data-id="${s.id}" onclick="selectService('${s.id}')">
-      <span class="s-color" style="background:${sc};"></span>
-      <div class="s-info">
-        <div class="s-name">${esc(s.name)}</div>
-        <div class="s-meta">${sec ? esc(sec.name) : ''}${s.duration ? ' · '+s.duration+' min' : ''}</div>
-      </div>
-      <div class="s-price">${cur(s.price)}</div>
-    </div>`;
+    return '<div class="service-card" data-id="'+s.id+'" onclick="selectService(\''+s.id+'\')">'+
+      '<span class="s-color" style="background:'+sc+';"></span>'+
+      '<div class="s-info">'+
+        '<div class="s-name">'+esc(s.name)+'</div>'+
+        '<div class="s-meta">'+(sec ? esc(sec.name) : '')+(s.duration ? ' &middot; '+s.duration+' min' : '')+'</div>'+
+      '</div>'+
+      '<div class="s-price">'+cur(s.price)+'</div>'+
+    '</div>';
   }).join('');
 }
 
@@ -65,8 +248,8 @@ function selectService(id) {
   const el = document.querySelector('.service-card[data-id="'+id+'"]');
   if (el) el.classList.add('selected');
   selectedService = services.find(s => s.id === id);
-  document.getElementById('selectedService').textContent = 'Servicio: '+(selectedService?selectedService.name:'')+' | '+cur(selectedService?selectedService.price:0)+(selectedService&&selectedService.duration?' · '+selectedService.duration+' min':'');
-  goStep(2);
+  document.getElementById('selectedService').textContent = 'Servicio: '+(selectedService?selectedService.name:'')+' | '+cur(selectedService?selectedService.price:0)+(selectedService&&selectedService.duration?' &middot; '+selectedService.duration+' min':'');
+  goStep(3);
   fetchSlots();
 }
 
@@ -105,14 +288,12 @@ function renderSlots(slots) {
   }).join('');
 }
 
-function escAttr(s) { return s.replace(/'/g,'\\\'').replace(/"/g,'&quot;'); }
-
 function selectSlot(el, time, employeeId, employeeName) {
   document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
   el.classList.add('selected');
   selectedSlot = { time, employeeId, employeeName };
   document.getElementById('selectedSlot').textContent = 'Horario: '+time+(employeeName?' con '+employeeName:'');
-  goStep(3);
+  goStep(4);
   updateSummary();
 }
 
@@ -127,9 +308,6 @@ function updateSummary() {
 }
 
 async function confirmBooking() {
-  const name = document.getElementById('clientName').value.trim();
-  const phone = document.getElementById('clientPhone').value.trim();
-  if (!name || !phone) { alert('Nombre y teléfono son obligatorios'); return; }
   if (!selectedService || !selectedSlot) { alert('Selecciona servicio y horario'); return; }
 
   document.getElementById('confirmBtn').disabled = true;
@@ -144,23 +322,21 @@ async function confirmBooking() {
         date: selectedDate,
         time: selectedSlot.time,
         employeeId: selectedSlot.employeeId,
-        clientName: name,
-        clientPhone: phone,
+        clientName: currentClient.name,
+        clientPhone: currentClient.phone,
         clientEmail: document.getElementById('clientEmail').value.trim(),
         notes: document.getElementById('bookingNotes').value.trim()
       })
     });
     const d = await r.json();
     if (d.ok) {
-      goStep(4);
-      const email = document.getElementById('clientEmail').value.trim();
-      const phone = document.getElementById('clientPhone').value.trim();
+      goStep(5);
       const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20confirmada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(selectedSlot.time) + '.';
-      const waPhone = phone.replace(/[^0-9]/g,'');
+      const waPhone = (currentClient.phone||'').replace(/[^0-9]/g,'');
       const waLink = 'https://wa.me/34' + waPhone + '?text=' + waMsg;
-      let extra = '📅 Aparecerá automáticamente en la agenda.';
-      if (d.emailSent) extra = '✅ Te hemos enviado un email de confirmación.<br><br>💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Enviar también por WhatsApp</a>';
-      else extra = '💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Enviar confirmación por WhatsApp</a>';
+      let extra = '';
+      if (d.emailSent) extra = '✅ Te hemos enviado un email de confirmación.<br><br>';
+      extra += '💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Recibir confirmación por WhatsApp</a>';
       document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido registrada para el <strong>'+selectedDate+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+extra;
     } else {
       alert('Error: '+(d.error||'No se pudo reservar'));
@@ -171,17 +347,18 @@ async function confirmBooking() {
   showLoading(false);
 }
 
-function resetBooking() {
+function goToMyAppts() {
+  refreshMyAppts();
+}
+
+function logout() {
+  currentClient = null;
+  currentAppointments = [];
   selectedService = null; selectedSlot = null;
-  document.getElementById('clientName').value = '';
-  document.getElementById('clientPhone').value = '';
-  document.getElementById('clientEmail').value = '';
-  document.getElementById('bookingNotes').value = '';
-  document.getElementById('confirmBtn').disabled = false;
-  document.getElementById('confirmBtn').textContent = 'Confirmar Reserva';
-  document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
-  document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
-  goStep(1);
+  document.getElementById('loginPhone').value = '';
+  document.getElementById('regName').value = '';
+  document.getElementById('regPhone').value = '';
+  goStep(0);
 }
 
 loadData();

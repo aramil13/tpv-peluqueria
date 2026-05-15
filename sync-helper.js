@@ -365,6 +365,159 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
+  // === CLIENT API ===
+  if (url === '/api/client' && req.method === 'GET') {
+    const phone = (new URL(req.url, 'http://x')).searchParams.get('phone');
+    if (!phone) {
+      res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'phone required' }));
+      return;
+    }
+    const d = readData();
+    const client = (d.clients||[]).find(c => c.phone === phone && !c._deleted);
+    if (!client) {
+      res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'not found' }));
+      return;
+    }
+    const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && !a._deleted).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+    const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '' },
+      appointments: appointments.map(a => ({
+        id: a.id, date: a.date, time: a.time, status: a.status,
+        employeeId: a.employeeId || '',
+        serviceName: svcMap[a.serviceId] ? svcMap[a.serviceId].name : '',
+        serviceId: a.serviceId, notes: a.notes || ''
+      }))
+    }));
+    return;
+  }
+
+  if (url === '/api/client' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(body);
+        if (!b.name || !b.phone) {
+          res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'name and phone required' }));
+          return;
+        }
+        const d = readData();
+        if ((d.clients||[]).find(c => c.phone === b.phone && !c._deleted)) {
+          res.writeHead(409, CORS_HEADERS); res.end(JSON.stringify({ error: 'Ya existe un cliente con ese teléfono' }));
+          return;
+        }
+        const client = {
+          id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
+          name: b.name, phone: b.phone, email: b.email||'',
+          address: '', city: '', province: '', zip: '', nif: '', notes: '',
+          visits: 0, totalSpent: 0, created: new Date().toISOString(),
+          _modified: Date.now(), _deleted: false
+        };
+        d.clients.push(client);
+        writeData(d);
+        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email } }));
+      } catch(e) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (url === '/api/cancel' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(body);
+        if (!b.appointmentId || !b.phone) {
+          res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'appointmentId and phone required' }));
+          return;
+        }
+        const d = readData();
+        const client = (d.clients||[]).find(c => c.phone === b.phone && !c._deleted);
+        if (!client) {
+          res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado' }));
+          return;
+        }
+        const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && !a._deleted);
+        if (!appt) {
+          res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cita no encontrada' }));
+          return;
+        }
+        if (appt.date < new Date().toISOString().split('T')[0]) {
+          res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'No puedes cancelar una cita pasada' }));
+          return;
+        }
+        appt._deleted = true;
+        appt._modified = Date.now();
+        appt.notes = (appt.notes||'') + ' [Cancelada por cliente]';
+        writeData(d);
+        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (url === '/api/modify' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(body);
+        if (!b.appointmentId || !b.phone || !b.newTime) {
+          res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'appointmentId, phone, newTime required' }));
+          return;
+        }
+        const d = readData();
+        const client = (d.clients||[]).find(c => c.phone === b.phone && !c._deleted);
+        if (!client) {
+          res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado' }));
+          return;
+        }
+        const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && !a._deleted);
+        if (!appt) {
+          res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cita no encontrada' }));
+          return;
+        }
+        const newDate = b.newDate || appt.date;
+        const newEmpId = b.newEmployeeId !== undefined ? b.newEmployeeId : appt.employeeId;
+        const newSvcId = b.newServiceId || appt.serviceId;
+        const srv = (d.services||[]).find(s => s.id === newSvcId);
+        const srvDuration = srv ? srv.duration : 30;
+        const reqStart = parseTime(b.newTime);
+        const reqEnd = reqStart + srvDuration / 60;
+        const conflict = (d.appointments||[]).some(a => a.id !== appt.id && !a._deleted && a.date === newDate && (!a.employeeId || a.employeeId === (newEmpId||'')) && (() => {
+          const as = (d.services||[]).find(s => s.id === a.serviceId);
+          const aStart = parseTime(a.time);
+          const aEnd = aStart + (as ? (as.duration || 30) : 30) / 60;
+          return reqStart < aEnd && reqEnd > aStart;
+        })());
+        if (conflict) {
+          res.writeHead(409, CORS_HEADERS); res.end(JSON.stringify({ error: 'El nuevo horario no está disponible' }));
+          return;
+        }
+        appt.date = newDate;
+        appt.time = b.newTime;
+        appt.employeeId = newEmpId;
+        appt.serviceId = newSvcId;
+        appt._modified = Date.now();
+        appt.notes = (appt.notes||'') + ' [Modificada por cliente]';
+        writeData(d);
+        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, appointment: { id: appt.id, date: appt.date, time: appt.time } }));
+      } catch(e) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   // === BOOKING STATIC FILES ===
   const BOOKING_DIR = path.join(__dirname, 'booking');
   const BOOKING_PATHS = ['/booking', '/booking/', '/index.html', '/', ''];
