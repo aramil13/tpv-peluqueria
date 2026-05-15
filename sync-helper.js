@@ -4,7 +4,11 @@ const path = require('path');
 
 const PORT = parseInt(process.env.PORT) || parseInt(process.env.SYNC_PORT) || 3456;
 const HOST = process.env.HOST || '0.0.0.0';
-const DATA_DIR = process.env.SYNC_DATA_DIR || path.join(__dirname, 'sync');
+const DATA_DIR = (() => {
+  const d = process.env.SYNC_DATA_DIR || path.join(__dirname, 'sync');
+  try { fs.accessSync(d, fs.constants.W_OK); return d; }
+  catch (_) { const fallback = path.join(__dirname, 'sync'); console.warn(`Data dir "${d}" not writable, using "${fallback}"`); return fallback; }
+})();
 const SYNC_FILE = process.env.SYNC_FILE || path.join(DATA_DIR, 'appointments.json');
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const CORS_HEADERS = {
