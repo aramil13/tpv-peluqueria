@@ -130,6 +130,36 @@ async function refreshMyAppts() {
 }
 
 // === MODIFY APPOINTMENT ===
+let selectedModifySlot = null;
+
+async function loadModifySlots(dateStr) {
+  if (!modifyingApptId) return;
+  const appt = currentAppointments.find(a => a.id === modifyingApptId);
+  if (!appt) return;
+  const svcId = appt.serviceId || '';
+  const r = await fetch(API+'/api/slots?date='+dateStr+'&serviceId='+svcId);
+  return await r.json();
+}
+
+function renderModifySlots(slotsData, preSelectTime) {
+  const container = document.getElementById('modifySlots');
+  const noSlots = document.getElementById('modifyNoSlots');
+  const avail = (slotsData.slots||[]).filter(s => s.available);
+  if (!avail.length) { container.innerHTML = ''; noSlots.style.display = 'block'; document.getElementById('modifyBtn').disabled = true; return false; }
+  noSlots.style.display = 'none';
+  let found = false;
+  container.innerHTML = slotsData.slots.map(s => {
+    const empName = s.employeeName ? ' <span style="font-size:10px;color:var(--text-light);">'+esc(s.employeeName)+'</span>' : '';
+    if (!s.available) return '<button class="slot-btn slot-occupied" disabled>'+s.time+empName+'</button>';
+    const selected = s.time === preSelectTime && !found ? ' selected' : '';
+    if (s.time === preSelectTime && !found) { found = true; selectedModifySlot = { time: s.time, employeeId: s.employeeId }; }
+    return '<button class="slot-btn slot-free'+selected+'" onclick="selectModifySlot(this,\''+s.time+'\',\''+s.employeeId+'\')">'+s.time+empName+'</button>';
+  }).join('');
+  if (found) document.getElementById('modifyBtn').disabled = false;
+  else { document.getElementById('modifyBtn').disabled = true; selectedModifySlot = null; }
+  return true;
+}
+
 async function modifyAppt(id) {
   modifyingApptId = id;
   const appt = currentAppointments.find(a => a.id === id);
@@ -139,42 +169,42 @@ async function modifyAppt(id) {
   const dateInput = document.getElementById('modifyDate');
   dateInput.value = appt.date;
   dateInput.min = tomorrow.toISOString().split('T')[0];
+  document.getElementById('modifyDateDisplay').textContent = '('+fmtDate(appt.date)+')';
+  selectedModifySlot = null;
   document.getElementById('modifyBtn').disabled = true;
   document.getElementById('modifySlots').innerHTML = '';
   document.getElementById('modifyNoSlots').style.display = 'none';
   document.getElementById('modifyError').style.display = 'none';
   document.getElementById('modifyModal').style.display = 'flex';
+  showLoading(true);
+  try {
+    const d = await loadModifySlots(appt.date);
+    renderModifySlots(d, appt.time);
+  } catch(e) { document.getElementById('modifySlots').innerHTML = ''; }
+  showLoading(false);
 }
 
 function closeModify() {
   document.getElementById('modifyModal').style.display = 'none';
   modifyingApptId = null;
+  selectedModifySlot = null;
 }
 
 document.getElementById('modifyDate').addEventListener('change', async function() {
   if (!modifyingApptId) return;
+  document.getElementById('modifyDateDisplay').textContent = '('+fmtDate(this.value)+')';
   const appt = currentAppointments.find(a => a.id === modifyingApptId);
   if (!appt) return;
+  selectedModifySlot = null;
+  document.getElementById('modifyBtn').disabled = true;
   showLoading(true);
   try {
-    const svcId = appt.serviceId || '';
-    const r = await fetch(API+'/api/slots?date='+this.value+'&serviceId='+svcId);
-    const d = await r.json();
-    const container = document.getElementById('modifySlots');
-    const noSlots = document.getElementById('modifyNoSlots');
-    const avail = (d.slots||[]).filter(s => s.available);
-    if (!avail.length) { container.innerHTML = ''; noSlots.style.display = 'block'; document.getElementById('modifyBtn').disabled = true; showLoading(false); return; }
-    noSlots.style.display = 'none';
-    container.innerHTML = d.slots.map(s => {
-      const empName = s.employeeName ? ' <span style="font-size:10px;color:var(--text-light);">'+esc(s.employeeName)+'</span>' : '';
-      if (!s.available) return '<button class="slot-btn slot-occupied" disabled>'+s.time+empName+'</button>';
-      return '<button class="slot-btn slot-free" onclick="selectModifySlot(this,\''+s.time+'\',\''+s.employeeId+'\')">'+s.time+empName+'</button>';
-    }).join('');
+    const d = await loadModifySlots(this.value);
+    renderModifySlots(d, null);
   } catch(e) { document.getElementById('modifySlots').innerHTML = ''; }
   showLoading(false);
 });
 
-let selectedModifySlot = null;
 function selectModifySlot(el, time, employeeId) {
   document.querySelectorAll('#modifySlots .slot-btn').forEach(b => b.classList.remove('selected'));
   el.classList.add('selected');
