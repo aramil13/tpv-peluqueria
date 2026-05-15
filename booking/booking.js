@@ -196,7 +196,6 @@ function renderModifySlots(slotsData, preSelectTime) {
   else { document.getElementById('modifyBtn').disabled = true; selectedModifySlot = null; }
   return true;
 }
-}
 
 async function modifyAppt(id) {
   modifyingApptId = id;
