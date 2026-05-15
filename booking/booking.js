@@ -95,11 +95,13 @@ function renderSlots(slots) {
   const noSlots = document.getElementById('noSlots');
   selectedSlot = null;
   document.getElementById('selectedSlot').textContent = '';
-  if (!slots.length) { container.innerHTML = ''; noSlots.style.display = 'block'; return; }
+  const avail = slots.filter(s => s.available);
+  if (!avail.length && !slots.some(s => !s.available)) { container.innerHTML = ''; noSlots.style.display = 'block'; return; }
   noSlots.style.display = 'none';
   container.innerHTML = slots.map(s => {
     const empName = s.employeeName ? ' <span class="s-employee">'+esc(s.employeeName)+'</span>' : '';
-    return '<button class="slot-btn" onclick="selectSlot(this,\''+s.time+'\',\''+s.employeeId+'\',\''+escAttr(s.employeeName||'')+'\')">'+s.time+empName+'</button>';
+    if (!s.available) return '<button class="slot-btn slot-occupied" disabled>'+s.time+empName+'</button>';
+    return '<button class="slot-btn slot-free" onclick="selectSlot(this,\''+s.time+'\',\''+s.employeeId+'\',\''+escAttr(s.employeeName||'')+'\')">'+s.time+empName+'</button>';
   }).join('');
 }
 

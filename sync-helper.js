@@ -289,9 +289,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
             const aEnd = aStart + (srv ? (srv.duration || 30) : 30) / 60;
             return start < aEnd && end > aStart;
           });
-          if (!occupied) {
-            slots.push({ time: timeStr, employeeId: emp.id, employeeName: emp.name || '' });
-          }
+          slots.push({ time: timeStr, employeeId: emp.id, employeeName: emp.name || '', available: !occupied });
         }
       }
     });
