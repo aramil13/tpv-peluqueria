@@ -342,6 +342,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           return;
         }
         // Create appointment
+        const appt = {
           id: 'a'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
           clientId: client.id, serviceId: b.serviceId,
           employeeId: b.employeeId || '', date: b.date, time: b.time,
