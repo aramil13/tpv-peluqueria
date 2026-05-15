@@ -11,6 +11,8 @@ const DATA_DIR = (() => {
 })();
 const SYNC_FILE = process.env.SYNC_FILE || path.join(DATA_DIR, 'appointments.json');
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const SYNC_FORWARD_URL = process.env.SYNC_FORWARD_URL || '';
+const SYNC_FORWARD_KEY = process.env.SYNC_FORWARD_KEY || '';
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': CORS_ORIGIN,
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
@@ -272,6 +274,7 @@ const server = http.createServer((req, res) => {
         };
         data.appointments.push(appt);
         writeData(data);
+        forwardAppointment(appt, client);
         res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, appointmentId: appt.id }));
       } catch(e) {
@@ -328,6 +331,29 @@ function parseTime(t) {
   if (!t || typeof t !== 'string') return 0;
   const p = t.split(':');
   return (parseInt(p[0])||0) + (parseInt(p[1])||0) / 60;
+}
+
+function forwardAppointment(appt, client) {
+  if (!SYNC_FORWARD_URL) return;
+  const url = SYNC_FORWARD_URL.replace(/\/+$/, '') + '/sync';
+  const headers = { 'Content-Type': 'application/json' };
+  if (SYNC_FORWARD_KEY) headers['Authorization'] = 'Bearer ' + SYNC_FORWARD_KEY;
+  const body = JSON.stringify({
+    appointments: [appt],
+    clients: [client]
+  });
+  const parsed = new URL(url);
+  const mod = parsed.protocol === 'https:' ? require('https') : require('http');
+  const req = mod.request(url, { method: 'POST', headers }, (res) => {
+    let data = '';
+    res.on('data', c => data += c);
+    res.on('end', () => {
+      if (res.statusCode !== 200) console.warn('Forward sync returned ' + res.statusCode);
+    });
+  });
+  req.on('error', e => console.warn('Forward sync error: ' + e.message));
+  req.write(body);
+  req.end();
 }
 
 seedInitialData();
