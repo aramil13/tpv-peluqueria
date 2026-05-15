@@ -15,6 +15,49 @@ const SYNC_FILE = process.env.SYNC_FILE || path.join(DATA_DIR, 'appointments.jso
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const SYNC_FORWARD_URL = process.env.SYNC_FORWARD_URL || '';
 const SYNC_FORWARD_KEY = process.env.SYNC_FORWARD_KEY || '';
+
+// Email config
+const SMTP_HOST = process.env.SMTP_HOST || '';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT) || 587;
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
+const BUSINESS_NAME = process.env.BUSINESS_NAME || 'Nymara Estilistas';
+let transporter = null;
+if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
+  try {
+    const nodemailer = require('nodemailer');
+    transporter = nodemailer.createTransport({ host: SMTP_HOST, port: SMTP_PORT, secure: SMTP_PORT === 465, auth: { user: SMTP_USER, pass: SMTP_PASS } });
+    transporter.verify().then(() => console.log('Email: SMTP OK')).catch(e => console.warn('Email: SMTP verify failed:', e.message));
+  } catch (e) { console.warn('Email: nodemailer not available:', e.message); }
+} else { console.log('Email: SMTP not configured (set SMTP_HOST, SMTP_USER, SMTP_PASS)'); }
+
+function sendConfirmationEmail(clientEmail, clientName, date, time, serviceName, employeeName, notes) {
+  if (!transporter || !clientEmail) return false;
+  const msg = {
+    from: SMTP_FROM, to: clientEmail,
+    subject: 'Cita confirmada - ' + BUSINESS_NAME,
+    html: `<div style="font-family:Arial;max-width:500px;margin:0 auto;">
+      <h2 style="color:#6C3483;">${BUSINESS_NAME}</h2>
+      <p>Hola <strong>${clientName}</strong>,</p>
+      <p>Tu cita ha sido confirmada:</p>
+      <table style="background:#f5f2f7;border-radius:8px;padding:15px;margin:15px 0;width:100%;">
+        <tr><td style="padding:4px 10px;color:#666;">Servicio</td><td><strong>${serviceName}</strong></td></tr>
+        <tr><td style="padding:4px 10px;color:#666;">Fecha</td><td><strong>${date}</strong></td></tr>
+        <tr><td style="padding:4px 10px;color:#666;">Hora</td><td><strong>${time}</strong></td></tr>
+        ${employeeName ? `<tr><td style="padding:4px 10px;color:#666;">Profesional</td><td><strong>${employeeName}</strong></td></tr>` : ''}
+        ${notes ? `<tr><td style="padding:4px 10px;color:#666;">Notas</td><td>${notes}</td></tr>` : ''}
+      </table>
+      <p style="color:#999;font-size:12px;">Te esperamos!<br>${BUSINESS_NAME}</p>
+    </div>`
+  };
+  transporter.sendMail(msg, (err, info) => {
+    if (err) console.error('Email send error:', err.message);
+    else console.log('Email sent to', clientEmail, info.messageId);
+  });
+  return true;
+}
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': CORS_ORIGIN,
   'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
@@ -294,8 +337,11 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         data.appointments.push(appt);
         writeData(data);
         forwardAppointment(appt, client);
+        const service = (data.services||[]).find(s => s.id === b.serviceId);
+        const emp = (data.employees||[]).find(e => e.id === b.employeeId);
+        sendConfirmationEmail(b.clientEmail, b.clientName, b.date, b.time, service ? service.name : 'Servicio', emp ? emp.name : '', b.notes);
         res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true, appointmentId: appt.id }));
+        res.end(JSON.stringify({ ok: true, appointmentId: appt.id, emailSent: !!(transporter && b.clientEmail) }));
       } catch(e) {
         res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: e.message }));

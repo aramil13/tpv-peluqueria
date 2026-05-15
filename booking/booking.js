@@ -151,7 +151,14 @@ async function confirmBooking() {
     const d = await r.json();
     if (d.ok) {
       goStep(4);
-      document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido registrada para el <strong>'+selectedDate+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>📅 Aparecerá automáticamente en la agenda del TPV en unos segundos si la sincronización está activada.';
+      const email = document.getElementById('clientEmail').value.trim();
+      const phone = document.getElementById('clientPhone').value.trim();
+      const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20confirmada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(selectedSlot.time) + '.';
+      let extra = '📅 Aparecerá automáticamente en la agenda.';
+      if (d.emailSent) extra = '✅ Te hemos enviado un email de confirmación.';
+      else if (email) extra = '⚠️ No se pudo enviar el email, pero tu cita está guardada.';
+      else extra = '💬 No tenemos tu email. <a href="https://wa.me/34' + phone.replace(/[^0-9]/g,'') + '?text=' + waMsg + '" target="_blank" style="color:var(--success);font-weight:600;">Enviar confirmación por WhatsApp</a>';
+      document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido registrada para el <strong>'+selectedDate+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+extra;
     } else {
       alert('Error: '+(d.error||'No se pudo reservar'));
       document.getElementById('confirmBtn').disabled = false;
