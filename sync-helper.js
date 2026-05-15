@@ -329,7 +329,12 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         // Check availability
         const empAppts = (data.appointments||[]).filter(a => a.date === b.date && !a._deleted && (!a.employeeId || a.employeeId === (b.employeeId||'')));
         const srv = (data.services||[]).find(s => s.id === b.serviceId);
-        const srvDuration = srv ? srv.duration : 30;
+        if (!srv) {
+          res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'El servicio seleccionado ya no está disponible' }));
+          return;
+        }
+        const srvDuration = srv.duration || 30;
         const reqStart = parseTime(b.time);
         const reqEnd = reqStart + srvDuration / 60;
         const conflict = empAppts.some(a => {
