@@ -152,7 +152,7 @@ async function confirmBooking() {
     const d = await r.json();
     if (d.ok) {
       goStep(4);
-      document.getElementById('doneMsg').textContent = 'Tu cita ha sido registrada para el '+selectedDate+' a las '+selectedSlot.time+(selectedSlot.employeeName?' con '+selectedSlot.employeeName:'')+'. Te esperamos!';
+      document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido registrada para el <strong>'+selectedDate+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>📅 Aparecerá automáticamente en la agenda del TPV en unos segundos si la sincronización está activada.';
     } else {
       alert('Error: '+(d.error||'No se pudo reservar'));
       document.getElementById('confirmBtn').disabled = false;

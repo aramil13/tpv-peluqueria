@@ -855,7 +855,7 @@ document.querySelectorAll('.nav-item').forEach(el => {
     if (this.dataset.section === 'products') renderProducts();
     if (this.dataset.section === 'providers') renderProviders();
     if (this.dataset.section === 'warehouse') renderWarehouse();
-    if (this.dataset.section === 'agenda') renderAgenda();
+    if (this.dataset.section === 'agenda') { syncPull(); renderAgenda(); }
     if (this.dataset.section === 'reports') renderReports();
   });
 });
