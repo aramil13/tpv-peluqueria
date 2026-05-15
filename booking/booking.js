@@ -10,6 +10,25 @@ function esc(s) { const d=document.createElement('div'); d.textContent=s; return
 function escAttr(s) { return s.replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 function cur(n) { return parseFloat(n||0).toFixed(2)+'\u20AC'; }
 function fmtDate(d) { if (!d || typeof d !== 'string') return d; const p = d.split('-'); return p.length===3 ? p[2]+'-'+p[1]+'-'+p[0] : d; }
+function miniCalendar(dateStr) {
+  if (!dateStr || typeof dateStr !== 'string') return '';
+  const p = dateStr.split('-');
+  if (p.length !== 3) return '';
+  const year = parseInt(p[0]), month = parseInt(p[1])-1, day = parseInt(p[2]);
+  const first = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const weekDays = ['D','L','M','X','J','V','S'];
+  let html = '<table class="mini-cal"><tr>'+weekDays.map(d=>'<th>'+d+'</th>').join('')+'</tr><tr>';
+  for (let i=0; i<first; i++) html += '<td></td>';
+  for (let d=1; d<=daysInMonth; d++) {
+    html += '<td'+(d===day?' class="mc-highlight"':'')+'>'+d+'</td>';
+    if ((first+d)%7===0 && d<daysInMonth) html += '</tr><tr>';
+  }
+  let total = first + daysInMonth;
+  while (total%7!==0) { html += '<td></td>'; total++; }
+  html += '</tr></table>';
+  return html;
+}
 
 function goStep(n) {
   document.querySelectorAll('.step-indicator .step').forEach((s,i) => { s.classList.toggle('active', i===n); s.classList.toggle('done', i<n); });
@@ -87,6 +106,7 @@ function renderMyAppts() {
       '<div class="appt-card-date">'+
         '<span class="appt-card-day">'+esc(fmtDate(a.date))+'</span>'+
         '<span class="appt-card-time">'+esc(a.time)+'</span>'+
+        '<div class="appt-cal-tooltip">'+miniCalendar(a.date)+'</div>'+
       '</div>'+
       '<div class="appt-card-info">'+
         '<div class="appt-card-service">'+esc(a.serviceName)+'</div>'+
