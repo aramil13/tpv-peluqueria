@@ -442,10 +442,12 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
   if (url === '/api/online-status' && req.method === 'GET') {
     const d = readData();
     const s = d.settings || {};
+    const today = new Date().toISOString().split('T')[0];
+    const dayCfg = (s.onlineOpening || {})[today] || {};
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
-      enabled: s.onlineBookingEnabled !== false,
-      openingTime: s.onlineOpeningTime || '18:00'
+      enabled: dayCfg.enabled !== false,
+      openingTime: dayCfg.time || '18:00'
     }));
     return;
   }

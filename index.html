@@ -633,8 +633,7 @@ let data = {
     invoiceFooter: '¡Gracias por su visita!',
     invoicePrefix: 'FACT-',
     sync: { enabled: false, url: 'http://localhost:3456' },
-    onlineOpeningTime: '18:00',
-    onlineBookingEnabled: true
+    onlineOpening: {}
   })
 }
 
@@ -741,8 +740,7 @@ function saveSettings() {
       enabled: document.getElementById('syncEnabled').checked,
       url: document.getElementById('syncUrl').value.trim() || 'http://localhost:3456'
     },
-    onlineOpeningTime: data.settings.onlineOpeningTime || '18:00',
-    onlineBookingEnabled: data.settings.onlineBookingEnabled !== undefined ? data.settings.onlineBookingEnabled : true
+    onlineOpening: data.settings.onlineOpening || {}
   };
   saveKey('ivaRate'); saveKey('settings');
   updateAppHeader();
@@ -762,9 +760,11 @@ function updateAppHeader() {
 
 function saveOnlineOpeningTime() {
   const val = document.getElementById('onlineOpeningTime').value;
-  if (!val) return;
+  if (!val || !agendaSelectedDate) return;
   if (!data.settings) data.settings = {};
-  data.settings.onlineOpeningTime = val;
+  if (!data.settings.onlineOpening) data.settings.onlineOpening = {};
+  data.settings.onlineOpening[agendaSelectedDate] = data.settings.onlineOpening[agendaSelectedDate] || {};
+  data.settings.onlineOpening[agendaSelectedDate].time = val;
   saveKey('settings');
   syncPush();
   const saved = document.getElementById('onlineOpeningSaved');
@@ -774,20 +774,25 @@ function saveOnlineOpeningTime() {
 
 function saveOnlineBookingToggle() {
   if (!data.settings) data.settings = {};
-  data.settings.onlineBookingEnabled = document.getElementById('onlineBookingEnabled').checked;
+  if (!data.settings.onlineOpening) data.settings.onlineOpening = {};
+  const checked = document.getElementById('onlineBookingEnabled').checked;
+  if (agendaSelectedDate) {
+    data.settings.onlineOpening[agendaSelectedDate] = data.settings.onlineOpening[agendaSelectedDate] || {};
+    data.settings.onlineOpening[agendaSelectedDate].enabled = checked;
+  } else {
+    data.settings.onlineBookingEnabled = checked;
+  }
   saveKey('settings');
   syncPush();
 }
 
-function loadOnlineOpeningTime() {
+function loadOnlineOpeningForDay(dateStr) {
   const el = document.getElementById('onlineOpeningTime');
-  if (el && data.settings && data.settings.onlineOpeningTime) {
-    el.value = data.settings.onlineOpeningTime;
-  }
   const cb = document.getElementById('onlineBookingEnabled');
-  if (cb && data.settings && data.settings.onlineBookingEnabled !== undefined) {
-    cb.checked = data.settings.onlineBookingEnabled;
-  }
+  if (!el || !cb || !data.settings) return;
+  const day = (data.settings.onlineOpening || {})[dateStr] || {};
+  el.value = day.time || '18:00';
+  cb.checked = day.enabled !== false;
 }
 
 // ============ SYNC ============
@@ -901,7 +906,7 @@ document.querySelectorAll('.nav-item').forEach(el => {
     if (this.dataset.section === 'products') renderProducts();
     if (this.dataset.section === 'providers') renderProviders();
     if (this.dataset.section === 'warehouse') renderWarehouse();
-    if (this.dataset.section === 'agenda') { syncPull(); renderAgenda(); loadOnlineOpeningTime(); }
+    if (this.dataset.section === 'agenda') { syncPull(); renderAgenda(); }
     if (this.dataset.section === 'reports') renderReports();
   });
 });
@@ -1555,6 +1560,7 @@ function saveWarehouseMovement() {
 
 // ============ AGENDA ============
 let agendaDate = new Date();
+let agendaSelectedDate = '';
 
 function renderAgenda() {
   const grid = document.getElementById('agendaGrid');
@@ -1615,6 +1621,8 @@ function goToday() {
 }
 
 function showDayAppts(dateStr) {
+  agendaSelectedDate = dateStr;
+  loadOnlineOpeningForDay(dateStr);
   const div = document.getElementById('dayAppointments');
   const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted).sort((a,b) => (a.time||'').localeCompare(b.time||''));
   const d = new Date(dateStr);

@@ -49,7 +49,11 @@ async function loadData() {
     const settings = d.settings || {};
     document.getElementById('footerInfo').textContent = settings.businessName || 'Nymara Estilistas';
     renderServices();
-    checkOpeningTime(settings.onlineOpeningTime || '18:00', settings.onlineBookingEnabled !== false);
+    const today = new Date().toISOString().split('T')[0];
+    const dayCfg = (settings.onlineOpening || {})[today] || {};
+    const openingTime = dayCfg.time || '18:00';
+    const enabled = dayCfg.enabled !== false;
+    checkOpeningTime(openingTime, enabled);
   } catch(e) { alert('Error al cargar datos: '+e.message); }
   showLoading(false);
 }
