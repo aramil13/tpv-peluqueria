@@ -69,7 +69,57 @@ function normPhone(p) {
   return d.length > 9 ? d.slice(-9) : d;
 }
 
-function ensureDir(filePath) {
+async function handleClientLogin(phone, res) {
+  const norm = normPhone(phone);
+  let d = readData();
+  let client = (d.clients||[]).find(c => normPhone(c.phone) === norm && !c._deleted);
+  if (!client && SYNC_FORWARD_URL) {
+    await fetchFromSync();
+    d = readData();
+    client = (d.clients||[]).find(c => normPhone(c.phone) === norm && !c._deleted);
+  }
+  if (!client) {
+    res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'not found' }));
+    return;
+  }
+  const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && !a._deleted).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
+  res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({
+    client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '' },
+    appointments: appointments.map(a => ({
+      id: a.id, date: a.date, time: a.time, status: a.status, source: a.source || '',
+      employeeId: a.employeeId || '',
+      serviceName: svcMap[a.serviceId] ? svcMap[a.serviceId].name : '',
+      serviceId: a.serviceId, notes: a.notes || ''
+    }))
+  }));
+}
+
+function fetchFromSync() {
+  return new Promise(resolve => {
+    if (!SYNC_FORWARD_URL) { resolve(false); return; }
+    const url = SYNC_FORWARD_URL.replace(/\/+$/, '') + '/sync';
+    const mod = url.startsWith('https') ? https : http;
+    mod.get(url, res => {
+      let data = '';
+      res.on('data', c => data += c);
+      res.on('end', () => {
+        if (res.statusCode !== 200) { resolve(false); return; }
+        try {
+          const remote = JSON.parse(data);
+          const current = readData();
+          const LIST_KEYS = ['appointments','clients','services','sections','employees','products','providers'];
+          LIST_KEYS.forEach(k => {
+            if (Array.isArray(remote[k])) current[k] = mergeArray(Array.isArray(current[k])?current[k]:[], remote[k]);
+          });
+          writeData(current);
+          resolve(true);
+        } catch(e) { resolve(false); }
+      });
+    }).on('error', () => resolve(false));
+  });
+}
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
@@ -372,6 +422,21 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
+  // === DEBUG ===
+  if (url === '/api/debug' && req.method === 'GET') {
+    const d = readData();
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      syncUrl: SYNC_FORWARD_URL || '(none)',
+      clients: (d.clients||[]).filter(c => !c._deleted).length,
+      totalClients: (d.clients||[]).length,
+      services: (d.services||[]).filter(s => !s._deleted).length,
+      employees: (d.employees||[]).filter(e => !e._deleted).length,
+      appointments: (d.appointments||[]).filter(a => !a._deleted).length
+    }));
+    return;
+  }
+
   // === CLIENT API ===
   if (url === '/api/client' && req.method === 'GET') {
     const phone = (new URL(req.url, 'http://x')).searchParams.get('phone');
@@ -379,24 +444,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'phone required' }));
       return;
     }
-    const d = readData();
-    const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(phone) && !c._deleted);
-    if (!client) {
-      res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'not found' }));
-      return;
-    }
-    const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && !a._deleted).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
-    const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
-    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '' },
-      appointments: appointments.map(a => ({
-        id: a.id, date: a.date, time: a.time, status: a.status, source: a.source || '',
-        employeeId: a.employeeId || '',
-        serviceName: svcMap[a.serviceId] ? svcMap[a.serviceId].name : '',
-        serviceId: a.serviceId, notes: a.notes || ''
-      }))
-    }));
+    handleClientLogin(phone, res);
     return;
   }
 
