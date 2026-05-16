@@ -37,28 +37,6 @@ h2 { font-size: 18px; margin-bottom: 15px; color: var(--text); }
 .date-picker { margin-bottom: 15px; }
 .date-picker input { width: 100%; padding: 12px 14px; border: 2px solid var(--border); border-radius: 10px; font-size: 15px; outline: none; }
 .date-picker input:focus { border-color: var(--primary); }
-
-/* Calendar */
-.calendar-container { margin-bottom: 15px; }
-.cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-.cal-nav-btn { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 6px 14px; cursor: pointer; font-size: 14px; transition: all .2s; }
-.cal-nav-btn:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
-#calMonthLabel { font-weight: 600; font-size: 16px; color: var(--text); }
-.cal-weekdays { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; margin-bottom: 6px; }
-.cal-weekdays span { font-size: 12px; font-weight: 600; color: var(--text-light); padding: 4px 0; }
-.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
-.cal-day { aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 10px; font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s; border: 2px solid transparent; }
-.cal-day:hover { transform: scale(1.08); }
-.cal-day-free { background: #d5f5e3; color: #1e8449; border-color: #27ae60; }
-.cal-day-free:hover { background: #a9dfbf; }
-.cal-day-occupied { background: #f5cba7; color: #935116; border-color: #e67e22; }
-.cal-day-occupied:hover { background: #f0b27a; }
-.cal-day-disabled { background: #f0f0f0; color: #ccc; cursor: default; border-color: transparent; }
-.cal-day-disabled:hover { transform: none; }
-.cal-day.cal-selected { border-color: var(--primary) !important; background: rgba(108,52,131,.15) !important; }
-.cal-empty { background: transparent !important; border-color: transparent !important; cursor: default; }
-.cal-empty:hover { transform: none; }
-
 .selected-info { font-size: 13px; color: var(--text-light); margin-top: 8px; padding: 8px 12px; background: var(--bg); border-radius: 8px; }
 .slots-grid { max-height: 400px; overflow-y: auto; }
 .slots-table { border-collapse: collapse; width: 100%; font-size: 12px; }

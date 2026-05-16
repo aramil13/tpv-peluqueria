@@ -73,16 +73,8 @@
     <!-- STEP 3: Date & Time -->
     <div class="step-content" id="step3">
       <h2>Elige una fecha</h2>
+      <div class="date-picker"><input type="date" id="bookingDate" onchange="onDateChange()"></div>
       <p id="selectedService" class="selected-info"></p>
-      <div class="calendar-container">
-        <div class="cal-nav">
-          <button class="cal-nav-btn" onclick="prevMonth()">◀</button>
-          <span id="calMonthLabel"></span>
-          <button class="cal-nav-btn" onclick="nextMonth()">▶</button>
-        </div>
-        <div class="cal-weekdays" id="calWeekdays"></div>
-        <div class="cal-grid" id="calGrid"></div>
-      </div>
       <div id="slotsContainer" class="slots-grid" style="margin-top:15px;"></div>
       <p id="noSlots" class="no-slots" style="display:none;">No hay horarios disponibles para esta fecha</p>
       <p id="selectedSlot" class="selected-info"></p>
