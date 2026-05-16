@@ -439,6 +439,17 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
+  if (url === '/api/online-status' && req.method === 'GET') {
+    const d = readData();
+    const s = d.settings || {};
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      enabled: s.onlineBookingEnabled !== false,
+      openingTime: s.onlineOpeningTime || '18:00'
+    }));
+    return;
+  }
+
   // === CLIENT API ===
   if (url === '/api/client' && req.method === 'GET') {
     const phone = (new URL(req.url, 'http://x')).searchParams.get('phone');

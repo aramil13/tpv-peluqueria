@@ -4,6 +4,7 @@ let selectedService = null, selectedDate = '', selectedSlot = null;
 let currentClient = null, currentAppointments = [];
 let modifyingApptId = null;
 let countdownTimer = null;
+let onlineStatusPoller = null;
 
 function showLoading(v) { document.getElementById('loadingOverlay').style.display = v ? 'flex' : 'none'; }
 
@@ -55,9 +56,7 @@ async function loadData() {
 
 function checkOpeningTime(openingTime, enabled) {
   if (!enabled) {
-    document.getElementById('countdownTargetTime').textContent = openingTime;
     showClosedTemporarily();
-    setTimeout(() => { location.reload(); }, 60000);
     return;
   }
   const now = new Date();
@@ -66,8 +65,22 @@ function checkOpeningTime(openingTime, enabled) {
   if (now < opening) {
     document.getElementById('countdownTargetTime').textContent = openingTime;
     showCountdown(opening);
-    setTimeout(() => { location.reload(); }, 60000);
   }
+}
+
+function startOnlineStatusPoller() {
+  if (onlineStatusPoller) clearInterval(onlineStatusPoller);
+  onlineStatusPoller = setInterval(async () => {
+    try {
+      const r = await fetch(API + '/api/online-status');
+      const d = await r.json();
+      if (!d.enabled) return;
+      const now = new Date();
+      const [h, m] = (d.openingTime || '18:00').split(':').map(Number);
+      const opening = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
+      if (now >= opening) location.reload();
+    } catch(e) {}
+  }, 15000);
 }
 
 function showClosedTemporarily() {
@@ -79,6 +92,8 @@ function showClosedTemporarily() {
   document.getElementById('countdownSub').textContent = 'Estar pendientes de su apertura';
   document.getElementById('countdownDisplay').style.display = 'none';
   document.getElementById('countdownLabel').style.display = 'none';
+  startOnlineStatusPoller();
+}
 
 function showCountdown(target) {
   const overlay = document.getElementById('openingCountdown');
@@ -91,6 +106,7 @@ function showCountdown(target) {
     if (diff <= 0) {
       clearInterval(countdownTimer);
       countdownTimer = null;
+      if (onlineStatusPoller) { clearInterval(onlineStatusPoller); onlineStatusPoller = null; }
       overlay.style.display = 'none';
       document.querySelector('.container').style.display = 'block';
       return;
@@ -100,6 +116,7 @@ function showCountdown(target) {
     const s = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
     document.getElementById('countdownDisplay').textContent = h + ':' + m + ':' + s;
   }, 1000);
+  startOnlineStatusPoller();
 }
 
 // === LOGIN / REGISTER ===
