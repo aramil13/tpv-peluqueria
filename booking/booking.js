@@ -48,12 +48,18 @@ async function loadData() {
     const settings = d.settings || {};
     document.getElementById('footerInfo').textContent = settings.businessName || 'Nymara Estilistas';
     renderServices();
-    checkOpeningTime(settings.onlineOpeningTime || '18:00');
+    checkOpeningTime(settings.onlineOpeningTime || '18:00', settings.onlineBookingEnabled !== false);
   } catch(e) { alert('Error al cargar datos: '+e.message); }
   showLoading(false);
 }
 
-function checkOpeningTime(openingTime) {
+function checkOpeningTime(openingTime, enabled) {
+  if (!enabled) {
+    document.getElementById('countdownTargetTime').textContent = openingTime;
+    showClosedTemporarily();
+    setTimeout(() => { location.reload(); }, 60000);
+    return;
+  }
   const now = new Date();
   const [h, m] = openingTime.split(':').map(Number);
   const opening = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
@@ -63,6 +69,16 @@ function checkOpeningTime(openingTime) {
     setTimeout(() => { location.reload(); }, 60000);
   }
 }
+
+function showClosedTemporarily() {
+  const overlay = document.getElementById('openingCountdown');
+  overlay.style.display = 'flex';
+  document.querySelector('.container').style.display = 'none';
+  document.getElementById('countdownIcon').textContent = '🔒';
+  document.getElementById('countdownTitle').textContent = 'Reservas Online cerradas temporalmente';
+  document.getElementById('countdownSub').textContent = 'Estar pendientes de su apertura';
+  document.getElementById('countdownDisplay').style.display = 'none';
+  document.getElementById('countdownLabel').style.display = 'none';
 
 function showCountdown(target) {
   const overlay = document.getElementById('openingCountdown');

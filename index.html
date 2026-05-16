@@ -323,6 +323,10 @@ tr:hover td { background: #f8f9fa; }
             <input type="time" id="onlineOpeningTime" value="18:00" style="width:95px;padding:3px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;">
             <button class="btn btn-sm btn-secondary" onclick="saveOnlineOpeningTime()" style="font-size:11px;padding:4px 10px;">Guardar</button>
             <span id="onlineOpeningSaved" style="font-size:11px;color:#27ae60;display:none;">✓ Guardado</span>
+            <label style="display:flex;align-items:center;gap:4px;margin-left:8px;cursor:pointer;font-size:12px;white-space:nowrap;">
+              <input type="checkbox" id="onlineBookingEnabled" checked onchange="saveOnlineBookingToggle()" style="width:16px;height:16px;cursor:pointer;">
+              Web Reservas
+            </label>
           </div>
         </div>
         <div class="agenda-header">
@@ -629,7 +633,8 @@ let data = {
     invoiceFooter: '¡Gracias por su visita!',
     invoicePrefix: 'FACT-',
     sync: { enabled: false, url: 'http://localhost:3456' },
-    onlineOpeningTime: '18:00'
+    onlineOpeningTime: '18:00',
+    onlineBookingEnabled: true
   })
 }
 
@@ -736,7 +741,8 @@ function saveSettings() {
       enabled: document.getElementById('syncEnabled').checked,
       url: document.getElementById('syncUrl').value.trim() || 'http://localhost:3456'
     },
-    onlineOpeningTime: data.settings.onlineOpeningTime || '18:00'
+    onlineOpeningTime: data.settings.onlineOpeningTime || '18:00',
+    onlineBookingEnabled: data.settings.onlineBookingEnabled !== undefined ? data.settings.onlineBookingEnabled : true
   };
   saveKey('ivaRate'); saveKey('settings');
   updateAppHeader();
@@ -766,10 +772,21 @@ function saveOnlineOpeningTime() {
   setTimeout(() => { saved.style.display = 'none'; }, 2000);
 }
 
+function saveOnlineBookingToggle() {
+  if (!data.settings) data.settings = {};
+  data.settings.onlineBookingEnabled = document.getElementById('onlineBookingEnabled').checked;
+  saveKey('settings');
+  syncPush();
+}
+
 function loadOnlineOpeningTime() {
   const el = document.getElementById('onlineOpeningTime');
   if (el && data.settings && data.settings.onlineOpeningTime) {
     el.value = data.settings.onlineOpeningTime;
+  }
+  const cb = document.getElementById('onlineBookingEnabled');
+  if (cb && data.settings && data.settings.onlineBookingEnabled !== undefined) {
+    cb.checked = data.settings.onlineBookingEnabled;
   }
 }
 
