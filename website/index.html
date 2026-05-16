@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nymara Estilistas - Peluquería & Belleza</title>
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav-inner">
+    <a href="#" class="logo">Nymara</a>
+    <div class="nav-links">
+      <a href="#servicios">Servicios</a>
+      <a href="#equipo">Equipo</a>
+      <a href="#testimonios">Testimonios</a>
+      <a href="#contacto">Contacto</a>
+      <a href="https://tpv-peluqueria-citasonline.onrender.com" class="btn-nav">Reserva Online</a>
+    </div>
+    <button class="hamburger" onclick="document.querySelector('.nav-links').classList.toggle('open')">☰</button>
+  </div>
+</nav>
+
+<section class="hero">
+  <div class="hero-overlay"></div>
+  <div class="hero-content">
+    <h1>Nymara Estilistas</h1>
+    <p>Tu salón de belleza de confianza. Cuidamos de ti con pasión y estilo.</p>
+    <a href="https://tpv-peluqueria-citasonline.onrender.com" class="btn-primary">Reserva tu cita</a>
+  </div>
+</section>
+
+<section class="about" id="about">
+  <div class="container">
+    <div class="about-grid">
+      <div class="about-text">
+        <span class="section-tag">Sobre nosotros</span>
+        <h2>Belleza con alma</h2>
+        <p>En Nymara Estilistas combinamos técnica y creatividad para ofrecerte una experiencia única. Nuestro equipo de profesionales está comprometido con realzar tu estilo personal utilizando las mejores técnicas y productos del mercado.</p>
+        <p>Cada visita es una oportunidad para consentirte. Porque cuando tú luces bien, nosotros cumplimos nuestro propósito.</p>
+      </div>
+      <div class="about-image">
+        <div class="about-placeholder"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="services" id="servicios">
+  <div class="container">
+    <span class="section-tag">Nuestros servicios</span>
+    <h2 class="section-title">Todo lo que necesitas</h2>
+    <div class="services-grid">
+      <div class="service-card">
+        <div class="service-icon">✂️</div>
+        <h3>Corte de pelo</h3>
+        <p>Corte personalizado para hombre y mujer. Tendencias y estilos clásicos.</p>
+        <span class="service-price">Desde 25€</span>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">🎨</div>
+        <h3>Coloración</h3>
+        <p>Mechas, balayage, reflejos y color completo. Marcas profesionales.</p>
+        <span class="service-price">Desde 45€</span>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">💆‍♀️</div>
+        <h3>Tratamientos</h3>
+        <p>Hidratación, queratina, botox capilar y tratamientos revitalizantes.</p>
+        <span class="service-price">Desde 35€</span>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">🧴</div>
+        <h3>Peinados</h3>
+        <p>Recogidos, alisados, ondulados y peinados para eventos especiales.</p>
+        <span class="service-price">Desde 30€</span>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">🦷</div>
+        <h3>Cepillado</h3>
+        <p>Lavado y cepillado con productos profesionales para tu tipo de cabello.</p>
+        <span class="service-price">Desde 15€</span>
+      </div>
+      <div class="service-card">
+        <div class="service-icon">✨</div>
+        <h3>Extensiones</h3>
+        <p>Extensiones de calidad. Volumen y longitud con resultado natural.</p>
+        <span class="service-price">Consulta precio</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="team" id="equipo">
+  <div class="container">
+    <span class="section-tag">Nuestro equipo</span>
+    <h2 class="section-title">Profesionales apasionados</h2>
+    <div class="team-grid">
+      <div class="team-card">
+        <div class="team-avatar"></div>
+        <h3>María García</h3>
+        <p>Directora & Estilista Senior</p>
+      </div>
+      <div class="team-card">
+        <div class="team-avatar"></div>
+        <h3>Ana López</h3>
+        <p>Colorista Profesional</p>
+      </div>
+      <div class="team-card">
+        <div class="team-avatar"></div>
+        <h3>Carlos Ruiz</h3>
+        <p>Estilista & Barbero</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="testimonials" id="testimonios">
+  <div class="container">
+    <span class="section-tag">Testimonios</span>
+    <h2 class="section-title">Lo que dicen nuestros clientes</h2>
+    <div class="testimonials-grid">
+      <div class="testimonial-card">
+        <p>"Siempre salgo encantada. El trato es increíble y los resultados hablan solos. 100% recomendable."</p>
+        <span class="testimonial-author">— Laura M.</span>
+      </div>
+      <div class="testimonial-card">
+        <p>"Profesionalidad y cercanía. Desde que voy a Nymara mi pelo nunca había estado tan sano."</p>
+        <span class="testimonial-author">— Patricia R.</span>
+      </div>
+      <div class="testimonial-card">
+        <p>"El mejor salón de la zona. El equipo es fantástico y siempre saben aconsejarme."</p>
+        <span class="testimonial-author">— David S.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="contact" id="contacto">
+  <div class="container">
+    <div class="contact-grid">
+      <div class="contact-info">
+        <span class="section-tag">Contacto</span>
+        <h2>Estamos aquí para ti</h2>
+        <div class="contact-item">📍 Calle Ejemplo, 12, 28001 Madrid</div>
+        <div class="contact-item">📞 <a href="tel:624143658">624 14 36 58</a></div>
+        <div class="contact-item">✉️ <a href="mailto:info@nymaraestilistas.com">info@nymaraestilistas.com</a></div>
+        <div class="contact-item">💬 <a href="https://wa.me/34624143658" target="_blank">WhatsApp</a></div>
+        <a href="https://tpv-peluqueria-citasonline.onrender.com" class="btn-primary" style="margin-top:20px;">Reserva tu cita online</a>
+      </div>
+      <div class="contact-map">
+        <div class="map-placeholder">
+          <div style="font-size:40px;margin-bottom:10px;">📍</div>
+          <p>Calle Ejemplo, 12</p>
+          <p>28001 Madrid</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <h3>Nymara Estilistas</h3>
+        <p>Tu salón de confianza.</p>
+      </div>
+      <div class="footer-links">
+        <h4>Enlaces</h4>
+        <a href="#servicios">Servicios</a>
+        <a href="#equipo">Equipo</a>
+        <a href="#contacto">Contacto</a>
+        <a href="https://tpv-peluqueria-citasonline.onrender.com">Reserva Online</a>
+      </div>
+      <div class="footer-hours">
+        <h4>Horario</h4>
+        <p>Lun–Vie: 9:00–19:00</p>
+        <p>Sáb: 9:00–14:00</p>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <p>&copy; 2026 Nymara Estilistas. Todos los derechos reservados.</p>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

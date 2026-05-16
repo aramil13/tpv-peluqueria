@@ -1,0 +1,252 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --primary: #8E44AD;
+  --primary-light: #a569c9;
+  --primary-dark: #6c3483;
+  --accent: #e8d5f0;
+  --bg: #faf9fb;
+  --text: #2d2d2d;
+  --text-light: #7f7f7f;
+  --white: #ffffff;
+  --border: #e8e0ed;
+  --shadow: 0 4px 20px rgba(0,0,0,.06);
+  --radius: 16px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: 'Inter', sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  line-height: 1.6;
+}
+
+.container { max-width: 1120px; margin: 0 auto; padding: 0 24px; }
+
+/* Navigation */
+.nav {
+  position: fixed; top: 0; width: 100%; z-index: 100;
+  background: rgba(255,255,255,.92); backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-inner {
+  max-width: 1120px; margin: 0 auto; padding: 0 24px;
+  display: flex; align-items: center; justify-content: space-between;
+  height: 68px;
+}
+
+.logo {
+  font-family: 'Playfair Display', serif;
+  font-size: 24px; font-weight: 700;
+  color: var(--primary-dark); text-decoration: none;
+}
+
+.nav-links { display: flex; align-items: center; gap: 28px; }
+
+.nav-links a {
+  text-decoration: none; color: var(--text); font-size: 14px; font-weight: 500;
+  transition: color .2s;
+}
+
+.nav-links a:hover { color: var(--primary); }
+
+.btn-nav {
+  background: var(--primary); color: var(--white) !important;
+  padding: 10px 22px; border-radius: 50px; font-weight: 600;
+  font-size: 13px !important; transition: background .2s !important;
+}
+
+.btn-nav:hover { background: var(--primary-light) !important; }
+
+.hamburger { display: none; background: none; border: none; font-size: 28px; cursor: pointer; color: var(--text); }
+
+/* Hero */
+.hero {
+  height: 100vh; min-height: 600px;
+  background: linear-gradient(135deg, #f5e8fa 0%, #e8d5f0 40%, #faf9fb 100%);
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+
+.hero-overlay {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 30% 50%, rgba(142,68,173,.08) 0%, transparent 70%);
+}
+
+.hero-content {
+  position: relative; z-index: 1;
+  text-align: center; padding: 0 24px; max-width: 700px;
+}
+
+.hero-content h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(42px, 7vw, 72px); font-weight: 700;
+  color: var(--primary-dark); margin-bottom: 16px;
+  line-height: 1.1;
+}
+
+.hero-content p {
+  font-size: clamp(16px, 2vw, 20px); color: var(--text-light);
+  margin-bottom: 32px; line-height: 1.6;
+}
+
+.btn-primary {
+  display: inline-block;
+  background: var(--primary); color: var(--white);
+  padding: 16px 40px; border-radius: 50px;
+  font-size: 16px; font-weight: 600; text-decoration: none;
+  transition: all .3s; box-shadow: 0 4px 15px rgba(142,68,173,.3);
+}
+
+.btn-primary:hover {
+  background: var(--primary-light);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 25px rgba(142,68,173,.4);
+}
+
+/* Section common */
+section { padding: 100px 0; }
+
+.section-tag {
+  display: inline-block;
+  background: var(--accent); color: var(--primary-dark);
+  padding: 6px 18px; border-radius: 50px; font-size: 13px; font-weight: 600;
+  margin-bottom: 12px; letter-spacing: .3px;
+}
+
+.section-title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(32px, 4vw, 44px); font-weight: 600;
+  color: var(--text); margin-bottom: 48px; line-height: 1.2;
+}
+
+/* About */
+.about { background: var(--white); }
+
+.about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+
+.about-text h2 { font-family: 'Playfair Display', serif; font-size: 38px; font-weight: 600; margin-bottom: 20px; color: var(--text); }
+
+.about-text p { color: var(--text-light); font-size: 15px; line-height: 1.8; margin-bottom: 16px; }
+
+.about-placeholder {
+  width: 100%; aspect-ratio: 4/3;
+  background: linear-gradient(135deg, var(--accent), #f5e8fa);
+  border-radius: var(--radius);
+}
+
+/* Services */
+.services { background: var(--bg); }
+
+.services-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+
+.service-card {
+  background: var(--white); border-radius: var(--radius); padding: 32px 24px;
+  box-shadow: var(--shadow); transition: transform .3s, box-shadow .3s;
+  border: 1px solid var(--border);
+}
+
+.service-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(0,0,0,.08); }
+
+.service-icon { font-size: 36px; margin-bottom: 16px; }
+
+.service-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+
+.service-card p { font-size: 14px; color: var(--text-light); line-height: 1.6; margin-bottom: 16px; }
+
+.service-price { font-size: 14px; font-weight: 600; color: var(--primary); }
+
+/* Team */
+.team { background: var(--white); }
+
+.team-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; }
+
+.team-card { text-align: center; padding: 32px 20px; border-radius: var(--radius); border: 1px solid var(--border); transition: transform .3s; }
+
+.team-card:hover { transform: translateY(-4px); }
+
+.team-avatar {
+  width: 100px; height: 100px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent), #f0d9f5);
+  margin: 0 auto 16px;
+}
+
+.team-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 4px; }
+
+.team-card p { font-size: 14px; color: var(--text-light); }
+
+/* Testimonials */
+.testimonials { background: var(--bg); }
+
+.testimonials-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 24px; }
+
+.testimonial-card {
+  background: var(--white); border-radius: var(--radius); padding: 32px 28px;
+  border: 1px solid var(--border); box-shadow: var(--shadow);
+}
+
+.testimonial-card p { font-size: 15px; color: var(--text); line-height: 1.7; margin-bottom: 16px; font-style: italic; }
+
+.testimonial-author { font-size: 14px; font-weight: 600; color: var(--primary); }
+
+/* Contact */
+.contact { background: var(--white); }
+
+.contact-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 60px; align-items: center; }
+
+.contact-info h2 { font-family: 'Playfair Display', serif; font-size: 38px; font-weight: 600; margin-bottom: 28px; }
+
+.contact-item { font-size: 16px; margin-bottom: 16px; color: var(--text); }
+
+.contact-item a { color: var(--primary); text-decoration: none; font-weight: 500; }
+
+.contact-item a:hover { text-decoration: underline; }
+
+.map-placeholder {
+  background: linear-gradient(135deg, var(--accent), #f5e8fa);
+  border-radius: var(--radius); padding: 60px 40px;
+  text-align: center; color: var(--text-light);
+}
+
+/* Footer */
+.footer { background: var(--primary-dark); color: var(--white); padding: 60px 0 0; }
+
+.footer-grid { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 48px; margin-bottom: 40px; }
+
+.footer-brand h3 { font-family: 'Playfair Display', serif; font-size: 22px; margin-bottom: 8px; }
+
+.footer-brand p { font-size: 14px; opacity: .7; }
+
+.footer-links h4, .footer-hours h4 { font-size: 14px; font-weight: 600; margin-bottom: 16px; text-transform: uppercase; letter-spacing: 1px; opacity: .8; }
+
+.footer-links a { display: block; color: rgba(255,255,255,.7); text-decoration: none; font-size: 14px; margin-bottom: 8px; transition: color .2s; }
+
+.footer-links a:hover { color: var(--white); }
+
+.footer-hours p { font-size: 14px; opacity: .7; margin-bottom: 4px; }
+
+.footer-bottom { border-top: 1px solid rgba(255,255,255,.1); padding: 20px 0; text-align: center; }
+
+.footer-bottom p { font-size: 13px; opacity: .5; }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .nav-links { display: none; position: absolute; top: 68px; left: 0; width: 100%; background: var(--white); padding: 20px; flex-direction: column; border-bottom: 1px solid var(--border); }
+  .nav-links.open { display: flex; }
+  .hamburger { display: block; }
+
+  .about-grid, .contact-grid { grid-template-columns: 1fr; gap: 32px; }
+  .services-grid, .team-grid, .testimonials-grid { grid-template-columns: 1fr; gap: 16px; }
+  .footer-grid { grid-template-columns: 1fr; gap: 32px; }
+
+  section { padding: 60px 0; }
+  .hero { min-height: 500px; }
+}
+
+@media (min-width: 769px) and (max-width: 1024px) {
+  .services-grid { grid-template-columns: repeat(2, 1fr); }
+  .team-grid, .testimonials-grid { grid-template-columns: repeat(2, 1fr); }
+}
