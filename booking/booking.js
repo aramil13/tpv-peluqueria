@@ -182,11 +182,11 @@ function renderModifySlots(slotsData, preSelectTime) {
     html += '<tr><td class="st-time">'+esc(t)+'</td>';
     empIds.forEach(eid => {
       const s = slots.find(x => x.time === t && x.employeeId === eid);
-      if (!s) { html += '<td class="st-na"></td>'; return; }
-      if (!s.available) { html += '<td class="st-occupied"></td>'; return; }
-      const selected = s.time === preSelectTime && !found ? ' selected' : '';
-      if (s.time === preSelectTime && !found) { found = true; selectedModifySlot = { time: s.time, employeeId: s.employeeId }; }
-      html += '<td class="st-free'+selected+'" data-time="'+s.time+'" data-eid="'+s.employeeId+'" data-ename="'+escAttr(empMap[eid])+'" onclick="selectModifySlot(this)"></td>';
+      if (!s) { html += '<td><div class="sq-cell sq-na"></div></td>'; return; }
+      if (!s.available) { html += '<td><div class="sq-cell sq-occ"></div></td>'; return; }
+      const isSelected = s.time === preSelectTime && !found;
+      if (isSelected) { found = true; selectedModifySlot = { time: s.time, employeeId: s.employeeId }; }
+      html += '<td class="sq-clickable" data-time="'+s.time+'" data-eid="'+s.employeeId+'" onclick="selectModifySlot(this)"><div class="sq-cell sq-free'+(isSelected?' selected':'')+'"></div></td>';
     });
     html += '</tr>';
   });
@@ -243,8 +243,9 @@ document.getElementById('modifyDate').addEventListener('change', async function(
 });
 
 function selectModifySlot(el) {
-  document.querySelectorAll('#modifySlots .st-free').forEach(b => b.classList.remove('selected'));
-  el.classList.add('selected');
+  document.querySelectorAll('#modifySlots .sq-clickable .sq-free').forEach(c => c.classList.remove('selected'));
+  const div = el.querySelector('.sq-free');
+  if (div) div.classList.add('selected');
   selectedModifySlot = { time: el.getAttribute('data-time'), employeeId: el.getAttribute('data-eid') };
   document.getElementById('modifyBtn').disabled = false;
 }
