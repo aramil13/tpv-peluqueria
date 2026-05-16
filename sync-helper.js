@@ -120,6 +120,8 @@ function fetchFromSync() {
     }).on('error', () => resolve(false));
   });
 }
+
+function ensureDir(filePath) {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
