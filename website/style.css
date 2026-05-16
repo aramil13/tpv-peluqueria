@@ -1,15 +1,15 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 :root {
-  --primary: #8E44AD;
-  --primary-light: #a569c9;
-  --primary-dark: #6c3483;
-  --accent: #e8d5f0;
-  --bg: #faf9fb;
+  --primary: #7A8B3E;
+  --primary-light: #9DAF5E;
+  --primary-dark: #5C6B2E;
+  --accent: #E8EDD5;
+  --bg: #FAFBF9;
   --text: #2d2d2d;
   --text-light: #7f7f7f;
   --white: #ffffff;
-  --border: #e8e0ed;
+  --border: #E0E5D0;
   --shadow: 0 4px 20px rgba(0,0,0,.06);
   --radius: 16px;
 }
@@ -66,14 +66,14 @@ body {
 /* Hero */
 .hero {
   height: 100vh; min-height: 600px;
-  background: linear-gradient(135deg, #f5e8fa 0%, #e8d5f0 40%, #faf9fb 100%);
+  background: linear-gradient(135deg, #f0f2e6 0%, #dce4c0 40%, #fafbf9 100%);
   display: flex; align-items: center; justify-content: center;
   position: relative; overflow: hidden;
 }
 
 .hero-overlay {
   position: absolute; inset: 0;
-  background: radial-gradient(ellipse at 30% 50%, rgba(142,68,173,.08) 0%, transparent 70%);
+  background: radial-gradient(ellipse at 30% 50%, rgba(122,139,62,.08) 0%, transparent 70%);
 }
 
 .hero-content {
@@ -98,13 +98,13 @@ body {
   background: var(--primary); color: var(--white);
   padding: 16px 40px; border-radius: 50px;
   font-size: 16px; font-weight: 600; text-decoration: none;
-  transition: all .3s; box-shadow: 0 4px 15px rgba(142,68,173,.3);
+  transition: all .3s; box-shadow: 0 4px 15px rgba(122,139,62,.3);
 }
 
 .btn-primary:hover {
   background: var(--primary-light);
   transform: translateY(-2px);
-  box-shadow: 0 6px 25px rgba(142,68,173,.4);
+  box-shadow: 0 6px 25px rgba(122,139,62,.4);
 }
 
 /* Section common */
@@ -134,7 +134,7 @@ section { padding: 100px 0; }
 
 .about-placeholder {
   width: 100%; aspect-ratio: 4/3;
-  background: linear-gradient(135deg, var(--accent), #f5e8fa);
+  background: linear-gradient(135deg, var(--accent), #f0f2e6);
   border-radius: var(--radius);
 }
 
@@ -170,7 +170,7 @@ section { padding: 100px 0; }
 
 .team-avatar {
   width: 100px; height: 100px; border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent), #f0d9f5);
+  background: linear-gradient(135deg, var(--accent), #dce4c0);
   margin: 0 auto 16px;
 }
 
@@ -206,7 +206,7 @@ section { padding: 100px 0; }
 .contact-item a:hover { text-decoration: underline; }
 
 .map-placeholder {
-  background: linear-gradient(135deg, var(--accent), #f5e8fa);
+  background: linear-gradient(135deg, var(--accent), #f0f2e6);
   border-radius: var(--radius); padding: 60px 40px;
   text-align: center; color: var(--text-light);
 }
