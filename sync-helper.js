@@ -66,7 +66,7 @@ const CORS_HEADERS = {
 
 function normPhone(p) {
   const d = (p||'').replace(/[^0-9]/g, '');
-  return d.startsWith('34') && d.length === 11 ? d.substring(2) : d;
+  return d.length > 9 ? d.substring(d.length - 9) : d;
 }
 
 function ensureDir(filePath) {
