@@ -233,28 +233,24 @@ function renderModifySlots(slotsData, preSelectTime) {
   if (!avail.length) { container.innerHTML = ''; noSlots.style.display = 'block'; document.getElementById('modifyBtn').disabled = true; return false; }
   noSlots.style.display = 'none';
 
-  const empMap = {}; const timeMap = {};
-  slots.forEach(s => { empMap[s.employeeId||''] = s.employeeName||'Sin asignar'; timeMap[s.time] = true; });
-  const empIds = Object.keys(empMap);
-  const times = Object.keys(timeMap).sort();
-
+  const times = [...new Set(slots.map(s => s.time))].sort();
   let found = false;
-  let html = '<table class="slots-table"><thead><tr><th></th>';
-  empIds.forEach(eid => { html += '<th>'+esc(empMap[eid])+'</th>'; });
-  html += '</tr></thead><tbody>';
+  let html = '<div class="modify-slots-grid">';
+
   times.forEach(t => {
-    html += '<tr><td class="st-time">'+esc(t)+'</td>';
-    empIds.forEach(eid => {
-      const s = slots.find(x => x.time === t && x.employeeId === eid);
-      if (!s) { html += '<td class="st-na"></td>'; return; }
-      if (!s.available) { html += '<td class="st-occupied"></td>'; return; }
-      const selected = s.time === preSelectTime && !found ? ' selected' : '';
-      if (s.time === preSelectTime && !found) { found = true; selectedModifySlot = { time: s.time, employeeId: s.employeeId }; }
-      html += '<td class="st-free'+selected+'" data-time="'+s.time+'" data-eid="'+s.employeeId+'" data-ename="'+escAttr(empMap[eid])+'" onclick="selectModifySlot(this)"></td>';
+    const timeSlots = slots.filter(s => s.time === t);
+    timeSlots.forEach(s => {
+      if (!s.available) {
+        html += '<div class="mod-slot mod-slot-occupied"><span class="mod-time">'+esc(s.time)+'</span><span class="mod-emp">'+esc(s.employeeName||'')+'</span></div>';
+        return;
+      }
+      const isSelected = s.time === preSelectTime && !found;
+      if (isSelected) { found = true; selectedModifySlot = { time: s.time, employeeId: s.employeeId }; }
+      html += '<div class="mod-slot mod-slot-free'+(isSelected?' mod-selected':'')+'" data-time="'+s.time+'" data-eid="'+s.employeeId+'" onclick="selectModifySlot(this)"><span class="mod-time">'+esc(s.time)+'</span><span class="mod-emp">'+esc(s.employeeName||'')+'</span></div>';
     });
-    html += '</tr>';
   });
-  html += '</tbody></table>';
+
+  html += '</div>';
   container.innerHTML = html;
   if (found) document.getElementById('modifyBtn').disabled = false;
   else { document.getElementById('modifyBtn').disabled = true; selectedModifySlot = null; }
@@ -307,8 +303,8 @@ document.getElementById('modifyDate').addEventListener('change', async function(
 });
 
 function selectModifySlot(el) {
-  document.querySelectorAll('#modifySlots .st-free').forEach(b => b.classList.remove('selected'));
-  el.classList.add('selected');
+  document.querySelectorAll('#modifySlots .mod-slot-free').forEach(b => b.classList.remove('mod-selected'));
+  el.classList.add('mod-selected');
   selectedModifySlot = { time: el.getAttribute('data-time'), employeeId: el.getAttribute('data-eid') };
   document.getElementById('modifyBtn').disabled = false;
 }
