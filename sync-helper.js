@@ -598,9 +598,21 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
+  // === WEBSITE STATIC FILES ===
+  const WEBSITE_DIR = path.join(__dirname, 'website');
+  const WEB_PATHS = ['/', ''];
+  if (WEB_PATHS.includes(url)) {
+    sendStaticFile(res, WEBSITE_DIR, '/index.html');
+    return;
+  }
+  if (url.startsWith('/style.css') && !url.startsWith('/booking')) {
+    sendStaticFile(res, WEBSITE_DIR, url);
+    return;
+  }
+
   // === BOOKING STATIC FILES ===
   const BOOKING_DIR = path.join(__dirname, 'booking');
-  const BOOKING_PATHS = ['/booking', '/booking/', '/index.html', '/', ''];
+  const BOOKING_PATHS = ['/booking', '/booking/'];
   if (BOOKING_PATHS.includes(url) || (url.startsWith('/booking/') && url.length > 9)) {
     let filePath;
     if (url.startsWith('/booking/') && url.length > 9) {
@@ -613,8 +625,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
   }
 
   // === BOOKING ASSETS (css, js) ===
-  if (url.startsWith('/style.css') || url.startsWith('/booking.js')) {
-    sendStaticFile(res, BOOKING_DIR, url);
+  if (url.startsWith('/booking/style.css') || url.startsWith('/booking/booking.js')) {
+    sendStaticFile(res, BOOKING_DIR, url.replace('/booking', ''));
     return;
   }
 
