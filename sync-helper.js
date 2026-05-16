@@ -250,9 +250,9 @@ const server = http.createServer((req, res) => {
               merged[k] = mergeArray(Array.isArray(current[k]) ? current[k] : [], remote[k]);
             }
           });
+    merged.settings = remote.settings || current.settings || {};
     writeData(merged);
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-    merged.settings = remote.settings || current.settings || {};
     res.end(JSON.stringify({
       ok: true,
       appointments: (Array.isArray(merged.appointments) ? merged.appointments : []).length,
