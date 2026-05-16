@@ -109,6 +109,17 @@
 
 <div class="loading" id="loadingOverlay" style="display:none;"><div class="spinner"></div><p>Cargando...</p></div>
 
+<div id="openingCountdown" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:2000;flex-direction:column;align-items:center;justify-content:center;">
+  <div style="text-align:center;padding:20px;">
+    <div style="font-size:48px;margin-bottom:15px;">🕐</div>
+    <h2 style="margin-bottom:8px;">Reservas Online cerradas</h2>
+    <p style="color:var(--text-light);margin-bottom:5px;">Las reservas online abrirán hoy a las <strong id="countdownTargetTime">18:00</strong></p>
+    <p style="color:var(--text-light);margin-bottom:25px;font-size:13px;">Vuelve más tarde para reservar tu cita</p>
+    <div id="countdownDisplay" style="font-size:56px;font-weight:700;color:var(--primary);font-family:monospace;letter-spacing:4px;">--:--:--</div>
+    <p style="font-size:13px;color:var(--text-light);margin-top:8px;">horas : minutos : segundos</p>
+  </div>
+</div>
+
 <script src="booking.js"></script>
 </body>
 </html>

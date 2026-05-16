@@ -662,6 +662,14 @@ function pullFromSync() {
             if (r && r._deleted) { a._deleted = true; changed = true; }
           });
         }
+        if (remote.settings && typeof remote.settings === 'object') {
+          const curSettings = current.settings || {};
+          const merged = { ...curSettings, ...remote.settings };
+          if (JSON.stringify(curSettings) !== JSON.stringify(merged)) {
+            current.settings = merged;
+            changed = true;
+          }
+        }
         if (changed) { writeData(current); console.log('Sync pull: data updated from', url); }
         else console.log('Sync pull: no changes from', url);
       } catch (e) { console.warn('Sync pull parse error:', e.message); }

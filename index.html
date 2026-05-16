@@ -318,6 +318,12 @@ tr:hover td { background: #f8f9fa; }
             <button class="btn btn-secondary" onclick="exportToIcs()">📅 Exportar a calendario</button>
             <button class="btn btn-primary" onclick="quickAppt('')">+ Nueva Cita</button>
           </div>
+          <div style="display:flex;align-items:center;gap:6px;margin-left:12px;">
+            <span style="font-size:12px;white-space:nowrap;">🕐 Apertura Online:</span>
+            <input type="time" id="onlineOpeningTime" value="18:00" style="width:95px;padding:3px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;">
+            <button class="btn btn-sm btn-secondary" onclick="saveOnlineOpeningTime()" style="font-size:11px;padding:4px 10px;">Guardar</button>
+            <span id="onlineOpeningSaved" style="font-size:11px;color:#27ae60;display:none;">✓ Guardado</span>
+          </div>
         </div>
         <div class="agenda-header">
           <div class="agenda-nav">
@@ -622,7 +628,8 @@ let data = {
     ticketFooter: '¡Gracias por su visita!',
     invoiceFooter: '¡Gracias por su visita!',
     invoicePrefix: 'FACT-',
-    sync: { enabled: false, url: 'http://localhost:3456' }
+    sync: { enabled: false, url: 'http://localhost:3456' },
+    onlineOpeningTime: '18:00'
   })
 }
 
@@ -728,7 +735,8 @@ function saveSettings() {
     sync: {
       enabled: document.getElementById('syncEnabled').checked,
       url: document.getElementById('syncUrl').value.trim() || 'http://localhost:3456'
-    }
+    },
+    onlineOpeningTime: data.settings.onlineOpeningTime || '18:00'
   };
   saveKey('ivaRate'); saveKey('settings');
   updateAppHeader();
@@ -744,6 +752,25 @@ function updateAppHeader() {
   const posTicketHeader = document.getElementById('posTicketHeader');
   if (mainTitle) mainTitle.textContent = name;
   if (posTicketHeader) posTicketHeader.textContent = name;
+}
+
+function saveOnlineOpeningTime() {
+  const val = document.getElementById('onlineOpeningTime').value;
+  if (!val) return;
+  if (!data.settings) data.settings = {};
+  data.settings.onlineOpeningTime = val;
+  saveKey('settings');
+  syncPush();
+  const saved = document.getElementById('onlineOpeningSaved');
+  saved.style.display = 'inline';
+  setTimeout(() => { saved.style.display = 'none'; }, 2000);
+}
+
+function loadOnlineOpeningTime() {
+  const el = document.getElementById('onlineOpeningTime');
+  if (el && data.settings && data.settings.onlineOpeningTime) {
+    el.value = data.settings.onlineOpeningTime;
+  }
 }
 
 // ============ SYNC ============
@@ -857,7 +884,7 @@ document.querySelectorAll('.nav-item').forEach(el => {
     if (this.dataset.section === 'products') renderProducts();
     if (this.dataset.section === 'providers') renderProviders();
     if (this.dataset.section === 'warehouse') renderWarehouse();
-    if (this.dataset.section === 'agenda') { syncPull(); renderAgenda(); }
+    if (this.dataset.section === 'agenda') { syncPull(); renderAgenda(); loadOnlineOpeningTime(); }
     if (this.dataset.section === 'reports') renderReports();
   });
 });

@@ -3,6 +3,7 @@ let services = [], sections = [], employees = [], allClients = [];
 let selectedService = null, selectedDate = '', selectedSlot = null;
 let currentClient = null, currentAppointments = [];
 let modifyingApptId = null;
+let countdownTimer = null;
 
 function showLoading(v) { document.getElementById('loadingOverlay').style.display = v ? 'flex' : 'none'; }
 
@@ -47,8 +48,41 @@ async function loadData() {
     const settings = d.settings || {};
     document.getElementById('footerInfo').textContent = settings.businessName || 'Nymara Estilistas';
     renderServices();
+    checkOpeningTime(settings.onlineOpeningTime || '18:00');
   } catch(e) { alert('Error al cargar datos: '+e.message); }
   showLoading(false);
+}
+
+function checkOpeningTime(openingTime) {
+  const now = new Date();
+  const [h, m] = openingTime.split(':').map(Number);
+  const opening = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
+  if (now < opening) {
+    document.getElementById('countdownTargetTime').textContent = openingTime;
+    showCountdown(opening);
+  }
+}
+
+function showCountdown(target) {
+  const overlay = document.getElementById('openingCountdown');
+  overlay.style.display = 'flex';
+  document.querySelector('.container').style.display = 'none';
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    const now = new Date();
+    const diff = target - now;
+    if (diff <= 0) {
+      clearInterval(countdownTimer);
+      countdownTimer = null;
+      overlay.style.display = 'none';
+      document.querySelector('.container').style.display = 'block';
+      return;
+    }
+    const h = String(Math.floor(diff / 3600000)).padStart(2, '0');
+    const m = String(Math.floor((diff % 3600000) / 60000)).padStart(2, '0');
+    const s = String(Math.floor((diff % 60000) / 1000)).padStart(2, '0');
+    document.getElementById('countdownDisplay').textContent = h + ':' + m + ':' + s;
+  }, 1000);
 }
 
 // === LOGIN / REGISTER ===
