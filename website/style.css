@@ -151,6 +151,8 @@ section { padding: 100px 0; }
 
 .service-card:hover { transform: translateY(-4px); box-shadow: 0 8px 30px rgba(0,0,0,.08); }
 
+.clickable { cursor: pointer; }
+
 .service-icon { font-size: 36px; margin-bottom: 16px; }
 
 .service-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
