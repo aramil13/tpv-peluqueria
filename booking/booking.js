@@ -60,6 +60,7 @@ function checkOpeningTime(openingTime) {
   if (now < opening) {
     document.getElementById('countdownTargetTime').textContent = openingTime;
     showCountdown(opening);
+    setTimeout(() => { location.reload(); }, 60000);
   }
 }
 
