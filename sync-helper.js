@@ -64,6 +64,11 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+function normPhone(p) {
+  const d = (p||'').replace(/[^0-9]/g, '');
+  return d.length > 9 ? d.slice(-9) : d;
+}
+
 function ensureDir(filePath) {
   const dir = path.dirname(filePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -315,7 +320,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           return;
         }
         // Find or create client
-        let client = (data.clients||[]).find(c => c.phone === b.clientPhone && !c._deleted);
+        let client = (data.clients||[]).find(c => normPhone(c.phone) === normPhone(b.clientPhone) && !c._deleted);
         if (!client) {
           client = {
             id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
@@ -375,7 +380,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       return;
     }
     const d = readData();
-    const client = (d.clients||[]).find(c => c.phone === phone && !c._deleted);
+    const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(phone) && !c._deleted);
     if (!client) {
       res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'not found' }));
       return;
@@ -406,7 +411,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           return;
         }
         const d = readData();
-        if ((d.clients||[]).find(c => c.phone === b.phone && !c._deleted)) {
+        if ((d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted)) {
           res.writeHead(409, CORS_HEADERS); res.end(JSON.stringify({ error: 'Ya existe un cliente con ese teléfono' }));
           return;
         }
@@ -439,7 +444,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           return;
         }
         const d = readData();
-        const client = (d.clients||[]).find(c => c.phone === b.phone && !c._deleted);
+        const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
         if (!client) {
           res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado' }));
           return;
@@ -482,7 +487,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           return;
         }
         const d = readData();
-        const client = (d.clients||[]).find(c => c.phone === b.phone && !c._deleted);
+        const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
         if (!client) {
           res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado' }));
           return;
