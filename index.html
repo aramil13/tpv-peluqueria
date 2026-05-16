@@ -236,7 +236,7 @@ tr:hover td { background: #f8f9fa; }
     <!-- CLIENTS -->
     <div class="section" id="sec-clients">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Clientes</h3><button class="btn btn-primary" onclick="openModal('clientModal')">+ Nuevo Cliente</button></div>
+        <div class="card-header"><h3>Gestión de Clientes</h3><button class="btn btn-primary" onclick="clearClientForm();openModal('clientModal')">+ Nuevo Cliente</button></div>
         <div class="search-bar"><input type="text" id="searchClient" placeholder="Buscar por nombre, teléfono o email..." oninput="renderClients()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>NIF/CIF</th><th>Teléfono</th><th>Población</th><th>Visitas</th><th>Gasto Total</th><th>Acciones</th></tr></thead><tbody id="clientsTable"></tbody></table></div>
       </div>
@@ -245,7 +245,7 @@ tr:hover td { background: #f8f9fa; }
     <!-- EMPLOYEES -->
     <div class="section" id="sec-employees">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Empleados</h3><button class="btn btn-primary" onclick="openModal('employeeModal')">+ Nuevo Empleado</button></div>
+        <div class="card-header"><h3>Gestión de Empleados</h3><button class="btn btn-primary" onclick="clearEmployeeForm();openModal('employeeModal')">+ Nuevo Empleado</button></div>
         <div class="search-bar"><input type="text" id="searchEmployee" placeholder="Buscar por nombre, teléfono o email..." oninput="renderEmployees()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Rol</th><th>Acciones</th></tr></thead><tbody id="employeesTable"></tbody></table></div>
       </div>
@@ -263,7 +263,7 @@ tr:hover td { background: #f8f9fa; }
     <!-- SECTIONS -->
     <div class="section" id="sec-sections">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Secciones</h3><button class="btn btn-primary" onclick="openModal('sectionModal')">+ Nueva Sección</button></div>
+        <div class="card-header"><h3>Gestión de Secciones</h3><button class="btn btn-primary" onclick="clearSectionForm();openModal('sectionModal')">+ Nueva Sección</button></div>
         <div class="search-bar"><input type="text" id="searchSection" placeholder="Buscar sección..." oninput="renderSections()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="sectionsTable"></tbody></table></div>
       </div>
@@ -290,7 +290,7 @@ tr:hover td { background: #f8f9fa; }
     <!-- PROVIDERS -->
     <div class="section" id="sec-providers">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Proveedores</h3><button class="btn btn-primary" onclick="openModal('providerModal')">+ Nuevo Proveedor</button></div>
+        <div class="card-header"><h3>Gestión de Proveedores</h3><button class="btn btn-primary" onclick="clearProviderForm();openModal('providerModal')">+ Nuevo Proveedor</button></div>
         <div class="search-bar"><input type="text" id="searchProvider" placeholder="Buscar proveedor..." oninput="renderProviders()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Acciones</th></tr></thead><tbody id="providersTable"></tbody></table></div>
       </div>
@@ -1287,6 +1287,7 @@ function populateProviderSelect() {
 }
 
 function openProductModal() {
+  clearProductForm();
   populateProviderSelect();
   openModal('productModal');
 }
