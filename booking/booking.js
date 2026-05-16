@@ -350,30 +350,20 @@ function renderSlots(slots) {
   if (!avail.length && !slots.some(s => !s.available)) { container.innerHTML = ''; noSlots.style.display = 'block'; return; }
   noSlots.style.display = 'none';
 
-  const empMap = {}; const timeMap = {};
-  slots.forEach(s => { empMap[s.employeeId||''] = s.employeeName||'Sin asignar'; timeMap[s.time] = true; });
-  const empIds = Object.keys(empMap);
-  const times = Object.keys(timeMap).sort();
-
-  let html = '<table class="slots-table"><thead><tr><th></th>';
-  empIds.forEach(eid => { html += '<th>'+esc(empMap[eid])+'</th>'; });
-  html += '</tr></thead><tbody>';
-  times.forEach(t => {
-    html += '<tr><td class="st-time">'+esc(t)+'</td>';
-    empIds.forEach(eid => {
-      const s = slots.find(x => x.time === t && x.employeeId === eid);
-      if (!s) { html += '<td class="st-na"></td>'; return; }
-      if (!s.available) { html += '<td class="st-occupied"></td>'; return; }
-      html += '<td class="st-free" data-time="'+t+'" data-eid="'+eid+'" data-ename="'+escAttr(empMap[eid])+'" onclick="selectSlotFromTable(this)"></td>';
-    });
-    html += '</tr>';
+  let html = '<div class="slots-squares">';
+  slots.forEach(s => {
+    if (!s.available) {
+      html += '<div class="slot-square slot-square-occ"><span class="sq-time">'+esc(s.time)+'</span><span class="sq-emp">'+esc(s.employeeName||'')+'</span></div>';
+    } else {
+      html += '<div class="slot-square slot-square-free" data-time="'+s.time+'" data-eid="'+s.employeeId+'" data-ename="'+escAttr(s.employeeName||'')+'" onclick="selectSlotFromTable(this)"><span class="sq-time">'+esc(s.time)+'</span><span class="sq-emp">'+esc(s.employeeName||'')+'</span></div>';
+    }
   });
-  html += '</tbody></table>';
+  html += '</div>';
   container.innerHTML = html;
 }
 
 function selectSlotFromTable(el) {
-  document.querySelectorAll('.st-free').forEach(c => c.classList.remove('selected'));
+  document.querySelectorAll('.slot-square-free').forEach(c => c.classList.remove('selected'));
   el.classList.add('selected');
   const time = el.getAttribute('data-time');
   const employeeId = el.getAttribute('data-eid');
