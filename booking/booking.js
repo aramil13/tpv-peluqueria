@@ -3,6 +3,8 @@ let services = [], sections = [], employees = [], allClients = [];
 let selectedService = null, selectedDate = '', selectedSlot = null;
 let currentClient = null, currentAppointments = [];
 let modifyingApptId = null;
+let calMonth = new Date();
+let calData = {};
 
 function showLoading(v) { document.getElementById('loadingOverlay').style.display = v ? 'flex' : 'none'; }
 
@@ -33,6 +35,68 @@ function miniCalendar(dateStr) {
 function goStep(n) {
   document.querySelectorAll('.step-indicator .step').forEach((s,i) => { s.classList.toggle('active', i===n); s.classList.toggle('done', i<n); });
   document.querySelectorAll('.step-content').forEach((s,i) => s.classList.toggle('active', i===n));
+}
+
+function fetchAvailability() {
+  if (!selectedService) return;
+  const month = calMonth.getFullYear() + '-' + String(calMonth.getMonth() + 1).padStart(2, '0');
+  showLoading(true);
+  fetch(API + '/api/availability?month=' + month + '&serviceId=' + selectedService.id)
+    .then(r => r.json())
+    .then(d => {
+      calData = d.dates || {};
+      renderCalendar();
+      showLoading(false);
+    })
+    .catch(() => showLoading(false));
+}
+
+function renderCalendar() {
+  const year = calMonth.getFullYear();
+  const month = calMonth.getMonth();
+  const monthStr = String(month + 1).padStart(2, '0');
+  const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  document.getElementById('calMonthLabel').textContent = monthNames[month] + ' ' + year;
+
+  const weekDays = ['L','M','X','J','V','S','D'];
+  document.getElementById('calWeekdays').innerHTML = weekDays.map(d => '<span>' + d + '</span>').join('');
+
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const startOffset = firstDay === 0 ? 6 : firstDay - 1;
+
+  let html = '';
+  for (let i = 0; i < startOffset; i++) html += '<div class="cal-day cal-empty"></div>';
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = year + '-' + monthStr + '-' + String(d).padStart(2, '0');
+    const status = calData[dateStr] || 'disabled';
+    const isSelected = dateStr === selectedDate;
+    html += '<div class="cal-day cal-day-' + status + (isSelected ? ' cal-selected' : '') + '" data-date="' + dateStr + '" onclick="selectCalDate(\'' + dateStr + '\')">' + d + '</div>';
+  }
+
+  document.getElementById('calGrid').innerHTML = html;
+}
+
+function selectCalDate(dateStr) {
+  selectedDate = dateStr;
+  selectedSlot = null;
+  document.getElementById('selectedSlot').textContent = '';
+  document.querySelectorAll('.cal-day').forEach(d => d.classList.remove('cal-selected'));
+  const el = document.querySelector('.cal-day[data-date="' + dateStr + '"]');
+  if (el) el.classList.add('cal-selected');
+  fetchSlots();
+}
+
+function prevMonth() {
+  calMonth.setMonth(calMonth.getMonth() - 1);
+  fetchAvailability();
+}
+
+function nextMonth() {
+  calMonth.setMonth(calMonth.getMonth() + 1);
+  fetchAvailability();
 }
 
 async function loadData() {
@@ -316,9 +380,15 @@ function selectService(id) {
   const el = document.querySelector('.service-card[data-id="'+id+'"]');
   if (el) el.classList.add('selected');
   selectedService = services.find(s => s.id === id);
+  selectedDate = '';
+  selectedSlot = null;
   document.getElementById('selectedService').textContent = 'Servicio: '+(selectedService?selectedService.name:'')+' | '+cur(selectedService?selectedService.price:0)+(selectedService&&selectedService.duration?' &middot; '+selectedService.duration+' min':'');
+  document.getElementById('selectedSlot').textContent = '';
+  document.getElementById('slotsContainer').innerHTML = '';
+  document.getElementById('noSlots').style.display = 'none';
+  calMonth = new Date();
   goStep(3);
-  fetchSlots();
+  fetchAvailability();
 }
 
 function onDateChange() {

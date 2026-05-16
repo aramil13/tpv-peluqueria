@@ -302,6 +302,77 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
+  if (url.startsWith('/api/availability') && req.method === 'GET') {
+    const u = new URL(req.url, 'http://x');
+    const month = u.searchParams.get('month');
+    const serviceId = u.searchParams.get('serviceId');
+    if (!month || !serviceId) {
+      res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'month and serviceId required' }));
+      return;
+    }
+    const data = readData();
+    const srv = (data.services||[]).find(s => s.id === serviceId && !s._deleted);
+    if (!srv) {
+      res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Service not found' }));
+      return;
+    }
+    const duration = srv.duration || 30;
+    const employeesList = (data.employees||[]).filter(e => !e._deleted);
+    const now = new Date();
+    const todayStr = now.toISOString().split('T')[0];
+    const currentHour = now.getHours() + now.getMinutes() / 60;
+    const todayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const [yearStr, monthStr] = month.split('-');
+    const year = parseInt(yearStr);
+    const monthIdx = parseInt(monthStr) - 1;
+    const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+
+    const BUSINESS_START = 9;
+    const BUSINESS_END = 19;
+    const SLOT_INTERVAL = 15;
+
+    const result = {};
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${month}-${String(day).padStart(2, '0')}`;
+      const dateObj = new Date(year, monthIdx, day);
+      if (dateObj < todayDate) { result[dateStr] = 'disabled'; continue; }
+
+      const appts = (data.appointments||[]).filter(a => a.date === dateStr && !a._deleted);
+      const isToday = dateStr === todayStr;
+      const availableEmps = employeesList.length ? employeesList : [{ id: '', name: 'Sin asignar' }];
+      let hasFree = false, hasAny = false;
+
+      availableEmps.forEach(emp => {
+        const empAppts = appts.filter(a => !a.employeeId || a.employeeId === emp.id);
+        for (let h = BUSINESS_START; h < BUSINESS_END; h++) {
+          for (let m = 0; m < 60; m += SLOT_INTERVAL) {
+            const start = h + m / 60;
+            const end = start + duration / 60;
+            if (end > BUSINESS_END) break;
+            if (isToday && start <= currentHour + 1) continue;
+            const occupied = empAppts.some(a => {
+              const s = (data.services||[]).find(svc => svc.id === a.serviceId);
+              const aStart = parseTime(a.time);
+              const aEnd = aStart + (s ? (s.duration || 30) : 30) / 60;
+              return start < aEnd && end > aStart;
+            });
+            hasAny = true;
+            if (!occupied) hasFree = true;
+          }
+        }
+      });
+
+      if (!hasAny) result[dateStr] = 'disabled';
+      else if (hasFree) result[dateStr] = 'free';
+      else result[dateStr] = 'occupied';
+    }
+
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ dates: result }));
+    return;
+  }
+
   if (url === '/api/book' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
