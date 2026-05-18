@@ -343,7 +343,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           const start = h + m / 60;
           const end = start + duration / 60;
           if (end > BUSINESS_END) break;
-          if (isToday && start <= currentHour + 1) continue;
+          if (isToday && start < currentHour) continue;
           const timeStr = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
           const occupied = empAppts.some(a => {
             const srv = (data.services||[]).find(s => s.id === a.serviceId);
