@@ -72,15 +72,20 @@ function normPhone(p) {
 
 async function handleClientLogin(phone, res) {
   const norm = normPhone(phone);
+  console.log('[LOGIN] Phone:', phone, 'Normalized:', norm);
   let d = readData();
+  const allClients = (d.clients||[]).filter(c => !c._deleted).map(c => ({ id: c.id, name: c.name, phone: c.phone, norm: normPhone(c.phone) }));
+  console.log('[LOGIN] All clients norm phones:', allClients.map(c => c.norm));
   let client = (d.clients||[]).find(c => normPhone(c.phone) === norm && !c._deleted);
   if (!client && SYNC_FORWARD_URL) {
+    console.log('[LOGIN] Fetching from sync...');
     await fetchFromSync();
     d = readData();
     client = (d.clients||[]).find(c => normPhone(c.phone) === norm && !c._deleted);
   }
   if (!client) {
-    res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'not found' }));
+    console.log('[LOGIN] Client not found for norm:', norm);
+    res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado. ¿El teléfono está registrado?' }));
     return;
   }
   const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && !a._deleted).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
