@@ -1,6 +1,6 @@
 {
   "name": "tpv-peluqueria",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "TPV Agenda para Peluquería",
   "main": "main.js",
   "scripts": {
