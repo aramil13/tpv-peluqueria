@@ -157,7 +157,7 @@ tr:hover td { background: #f8f9fa; }
     <div class="nav-item" data-section="employees"><span class="icon">🧑‍💼</span><span>Empleados</span></div>
     <div class="nav-item" data-section="services"><span class="icon">✂️</span><span>Servicios</span></div>
     <div class="nav-item" data-section="sections"><span class="icon">📂</span><span>Secciones</span></div>
-    <div class="nav-item" data-section="projects"><span class="icon">📦</span><span>Pack de Servicios</span></div>
+    <div class="nav-item" data-section="projects"><span class="icon">🏷️</span><span>Ofertas</span></div>
     <div class="nav-item" data-section="products"><span class="icon">🧴</span><span>Productos</span></div>
     <div class="nav-item" data-section="providers"><span class="icon">🏭</span><span>Proveedores</span></div>
     <div class="nav-item" data-section="warehouse"><span class="icon">📦</span><span>Almacén</span></div>
@@ -193,7 +193,7 @@ tr:hover td { background: #f8f9fa; }
           <div class="pos-items-header" id="posTabs">
             <button class="btn btn-primary" onclick="filterPosItems('services')">Servicios</button>
             <button class="btn btn-secondary" onclick="filterPosItems('products')">Productos</button>
-            <button class="btn btn-secondary" onclick="filterPosItems('projects')">Packs</button>
+            <button class="btn btn-secondary" onclick="filterPosItems('projects')">Ofertas</button>
             <span id="posSectionTabs"></span>
             <button class="btn btn-secondary" onclick="filterPosItems('all')">Todos</button>
           </div>
@@ -272,9 +272,9 @@ tr:hover td { background: #f8f9fa; }
     <!-- PROJECTS -->
     <div class="section" id="sec-projects">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Packs</h3><button class="btn btn-primary" onclick="openProjectForm()">+ Nuevo Pack</button></div>
-        <div class="search-bar"><input type="text" id="searchProject" placeholder="Buscar pack..." oninput="renderProjects()"></div>
-        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Servicios</th><th>Duración</th><th>Precio</th><th>Dto.</th><th>Total</th><th>Acciones</th></tr></thead><tbody id="projectsTable"></tbody></table></div>
+        <div class="card-header"><h3>Gestión de Ofertas</h3><button class="btn btn-primary" onclick="openProjectForm()">+ Nueva Oferta</button></div>
+        <div class="search-bar"><input type="text" id="searchProject" placeholder="Buscar oferta..." oninput="renderProjects()"></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Servicios/Productos</th><th>Duración</th><th>Precio</th><th>Dto.</th><th>Total</th><th>Web</th><th>Acciones</th></tr></thead><tbody id="projectsTable"></tbody></table></div>
       </div>
     </div>
 
@@ -283,7 +283,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="card">
         <div class="card-header"><h3>Gestión de Productos</h3><button class="btn btn-primary" onclick="openProductModal()">+ Nuevo Producto</button></div>
         <div class="search-bar"><input type="text" id="searchProduct" placeholder="Buscar producto..." oninput="renderProducts()"></div>
-        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Proveedor</th><th>Precio Venta</th><th>Stock</th><th>Stock Mín.</th><th>Estado</th><th>Acciones</th></tr></thead><tbody id="productsTable"></tbody></table></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Proveedor</th><th>Precio Venta</th><th>Stock</th><th>Stock Mín.</th><th>Estado</th><th>Web</th><th>Acciones</th></tr></thead><tbody id="productsTable"></tbody></table></div>
       </div>
     </div>
 
@@ -415,15 +415,19 @@ tr:hover td { background: #f8f9fa; }
 </div>
 
 <div class="modal" id="projectModal">
-  <div class="modal-content" style="max-width:600px;">
-    <div class="modal-header"><h3 id="projectModalTitle">Nuevo Pack</h3><button class="modal-close" onclick="closeModal('projectModal')">&times;</button></div>
-    <div class="form-group"><label>Nombre del pack *</label><input type="text" id="projectName" placeholder="Ej: Corte + Baño + Peinado"></div>
+  <div class="modal-content" style="max-width:650px;">
+    <div class="modal-header"><h3 id="projectModalTitle">Nueva Oferta</h3><button class="modal-close" onclick="closeModal('projectModal')">&times;</button></div>
+    <div class="form-group"><label>Nombre de la oferta *</label><input type="text" id="projectName" placeholder="Ej: Corte + Baño + Peinado"></div>
     <div class="form-group">
       <label style="display:flex;justify-content:space-between;align-items:center;">
         <span>Servicios incluidos</span>
         <span id="selectedCount" style="font-size:12px;color:var(--text-light);background:var(--bg);padding:2px 10px;border-radius:10px;">0 seleccionados</span>
       </label>
-      <div id="projectServices" style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px;"></div>
+      <div id="projectServices" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px;"></div>
+    </div>
+    <div class="form-group">
+      <label>Productos incluidos</label>
+      <div id="projectProducts" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px;"></div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--border);margin-top:4px;">
       <div style="display:flex;align-items:center;gap:8px;flex:1;">
@@ -434,7 +438,7 @@ tr:hover td { background: #f8f9fa; }
         </div>
       </div>
       <div style="text-align:right;">
-        <div style="font-size:11px;color:var(--text-light);">Total servicios</div>
+        <div style="font-size:11px;color:var(--text-light);">Total</div>
         <div id="projectSubtotal" style="font-size:14px;color:var(--text-light);text-decoration:line-through;">0.00€</div>
       </div>
       <div style="text-align:right;min-width:100px;">
@@ -442,7 +446,12 @@ tr:hover td { background: #f8f9fa; }
         <div id="projectTotal" style="font-size:22px;font-weight:700;color:var(--primary);">0.00€</div>
       </div>
     </div>
-    <div class="modal-footer" style="border-top:none;padding-top:0;"><button class="btn btn-secondary" onclick="closeModal('projectModal')">Cancelar</button><button class="btn btn-primary" onclick="saveProject()" style="padding:10px 28px;">Guardar Pack</button></div>
+    <div class="grid-2" style="margin-top:12px;">
+      <div class="form-group"><label>URL Foto</label><input type="text" id="projectPhoto" placeholder="https://ejemplo.com/foto.jpg"></div>
+      <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding-top:22px;"><input type="checkbox" id="projectShowWeb" style="width:auto;"> Mostrar en la web</label></div>
+    </div>
+    <div class="form-group"><label>Descripción</label><textarea id="projectDescription" placeholder="Descripción de la oferta para la web" rows="3"></textarea></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('projectModal')">Cancelar</button><button class="btn btn-primary" onclick="saveProject()" style="padding:10px 28px;">Guardar Oferta</button></div>
     <input type="hidden" id="projectEditId">
   </div>
 </div>
@@ -458,7 +467,10 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Stock Mínimo</label><input type="number" id="productMinStock" placeholder="5" min="0" value="5"></div>
       <div class="form-group"><label>IVA (%)</label><input type="number" id="productIva" placeholder="21" step="0.01" min="0" max="100" value="21"></div>
       <div class="form-group"><label>Proveedor</label><select id="productProvider"><option value="">Sin proveedor</option></select></div>
+      <div class="form-group"><label>URL Foto</label><input type="text" id="productPhoto" placeholder="https://ejemplo.com/foto.jpg"></div>
     </div>
+    <div class="form-group"><label>Descripción</label><textarea id="productDescription" placeholder="Descripción del producto para la web" rows="3"></textarea></div>
+    <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="productShowWeb" style="width:auto;"> Mostrar en la web</label></div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('productModal')">Cancelar</button><button class="btn btn-primary" onclick="saveProduct()">Guardar</button></div>
     <input type="hidden" id="productEditId">
   </div>
@@ -853,9 +865,10 @@ function syncPull() {
       if (mergeRemote('sections', remote.sections)) changed = true;
       if (mergeRemote('employees', remote.employees)) changed = true;
       if (mergeRemote('products', remote.products)) changed = true;
+      if (mergeRemote('projects', remote.projects)) changed = true;
       if (mergeRemote('providers', remote.providers)) changed = true;
       if (changed) {
-        saveKey('appointments'); saveKey('clients'); saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products'); saveKey('providers');
+        saveKey('appointments'); saveKey('clients'); saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products'); saveKey('projects'); saveKey('providers');
         const active = document.querySelector('.nav-item.active');
         if (active) {
           const sec = active.dataset.section;
@@ -1205,24 +1218,27 @@ function clearSectionForm() {
   document.getElementById('sectionModalTitle').textContent = 'Nueva Sección';
 }
 
-// ============ PROJECTS ============
+// ============ PROJECTS (Ofertas) ============
 function renderProjects() {
   const q = (document.getElementById('searchProject').value||'').toLowerCase();
   const tbody = document.getElementById('projectsTable');
   const list = data.projects.filter(p => !p._deleted && p.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay packs</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay ofertas</td></tr>'; return; }
   tbody.innerHTML = list.map(p => {
     const svcs = (p.services||[]).map(sid => { const s = data.services.find(x => x.id===sid); return s ? s.name : '?'}).join(', ');
-    const total = (p.services||[]).reduce((sum, sid) => { const s = data.services.find(x => x.id===sid); return sum + (s? s.price:0) },0);
+    const prods = (p.products||[]).map(pid => { const pr = data.products.find(x => x.id===pid); return pr ? pr.name : '?'}).join(', ');
+    const items = [svcs, prods].filter(Boolean).join(' | ');
+    const total = calcProjectPrice(p);
     const disc = p.discount||0;
     const final = total * (1 - disc/100);
     return `<tr>
       <td><strong>${esc(p.name)}</strong></td>
-      <td style="font-size:12px;color:var(--text-light);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(svcs)}">${esc(svcs)}</td>
+      <td style="font-size:12px;color:var(--text-light);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(items)}">${esc(items)}</td>
       <td>${calcProjectDuration(p)} min</td>
       <td>${cur(total)}</td>
       <td>${disc > 0 ? `<span style="color:var(--danger);font-weight:600;">-${disc}%</span>` : '-'}</td>
       <td><strong style="color:var(--primary);">${cur(final)}</strong></td>
+      <td><input type="checkbox" ${p.showOnWeb?'checked':''} onchange="toggleProjectWeb('${p.id}',this.checked)" style="cursor:pointer;"></td>
       <td><div class="btn-group">
         <button class="btn btn-primary btn-sm" onclick="editProject('${p.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">🗑️</button>
@@ -1231,17 +1247,34 @@ function renderProjects() {
   }).join('');
 }
 
+function calcProjectPrice(p) {
+  let total = 0;
+  (p.services||[]).forEach(sid => { const s = data.services.find(x => x.id===sid); if (s) total += s.price; });
+  (p.products||[]).forEach(pid => { const pr = data.products.find(x => x.id===pid); if (pr) total += pr.price; });
+  return total;
+}
+
 function calcProjectDuration(p) {
-  return (p.services||[]).reduce((sum, sid) => { const s = data.services.find(x => x.id===sid); return sum + (s? s.duration||0:0) },0);
+  let dur = 0;
+  (p.services||[]).forEach(sid => { const s = data.services.find(x => x.id===sid); if (s) dur += s.duration||0; });
+  return dur;
+}
+
+function clearProjectForm() {
+  document.getElementById('projectEditId').value = '';
+  document.getElementById('projectName').value = '';
+  document.getElementById('projectDiscount').value = '0';
+  document.getElementById('projectPhoto').value = '';
+  document.getElementById('projectDescription').value = '';
+  document.getElementById('projectShowWeb').checked = false;
+  document.getElementById('projectModalTitle').textContent = 'Nueva Oferta';
 }
 
 function openProjectForm() {
   try {
-    document.getElementById('projectEditId').value = '';
-    document.getElementById('projectName').value = '';
-    document.getElementById('projectDiscount').value = '0';
-    document.getElementById('projectModalTitle').textContent = 'Nuevo Pack';
+    clearProjectForm();
     renderProjectServices();
+    renderProjectProducts();
     calcProjectTotal();
     openModal('projectModal');
   } catch(e) { alert('Error: '+e.message); }
@@ -1249,8 +1282,8 @@ function openProjectForm() {
 
 function renderProjectServices() {
   const div = document.getElementById('projectServices');
-  const selected = (document.getElementById('projectEditId').value ? 
-    (data.projects.find(p => p.id===document.getElementById('projectEditId').value)?.services||[]) : []);
+  const editId = document.getElementById('projectEditId').value;
+  const selected = editId ? (data.projects.find(p => p.id===editId)?.services||[]) : [];
   const avail = data.services.filter(s => !s._deleted);
   if (!avail.length) { div.innerHTML = '<div style="color:var(--text-light);padding:20px;text-align:center;">Crea servicios primero</div>'; return; }
   div.innerHTML = avail.map(s => {
@@ -1258,7 +1291,7 @@ function renderProjectServices() {
     const sc = sec && sec.color ? sec.color : '#999';
     const checked = selected.includes(s.id);
     return `<label style="display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;border-radius:8px;border:2px solid ${checked?'var(--primary)':'var(--border)'};background:${checked?'rgba(108,52,131,.06)':'transparent'};margin:4px;transition:all .15s;">
-      <input type="checkbox" value="${s.id}" ${checked?'checked':''} onchange="onServiceToggle(this)" style="width:18px;height:18px;accent-color:var(--primary);">
+      <input type="checkbox" class="srvcb" value="${s.id}" ${checked?'checked':''} onchange="onPackItemToggle(this)" style="width:18px;height:18px;accent-color:var(--primary);">
       <div style="flex:1;min-width:0;">
         <div style="font-weight:600;font-size:14px;">${esc(s.name)}</div>
         <div style="font-size:11px;color:var(--text-light);"><span style="color:${sc};">⬤</span> ${sec ? esc(sec.name) : 'Sin sección'} · ${s.duration||'-'} min</div>
@@ -1269,7 +1302,26 @@ function renderProjectServices() {
   updateSelectedCount();
 }
 
-function onServiceToggle(el) {
+function renderProjectProducts() {
+  const div = document.getElementById('projectProducts');
+  const editId = document.getElementById('projectEditId').value;
+  const selected = editId ? (data.projects.find(p => p.id===editId)?.products||[]) : [];
+  const avail = data.products.filter(p => !p._deleted);
+  if (!avail.length) { div.innerHTML = '<div style="color:var(--text-light);padding:20px;text-align:center;">Crea productos primero</div>'; return; }
+  div.innerHTML = avail.map(pr => {
+    const checked = selected.includes(pr.id);
+    return `<label style="display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;border-radius:8px;border:2px solid ${checked?'var(--primary)':'var(--border)'};background:${checked?'rgba(108,52,131,.06)':'transparent'};margin:4px;transition:all .15s;">
+      <input type="checkbox" class="prodcb" value="${pr.id}" ${checked?'checked':''} onchange="onPackItemToggle(this)" style="width:18px;height:18px;accent-color:var(--primary);">
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:14px;">${esc(pr.name)}</div>
+        <div style="font-size:11px;color:var(--text-light);">Stock: ${pr.stock||0}</div>
+      </div>
+      <div style="font-weight:700;font-size:15px;color:var(--primary);white-space:nowrap;">${cur(pr.price)}</div>
+    </label>`;
+  }).join('');
+}
+
+function onPackItemToggle(el) {
   const label = el.closest('label');
   if (el.checked) {
     label.style.borderColor = 'var(--primary)';
@@ -1287,9 +1339,11 @@ function updateSelectedCount() {
 }
 
 function calcProjectTotal() {
-  const checks = document.querySelectorAll('#projectServices input:checked');
+  const svcChecks = document.querySelectorAll('#projectServices input:checked');
+  const prodChecks = document.querySelectorAll('#projectProducts input:checked');
   let total = 0;
-  checks.forEach(cb => { const s = data.services.find(x => x.id===cb.value); if (s) total += s.price; });
+  svcChecks.forEach(cb => { const s = data.services.find(x => x.id===cb.value); if (s) total += s.price; });
+  prodChecks.forEach(cb => { const pr = data.products.find(x => x.id===cb.value); if (pr) total += pr.price; });
   const disc = parseFloat(document.getElementById('projectDiscount').value)||0;
   const final = total * (1 - disc/100);
   document.getElementById('projectSubtotal').textContent = cur(total);
@@ -1301,11 +1355,19 @@ function saveProject() {
   const id_ = document.getElementById('projectEditId').value;
   const name = document.getElementById('projectName').value.trim();
   if (!name) { alert('El nombre es obligatorio'); return; }
-  const checks = document.querySelectorAll('#projectServices input:checked');
-  const services = Array.from(checks).map(cb => cb.value);
-  if (!services.length) { alert('Selecciona al menos un servicio'); return; }
+  const svcChecks = document.querySelectorAll('#projectServices input:checked');
+  const services = Array.from(svcChecks).map(cb => cb.value);
+  const prodChecks = document.querySelectorAll('#projectProducts input:checked');
+  const products = Array.from(prodChecks).map(cb => cb.value);
+  if (!services.length && !products.length) { alert('Selecciona al menos un servicio o producto'); return; }
   const discount = parseFloat(document.getElementById('projectDiscount').value)||0;
-  const obj = { name, services, discount, _modified: Date.now(), _deleted: false };
+  const obj = {
+    name, services, products, discount,
+    description: document.getElementById('projectDescription').value.trim(),
+    photo: document.getElementById('projectPhoto').value.trim(),
+    showOnWeb: document.getElementById('projectShowWeb').checked,
+    _modified: Date.now(), _deleted: false
+  };
   if (id_) { const p = data.projects.find(x => x.id === id_); if (p) Object.assign(p, obj); }
   else { obj.id = id(); data.projects.push(obj); }
   saveKey('projects'); closeModal('projectModal'); renderProjects(); syncPush();
@@ -1316,17 +1378,30 @@ function editProject(id) {
   document.getElementById('projectEditId').value = id;
   document.getElementById('projectName').value = p.name;
   document.getElementById('projectDiscount').value = p.discount||0;
-  document.getElementById('projectModalTitle').textContent = 'Editar Pack';
+  document.getElementById('projectPhoto').value = p.photo||'';
+  document.getElementById('projectDescription').value = p.description||'';
+  document.getElementById('projectShowWeb').checked = p.showOnWeb||false;
+  document.getElementById('projectModalTitle').textContent = 'Editar Oferta';
   renderProjectServices();
+  renderProjectProducts();
   calcProjectTotal();
   openModal('projectModal');
 }
 
 function deleteProject(id) {
-  if (!confirm('¿Eliminar este pack?')) return;
+  if (!confirm('¿Eliminar esta oferta?')) return;
   const p = data.projects.find(x => x.id === id);
   if (p) { p._deleted = true; p._modified = Date.now(); }
   saveKey('projects'); renderProjects(); syncPush();
+}
+
+function toggleProjectWeb(id, val) {
+  const p = data.projects.find(x => x.id === id);
+  if (!p) return;
+  p.showOnWeb = val;
+  p._modified = Date.now();
+  saveKey('projects');
+  syncPush();
 }
 
 // ============ PRODUCTS ============
@@ -1345,7 +1420,7 @@ function renderProducts() {
   const q = (document.getElementById('searchProduct').value||'').toLowerCase();
   const tbody = document.getElementById('productsTable');
   const list = data.products.filter(p => !p._deleted && p.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay productos</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay productos</td></tr>'; return; }
   tbody.innerHTML = list.map(p => {
     const stock = p.stock||0;
     const min = p.minStock||5;
@@ -1360,6 +1435,7 @@ function renderProducts() {
       <td class="${low?'stock-low':''}">${stock}</td>
       <td>${min}</td>
       <td>${low ? '<span class="badge badge-danger">Stock Bajo</span>' : '<span class="badge badge-success">Ok</span>'}</td>
+      <td><input type="checkbox" ${p.showOnWeb?'checked':''} onchange="toggleProductWeb('${p.id}',this.checked)" style="cursor:pointer;"></td>
       <td><div class="btn-group">
         <button class="btn btn-primary btn-sm" onclick="editProduct('${p.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p.id}')">🗑️</button>
@@ -1380,6 +1456,9 @@ function saveProduct() {
     minStock: parseInt(document.getElementById('productMinStock').value)||5,
     ivaRate: parseFloat(document.getElementById('productIva').value) || 21,
     providerId: document.getElementById('productProvider').value || '',
+    description: document.getElementById('productDescription').value.trim(),
+    photo: document.getElementById('productPhoto').value.trim(),
+    showOnWeb: document.getElementById('productShowWeb').checked,
     _modified: Date.now(),
     _deleted: false
   };
@@ -1399,6 +1478,9 @@ function editProduct(id) {
   document.getElementById('productMinStock').value = p.minStock||5;
   document.getElementById('productIva').value = p.ivaRate||21;
   document.getElementById('productProvider').value = p.providerId||'';
+  document.getElementById('productDescription').value = p.description||'';
+  document.getElementById('productPhoto').value = p.photo||'';
+  document.getElementById('productShowWeb').checked = p.showOnWeb||false;
   document.getElementById('productModalTitle').textContent = 'Editar Producto'; openModal('productModal');
 }
 
@@ -1409,11 +1491,22 @@ function deleteProduct(id) {
   saveKey('products'); renderProducts(); syncPush();
 }
 
+function toggleProductWeb(id, val) {
+  const p = data.products.find(x => x.id === id);
+  if (!p) return;
+  p.showOnWeb = val;
+  p._modified = Date.now();
+  saveKey('products');
+  syncPush();
+}
+
 function clearProductForm() {
-  ['productEditId','productName','productPrice','productCost','productStock','productMinStock'].forEach(id => document.getElementById(id).value='');
+  ['productEditId','productName','productPrice','productCost','productStock','productMinStock','productPhoto'].forEach(id => document.getElementById(id).value='');
   document.getElementById('productMinStock').value = '5';
   document.getElementById('productIva').value = '21';
   document.getElementById('productProvider').value = '';
+  document.getElementById('productDescription').value = '';
+  document.getElementById('productShowWeb').checked = false;
   document.getElementById('productModalTitle').textContent = 'Nuevo Producto';
 }
 
@@ -1814,9 +1907,9 @@ function renderPosItems(filter) {
     items.push({type:'product', id:p.id, name:p.name, price:p.price, extra: 'Stock: '+(p.stock||0), ref:p, provColor: prov&&prov.color ? prov.color : null});
   });
   data.projects.filter(p => !p._deleted).forEach(p => {
-    const total = (p.services||[]).reduce((sum, sid) => { const s = data.services.find(x => x.id===sid); return sum + (s? s.price:0) },0);
+    const total = calcProjectPrice(p);
     const final = total * (1 - (p.discount||0)/100);
-    items.push({type:'project', id:p.id, name:p.name, price:final, extra: (p.discount||0)>0?p.discount+'% desc.':'Paquete', ref:p});
+    items.push({type:'project', id:p.id, name:p.name, price:final, extra: (p.discount||0)>0?p.discount+'% desc.':'Oferta', ref:p});
   });
   
   if (filter && filter !== 'all') {

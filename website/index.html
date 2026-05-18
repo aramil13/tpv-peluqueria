@@ -15,6 +15,7 @@
     <a href="#" class="logo">Nymara</a>
     <div class="nav-links">
       <a href="#servicios">Servicios</a>
+      <a href="#ofertas">Ofertas</a>
       <a href="#equipo">Equipo</a>
       <a href="#testimonios">Testimonios</a>
       <a href="#contacto">Contacto</a>
@@ -110,6 +111,26 @@
   </div>
 </section>
 
+<section class="products" id="productos">
+  <div class="container">
+    <span class="section-tag">Productos</span>
+    <h2 class="section-title">Productos para el cuidado de tu cabello</h2>
+    <div class="products-grid" id="webProductsGrid">
+      <p style="color:var(--text-light);text-align:center;">Cargando productos...</p>
+    </div>
+  </div>
+</section>
+
+<section class="offers" id="ofertas">
+  <div class="container">
+    <span class="section-tag">Ofertas</span>
+    <h2 class="section-title">Paquetes y promociones especiales</h2>
+    <div class="offers-grid" id="webOffersGrid">
+      <p style="color:var(--text-light);text-align:center;">Cargando ofertas...</p>
+    </div>
+  </div>
+</section>
+
 <section class="team" id="equipo">
   <div class="container">
     <span class="section-tag">Nuestro equipo</span>
@@ -175,31 +196,40 @@
 </section>
 
 <footer class="footer">
-  <div class="container">
-    <div class="footer-grid">
-      <div class="footer-brand">
-        <h3>Nymara Estilistas</h3>
-        <p>Tu salón de confianza.</p>
-      </div>
-      <div class="footer-links">
-        <h4>Enlaces</h4>
-        <a href="#servicios">Servicios</a>
-        <a href="#equipo">Equipo</a>
-        <a href="#contacto">Contacto</a>
-        <a href="/booking">Reserva Online</a>
-        <a href="https://www.instagram.com/nymara.estilistas" target="_blank">Instagram</a>
-      </div>
-      <div class="footer-hours">
-        <h4>Horario</h4>
-        <p>Lun–Vie: 9:00–13:30 / 14:30–18:00</p>
-        <p>Sáb: 9:00–13:30</p>
-      </div>
-    </div>
-    <div class="footer-bottom">
-      <p>&copy; 2026 Nymara Estilistas. Todos los derechos reservados.</p>
-    </div>
-  </div>
+  ...
 </footer>
 
+<script>
+fetch('/api/web-products').then(r=>r.json()).then(products => {
+  const grid = document.getElementById('webProductsGrid');
+  if (!products.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
+  grid.innerHTML = products.map(p => `
+    <div class="product-card">
+      ${p.photo ? `<div class="product-photo"><img src="${p.photo}" alt="${p.name}" loading="lazy"></div>` : '<div class="product-photo"><div class="product-photo-placeholder">🧴</div></div>'}
+      <div class="product-info">
+        <h3>${p.name}</h3>
+        ${p.description ? `<p>${p.description}</p>` : ''}
+        <span class="product-price">${parseFloat(p.price).toFixed(2)}€</span>
+      </div>
+    </div>
+  `).join('');
+}).catch(() => { document.getElementById('webProductsGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; });
+
+fetch('/api/web-offers').then(r=>r.json()).then(offers => {
+  const grid = document.getElementById('webOffersGrid');
+  if (!offers.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
+  grid.innerHTML = offers.map(o => {
+    const total = 0; // price is calculated on the server side if needed
+    return `<div class="offer-card">
+      ${o.photo ? `<div class="offer-photo"><img src="${o.photo}" alt="${o.name}" loading="lazy"></div>` : '<div class="offer-photo"><div class="offer-photo-placeholder">🏷️</div></div>'}
+      <div class="offer-info">
+        <h3>${o.name}</h3>
+        ${o.description ? `<p>${o.description}</p>` : ''}
+        ${o.discount > 0 ? `<span class="offer-discount">-${o.discount}%</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}).catch(() => { document.getElementById('webOffersGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; });
+</script>
 </body>
 </html>

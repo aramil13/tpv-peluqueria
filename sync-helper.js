@@ -439,6 +439,22 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
+  if (url === '/api/web-products' && req.method === 'GET') {
+    const d = readData();
+    const webProducts = (d.products||[]).filter(p => p.showOnWeb && !p._deleted);
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(webProducts.map(p => ({ name: p.name, price: p.price, description: p.description||'', photo: p.photo||'' }))));
+    return;
+  }
+
+  if (url === '/api/web-offers' && req.method === 'GET') {
+    const d = readData();
+    const webOffers = (d.projects||[]).filter(p => p.showOnWeb && !p._deleted);
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify(webOffers.map(p => ({ name: p.name, services: p.services||[], products: p.products||[], discount: p.discount||0, description: p.description||'', photo: p.photo||'' }))));
+    return;
+  }
+
   if (url === '/api/online-status' && req.method === 'GET') {
     const d = readData();
     const s = d.settings || {};
@@ -670,7 +686,7 @@ function pullFromSync() {
       try {
         const remote = JSON.parse(data);
         const current = readData();
-        const LIST_KEYS = ['appointments', 'clients', 'services', 'sections', 'employees', 'products', 'providers'];
+        const LIST_KEYS = ['appointments', 'clients', 'services', 'sections', 'employees', 'products', 'projects', 'providers'];
         let changed = false;
         LIST_KEYS.forEach(k => {
           if (Array.isArray(remote[k])) {
