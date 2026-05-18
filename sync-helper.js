@@ -684,8 +684,12 @@ function parseTime(t) {
 }
 
 function pullFromSync() {
-  if (!SYNC_FORWARD_URL) return;
-  const url = SYNC_FORWARD_URL.replace(/\/+$/, '') + '/sync';
+  let url = SYNC_FORWARD_URL ? SYNC_FORWARD_URL.replace(/\/+$/, '') + '/sync' : null;
+  if (!url) {
+    const proto = process.env.RENDER ? 'https' : 'http';
+    const host = process.env.RENDER_EXTERNAL_URL || 'localhost:' + PORT;
+    url = proto + '://' + host + '/sync';
+  }
   const mod = url.startsWith('https') ? https : http;
   mod.get(url, (res) => {
     let data = '';
@@ -770,4 +774,7 @@ server.listen(PORT, HOST, () => {
   console.log(`Booking: http://localhost:${PORT}/`);
   console.log(`Booking (alt): http://localhost:${PORT}/booking`);
   console.log(`CORS origin: ${CORS_ORIGIN}`);
+  console.log(`Self-sync enabled: pulling every 30s`);
 });
+
+setInterval(pullFromSync, 30000);
