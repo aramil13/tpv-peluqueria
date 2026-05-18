@@ -447,7 +447,7 @@ tr:hover td { background: #f8f9fa; }
       </div>
     </div>
     <div class="grid-2" style="margin-top:12px;">
-      <div class="form-group"><label>Foto</label><div style="display:flex;gap:8px;align-items:center;"><input type="text" id="projectPhoto" placeholder="URL o selecciona archivo" style="flex:1;"><input type="file" id="projectPhotoFile" accept="image/*" style="display:none;" onchange="handleLocalPhoto(this,'projectPhoto')"><button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('projectPhotoFile').click()">📁</button></div></div>
+      <div class="form-group"><label>Foto</label><div style="display:flex;gap:8px;align-items:center;"><input type="text" id="projectPhoto" placeholder="URL o selecciona archivo" style="flex:1;" oninput="updatePhotoPreview(this.value,'projectPhotoPreview')"><input type="file" id="projectPhotoFile" accept="image/*" style="display:none;" onchange="handleLocalPhoto(this,'projectPhoto')"><button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('projectPhotoFile').click()">📁</button></div><div id="projectPhotoPreview" style="margin-top:8px;"></div></div>
       <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding-top:22px;"><input type="checkbox" id="projectShowWeb" style="width:auto;"> Mostrar en la web</label></div>
     </div>
     <div class="form-group"><label>Descripción</label><textarea id="projectDescription" placeholder="Descripción de la oferta para la web" rows="3"></textarea></div>
@@ -467,7 +467,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Stock Mínimo</label><input type="number" id="productMinStock" placeholder="5" min="0" value="5"></div>
       <div class="form-group"><label>IVA (%)</label><input type="number" id="productIva" placeholder="21" step="0.01" min="0" max="100" value="21"></div>
       <div class="form-group"><label>Proveedor</label><select id="productProvider"><option value="">Sin proveedor</option></select></div>
-      <div class="form-group"><label>Foto</label><div style="display:flex;gap:8px;align-items:center;"><input type="text" id="productPhoto" placeholder="URL o selecciona archivo" style="flex:1;"><input type="file" id="productPhotoFile" accept="image/*" style="display:none;" onchange="handleLocalPhoto(this,'productPhoto')"><button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('productPhotoFile').click()">📁</button></div></div>
+      <div class="form-group"><label>Foto</label><div style="display:flex;gap:8px;align-items:center;"><input type="text" id="productPhoto" placeholder="URL o selecciona archivo" style="flex:1;" oninput="updatePhotoPreview(this.value,'productPhotoPreview')"><input type="file" id="productPhotoFile" accept="image/*" style="display:none;" onchange="handleLocalPhoto(this,'productPhoto')"><button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('productPhotoFile').click()">📁</button></div><div id="productPhotoPreview" style="margin-top:8px;"></div></div>
     </div>
     <div class="form-group"><label>Descripción</label><textarea id="productDescription" placeholder="Descripción del producto para la web" rows="3"></textarea></div>
     <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="productShowWeb" style="width:auto;"> Mostrar en la web</label></div>
@@ -696,8 +696,18 @@ function handleLocalPhoto(input, targetId) {
   const reader = new FileReader();
   reader.onload = function(e) {
     document.getElementById(targetId).value = e.target.result;
+    const previewId = targetId.replace('Photo', 'PhotoPreview');
+    updatePhotoPreview(e.target.result, previewId);
   };
   reader.readAsDataURL(file);
+}
+
+function updatePhotoPreview(src, previewId) {
+  const div = document.getElementById(previewId);
+  if (!src) { div.innerHTML = ''; return; }
+  div.innerHTML = src.startsWith('data:') || src.match(/\.(jpg|jpeg|png|gif|webp)$/i) 
+    ? '<img src="'+src+'" style="max-width:150px;max-height:100px;border-radius:8px;border:1px solid var(--border);">' 
+    : '';
 }
 
 // ============ CURRENCY ============
@@ -1392,6 +1402,7 @@ function editProject(id) {
   document.getElementById('projectName').value = p.name;
   document.getElementById('projectDiscount').value = p.discount||0;
   document.getElementById('projectPhoto').value = p.photo||'';
+  updatePhotoPreview(p.photo||'', 'projectPhotoPreview');
   document.getElementById('projectDescription').value = p.description||'';
   document.getElementById('projectShowWeb').checked = p.showOnWeb||false;
   document.getElementById('projectModalTitle').textContent = 'Editar Oferta';
@@ -1493,6 +1504,7 @@ function editProduct(id) {
   document.getElementById('productProvider').value = p.providerId||'';
   document.getElementById('productDescription').value = p.description||'';
   document.getElementById('productPhoto').value = p.photo||'';
+  updatePhotoPreview(p.photo||'', 'productPhotoPreview');
   document.getElementById('productShowWeb').checked = p.showOnWeb||false;
   document.getElementById('productModalTitle').textContent = 'Editar Producto'; openModal('productModal');
 }
