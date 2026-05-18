@@ -1003,10 +1003,11 @@ function editClient(id) {
 }
 
 function deleteClient(id) {
-  if (!confirm('¿Eliminar este cliente?')) return;
+  if (!confirm('¿Eliminar este cliente? También se eliminarán sus citas.')) return;
   const c = data.clients.find(x => x.id === id);
   if (c) { c._deleted = true; c._modified = Date.now(); }
-  saveKey('clients'); renderClients(); syncPush();
+  data.appointments.filter(a => a.clientId === id && !a._deleted).forEach(a => { a._deleted = true; a._modified = Date.now(); });
+  saveKey('clients'); saveKey('appointments'); renderClients(); renderAgenda(); syncPush();
 }
 
 function clearClientForm() {
