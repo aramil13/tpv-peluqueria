@@ -1003,7 +1003,7 @@ function editClient(id) {
 }
 
 function deleteClient(id) {
-  if (!confirm('¿Eliminar este cliente? También se eliminarán sus citas.')) return;
+  if (!confirm('¿Eliminar este cliente? Se eliminarán sus citas pendientes.')) return;
   const c = data.clients.find(x => x.id === id);
   if (c) { c._deleted = true; c._modified = Date.now(); }
   data.appointments.filter(a => a.clientId === id && !a._deleted).forEach(a => { a._deleted = true; a._modified = Date.now(); });
