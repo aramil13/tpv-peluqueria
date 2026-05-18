@@ -192,7 +192,8 @@
 </footer>
 
 <script>
-fetch('/api/web-products').then(r=>r.json()).then(products => {
+fetch('/api/web-products').then(r => { console.log('products status:', r.status); return r.json(); }).then(products => {
+  console.log('products:', products);
   const grid = document.getElementById('webProductsGrid');
   if (!products.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
   grid.innerHTML = products.map(p => `
@@ -206,9 +207,10 @@ fetch('/api/web-products').then(r=>r.json()).then(products => {
     </div>
   `).join('');
   document.getElementById('productsCount').textContent = 'Total: ' + products.length + ' producto' + (products.length !== 1 ? 's' : '');
-}).catch(() => { document.getElementById('webProductsGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; });
+}).catch(e => { console.log('products error:', e); document.getElementById('webProductsGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Error: '+e.message+'</p>'; });
 
-fetch('/api/web-offers').then(r=>r.json()).then(offers => {
+fetch('/api/web-offers').then(r => { console.log('offers status:', r.status); return r.json(); }).then(offers => {
+  console.log('offers:', offers);
   const grid = document.getElementById('webOffersGrid');
   if (!offers.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
   grid.innerHTML = offers.map(o => {
@@ -222,7 +224,7 @@ fetch('/api/web-offers').then(r=>r.json()).then(offers => {
     </div>`;
   }).join('');
   document.getElementById('offersCount').textContent = 'Total: ' + offers.length + ' oferta' + (offers.length !== 1 ? 's' : '');
-}).catch(() => { document.getElementById('webOffersGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; });
+}).catch(e => { console.log('offers error:', e); document.getElementById('webOffersGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Error: '+e.message+'</p>'; });
 </script>
 </body>
 </html>
