@@ -1742,8 +1742,7 @@ function showDayAppts(dateStr) {
         const service = data.services.find(s => s.id === a.serviceId);
         const employee = data.employees.find(e => e.id === a.employeeId);
         return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;">
-          <div><strong>${esc(a.time||'')}</strong> — ${esc(client?client.name:'?')} ${service?`<span style="color:var(--text-light)">(${esc(service.name)})</span>`:''}
-          ${employee?`<br><small style="color:var(--text-light)">👤 ${esc(employee.name)}</small>`:''}
+          <div><strong>${esc(a.time||'')}${a.endTime ? ' - ' + esc(a.endTime) : ''}</strong> ${employee ? `<span style="color:var(--primary);font-size:11px;">👤 ${esc(employee.name)}</span>` : ''}<br>${esc(client?client.name:'?')} ${service?`<span style="color:var(--text-light)">(${esc(service.name)})</span>`:''}
           ${a.notes?`<br><small style="color:var(--text-light)">${esc(a.notes)}</small>`:''}${a.source==='online'?` <span style="display:inline-block;background:#d5f5e3;color:#0d4a2a;font-size:12px;padding:2px 8px;border-radius:4px;margin-top:3px;font-weight:600;">🌐 Online</span>`:''}</div>
           <div class="btn-group">
             <button class="btn btn-primary btn-sm" onclick="editAppt('${a.id}')">✏️</button>
@@ -1767,7 +1766,7 @@ function showDayAppts(dateStr) {
         const client = data.clients.find(c => c.id === a.clientId);
         const service = data.services.find(s => s.id === a.serviceId);
         return `<div style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px;">
-          <div style="font-weight:600;font-size:12px;">${esc(a.time||'')}</div>
+          <div style="font-weight:600;font-size:12px;">${esc(a.time||'')}${a.endTime ? ' - ' + esc(a.endTime) : ''}</div>
           <div style="font-size:12px;">${esc(client?client.name:'?')}</div>
           ${service?`<div style="font-size:11px;color:var(--text-light);">${esc(service.name)}</div>`:''}
           ${a.notes?`<div style="font-size:11px;color:var(--text-light);margin-top:2px;">${esc(a.notes)}</div>`:''}${a.source==='online'?` <span style="display:inline-block;background:#d5f5e3;color:#1a6e3a;font-size:10px;padding:1px 6px;border-radius:4px;">🌐 Online</span>`:''}
@@ -1825,11 +1824,23 @@ function saveAppointment() {
   const clientId = document.getElementById('apptClient').value;
   const date = document.getElementById('apptDate').value;
   const time = document.getElementById('apptTime').value;
+  const serviceId = document.getElementById('apptService').value;
   if (!clientId || !date) { alert('Cliente y fecha son obligatorios'); return; }
+  let endTime = '';
+  if (time && serviceId) {
+    const svc = data.services.find(s => s.id === serviceId);
+    if (svc && svc.duration) {
+      const [h, m] = time.split(':').map(Number);
+      const endM = m + (svc.duration || 0);
+      const endH = h + Math.floor(endM / 60);
+      const endMin = endM % 60;
+      endTime = `${String(endH).padStart(2,'0')}:${String(endMin).padStart(2,'0')}`;
+    }
+  }
   const obj = {
-    clientId, serviceId: document.getElementById('apptService').value||'',
+    clientId, serviceId,
     employeeId: document.getElementById('apptEmployee').value||'',
-    date, time, notes: document.getElementById('apptNotes').value.trim(),
+    date, time, endTime, notes: document.getElementById('apptNotes').value.trim(),
     status: 'pending',
     _modified: Date.now(),
     _deleted: false

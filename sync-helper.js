@@ -84,12 +84,15 @@ async function handleClientLogin(phone, res) {
   }
   const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && !a._deleted).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
+  const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
   res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
   res.end(JSON.stringify({
     client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '' },
     appointments: appointments.map(a => ({
-      id: a.id, date: a.date, time: a.time, status: a.status, source: a.source || '',
+      id: a.id, date: a.date, time: a.time, endTime: a.endTime || '',
+      status: a.status, source: a.source || '',
       employeeId: a.employeeId || '',
+      employeeName: a.employeeId && empMap[a.employeeId] ? empMap[a.employeeId].name : '',
       serviceName: svcMap[a.serviceId] ? svcMap[a.serviceId].name : '',
       serviceId: a.serviceId, notes: a.notes || ''
     }))

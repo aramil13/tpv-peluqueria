@@ -177,11 +177,12 @@ function renderMyAppts() {
     return '<div class="appt-card'+(isPast?' appt-past':'')+'">'+
       '<div class="appt-card-date">'+
         '<span class="appt-card-day">'+esc(fmtDate(a.date))+'</span>'+
-        '<span class="appt-card-time">'+esc(a.time)+'</span>'+
+        '<span class="appt-card-time">'+esc(a.time)+(a.endTime ? ' - '+esc(a.endTime) : '')+'</span>'+
         '<div class="appt-cal-tooltip">'+miniCalendar(a.date)+'</div>'+
       '</div>'+
       '<div class="appt-card-info">'+
         '<div class="appt-card-service">'+esc(a.serviceName)+'</div>'+
+        (a.employeeName ? '<div class="appt-card-notes">👤 '+esc(a.employeeName)+'</div>' : '')+
         (a.notes?'<div class="appt-card-notes">'+esc(a.notes)+'</div>':'')+
         (a.status==='cancelled'?'<div style="color:#e74c3c;font-weight:600;">Cancelada</div>':'')+
       '</div>'+
