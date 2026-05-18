@@ -506,10 +506,36 @@ function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
     if (t1 < e2 && e1 > t2) {
       const cli = data.clients.find(c => c.id === a.clientId);
       const srv = data.services.find(s => s.id === a.serviceId);
-      return { client: cli?.name || '?', service: srv?.name || '?', time: a.time, endTime: a.endTime };
+      const slots = findFreeSlots(date, employeeId, (e1 - t1) * 60);
+      return { client: cli?.name || '?', service: srv?.name || '?', time: a.time, endTime: a.endTime, suggestions: slots };
     }
   }
   return null;
+}
+
+function findFreeSlots(date, empId, duration) {
+  const WORK_START = 9;
+  const WORK_END = 19;
+  const appts = data.appointments.filter(a => a.date === date && a.employeeId === empId && !a._deleted && a.endTime).sort((a,b) => a.time.localeCompare(b.time));
+  const slots = [];
+  const neededMins = duration || 30;
+  for (let h = WORK_START; h < WORK_END; h += 0.25) {
+    const timeStr = String(Math.floor(h)).padStart(2,'0')+':'+String((h % 1) * 60).padStart(2,'0');
+    const timeEnd = h + neededMins/60;
+    if (timeEnd > WORK_END) break;
+    const conflict = appts.some(a => {
+      const as = parseFloat(a.time.split(':')[0]) + parseFloat(a.time.split(':')[1])/60;
+      const ae = parseFloat(a.endTime.split(':')[0]) + parseFloat(a.endTime.split(':')[1])/60;
+      return h < ae && timeEnd > as;
+    });
+    if (!conflict) {
+      const endH = Math.floor(timeEnd);
+      const endM = Math.round((timeEnd % 1) * 60);
+      slots.push(timeStr + '-' + String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0'));
+      if (slots.length >= 3) break;
+    }
+  }
+  return slots;
 }
 
 function saveAppointment() {
@@ -532,7 +558,15 @@ function saveAppointment() {
     }
   }
   const overlap = checkApptOverlap(date, time, endTime, employeeId, id_);
-  if (overlap && !confirm('⚠️ El empleado tiene otra cita en ese horario:\n'+overlap.client+' - '+overlap.service+'\n'+overlap.time+'-'+overlap.endTime+'\n\n¿Guardar de todos modos?')) return;
+  let msg = '';
+  if (overlap) {
+    msg = '⚠️ El empleado tiene otra cita en ese horario:\n' + overlap.client + ' - ' + overlap.service + '\n' + overlap.time + '-' + overlap.endTime + '\n\n';
+    if (overlap.suggestions && overlap.suggestions.length > 0) {
+      msg += 'Horarios disponibles: ' + overlap.suggestions.join(', ') + '\n\n';
+    }
+    msg += '¿Guardar de todos modos?';
+    if (!confirm(msg)) return;
+  }
   const obj = {
     clientId, serviceId,
     employeeId,
