@@ -452,7 +452,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const d = readData();
     const webProducts = (d.products||[]).filter(p => p.showOnWeb && !p._deleted);
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify(webProducts.map(p => ({ name: p.name, price: p.price, description: p.description||'', photo: p.photo||'' }))));
+    res.end(JSON.stringify(webProducts.map(p => ({ price: p.price, description: p.description||'', photo: p.photo||'' }))));
     return;
   }
 
@@ -460,7 +460,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const d = readData();
     const webOffers = (d.projects||[]).filter(p => p.showOnWeb && !p._deleted);
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify(webOffers.map(p => ({ name: p.name, services: p.services||[], products: p.products||[], discount: p.discount||0, description: p.description||'', photo: p.photo||'' }))));
+    res.end(JSON.stringify(webOffers.map(p => ({ services: p.services||[], products: p.products||[], discount: p.discount||0, description: p.description||'', photo: p.photo||'' }))));
     return;
   }
 

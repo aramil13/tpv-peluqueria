@@ -198,10 +198,9 @@ fetch('/api/web-products').then(r => { console.log('products status:', r.status)
   if (!products.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
   grid.innerHTML = products.map(p => `
     <div class="product-card">
-      ${p.photo ? `<div class="product-photo"><img src="${p.photo}" alt="${p.name}" loading="lazy"></div>` : '<div class="product-photo"><div class="product-photo-placeholder">🧴</div></div>'}
+      ${p.photo ? `<div class="product-photo"><img src="${p.photo}" alt="Producto" loading="lazy"></div>` : '<div class="product-photo"><div class="product-photo-placeholder">🧴</div></div>'}
       <div class="product-info">
-        <h3>${p.name}</h3>
-        ${p.description ? `<p>${p.description}</p>` : ''}
+        ${p.description ? `<p>${p.description}</p>` : '<p style="color:var(--text-light);">Sin descripción</p>'}
         <span class="product-price">${parseFloat(p.price).toFixed(2)}€</span>
       </div>
     </div>
@@ -215,10 +214,9 @@ fetch('/api/web-offers').then(r => { console.log('offers status:', r.status); re
   if (!offers.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
   grid.innerHTML = offers.map(o => {
     return `<div class="offer-card">
-      ${o.photo ? `<div class="offer-photo"><img src="${o.photo}" alt="${o.name}" loading="lazy"></div>` : '<div class="offer-photo"><div class="offer-photo-placeholder">🏷️</div></div>'}
+      ${o.photo ? `<div class="offer-photo"><img src="${o.photo}" alt="Oferta" loading="lazy"></div>` : '<div class="offer-photo"><div class="offer-photo-placeholder">🏷️</div></div>'}
       <div class="offer-info">
-        <h3>${o.name}</h3>
-        ${o.description ? `<p>${o.description}</p>` : ''}
+        ${o.description ? `<p>${o.description}</p>` : '<p style="color:var(--text-light);">Sin descripción</p>'}
         ${o.discount > 0 ? `<span class="offer-discount">-${o.discount}%</span>` : ''}
       </div>
     </div>`;
