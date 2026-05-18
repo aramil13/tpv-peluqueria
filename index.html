@@ -236,7 +236,7 @@ tr:hover td { background: #f8f9fa; }
     <!-- CLIENTS -->
     <div class="section" id="sec-clients">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Clientes</h3><button class="btn btn-primary" onclick="clearClientForm();openModal('clientModal')">+ Nuevo Cliente</button></div>
+        <div class="card-header"><h3>Gestión de Clientes</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('clients')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('clients')">📤 Exportar</button><button class="btn btn-primary" onclick="clearClientForm();openModal('clientModal')">+ Nuevo Cliente</button></div></div>
         <div class="search-bar"><input type="text" id="searchClient" placeholder="Buscar por nombre, teléfono o email..." oninput="renderClients()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>NIF/CIF</th><th>Teléfono</th><th>Población</th><th>Visitas</th><th>Gasto Total</th><th>Acciones</th></tr></thead><tbody id="clientsTable"></tbody></table></div>
       </div>
@@ -245,7 +245,7 @@ tr:hover td { background: #f8f9fa; }
     <!-- EMPLOYEES -->
     <div class="section" id="sec-employees">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Empleados</h3><button class="btn btn-primary" onclick="clearEmployeeForm();openModal('employeeModal')">+ Nuevo Empleado</button></div>
+        <div class="card-header"><h3>Gestión de Empleados</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('employees')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('employees')">📤 Exportar</button><button class="btn btn-primary" onclick="clearEmployeeForm();openModal('employeeModal')">+ Nuevo Empleado</button></div></div>
         <div class="search-bar"><input type="text" id="searchEmployee" placeholder="Buscar por nombre, teléfono o email..." oninput="renderEmployees()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Rol</th><th>Acciones</th></tr></thead><tbody id="employeesTable"></tbody></table></div>
       </div>
@@ -254,7 +254,7 @@ tr:hover td { background: #f8f9fa; }
     <!-- SERVICES -->
     <div class="section" id="sec-services">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Servicios</h3><button class="btn btn-primary" onclick="openServiceModal()">+ Nuevo Servicio</button></div>
+        <div class="card-header"><h3>Gestión de Servicios</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('services')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('services')">📤 Exportar</button><button class="btn btn-primary" onclick="openServiceModal()">+ Nuevo Servicio</button></div></div>
         <div class="search-bar"><input type="text" id="searchService" placeholder="Buscar servicio..." oninput="renderServices()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Sección</th><th>Duración</th><th>Precio</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="servicesTable"></tbody></table></div>
       </div>
@@ -272,7 +272,7 @@ tr:hover td { background: #f8f9fa; }
     <!-- PROJECTS -->
     <div class="section" id="sec-projects">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Ofertas</h3><button class="btn btn-primary" onclick="openProjectForm()">+ Nueva Oferta</button></div>
+        <div class="card-header"><h3>Gestión de Ofertas</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('projects')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('projects')">📤 Exportar</button><button class="btn btn-primary" onclick="openProjectForm()">+ Nueva Oferta</button></div></div>
         <div class="search-bar"><input type="text" id="searchProject" placeholder="Buscar oferta..." oninput="renderProjects()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Servicios/Productos</th><th>Duración</th><th>Precio</th><th>Dto.</th><th>Total</th><th>Web</th><th>Acciones</th></tr></thead><tbody id="projectsTable"></tbody></table></div>
       </div>
@@ -281,7 +281,7 @@ tr:hover td { background: #f8f9fa; }
     <!-- PRODUCTS -->
     <div class="section" id="sec-products">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Productos</h3><button class="btn btn-primary" onclick="openProductModal()">+ Nuevo Producto</button></div>
+        <div class="card-header"><h3>Gestión de Productos</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('products')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('products')">📤 Exportar</button><button class="btn btn-primary" onclick="openProductModal()">+ Nuevo Producto</button></div></div>
         <div class="search-bar"><input type="text" id="searchProduct" placeholder="Buscar producto..." oninput="renderProducts()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Proveedor</th><th>Precio Venta</th><th>Stock</th><th>Stock Mín.</th><th>Estado</th><th>Web</th><th>Acciones</th></tr></thead><tbody id="productsTable"></tbody></table></div>
       </div>
@@ -708,6 +708,64 @@ function updatePhotoPreview(src, previewId) {
   div.innerHTML = src.startsWith('data:') || src.match(/\.(jpg|jpeg|png|gif|webp)$/i) 
     ? '<img src="'+src+'" style="max-width:150px;max-height:100px;border-radius:8px;border:1px solid var(--border);">' 
     : '';
+}
+
+// ============ IMPORT/EXPORT ============
+function exportData(key) {
+  const arr = data[key] || [];
+  if (!arr.length) { alert('No hay datos para exportar'); return; }
+  const csv = [Object.keys(arr[0]).join(',')];
+  arr.forEach(row => {
+    csv.push(Object.values(row).map(v => '"' + (v || '') + '"').join(','));
+  });
+  const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = key + '_' + new Date().toISOString().split('T')[0] + '.csv';
+  a.click();
+}
+
+function importData(key) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.csv,.json';
+  input.onchange = function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(evt) {
+      try {
+        let newItems = [];
+        if (file.name.endsWith('.json')) {
+          newItems = JSON.parse(evt.target.result);
+        } else {
+          const lines = evt.target.result.split('\n');
+          if (lines.length < 2) return;
+          const headers = lines[0].split(',');
+          for (let i = 1; i < lines.length; i++) {
+            if (!lines[i].trim()) continue;
+            const values = lines[i].split(',');
+            const obj = {};
+            headers.forEach((h, idx) => { obj[h.replace(/"/g, '')] = (values[idx] || '').replace(/"/g, ''); });
+            obj._modified = Date.now();
+            obj._deleted = false;
+            if (!obj.id) obj.id = id();
+            newItems.push(obj);
+          }
+        }
+        data[key] = [...(data[key] || []), ...newItems];
+        saveKey(key);
+        if (key === 'clients') renderClients();
+        else if (key === 'services') renderServices();
+        else if (key === 'products') renderProducts();
+        else if (key === 'employees') renderEmployees();
+        alert('Importados ' + newItems.length + ' elementos');
+        syncPush();
+      } catch(err) { alert('Error al importar: ' + err.message); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
 }
 
 // ============ CURRENCY ============
@@ -1710,7 +1768,9 @@ function renderAgenda() {
       ${appts.slice(0,3).map(a => {
         const client = data.clients.find(c => c.id === a.clientId);
         const employee = data.employees.find(e => e.id === a.employeeId);
-        return `<div class="appt${a.source==='online'?' appt-online':''}">${esc(a.time||'')} ${esc(client?client.name:'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(employee.name)})</span>`:''}</div>`;
+        const mins = a.time ? parseInt(a.time.split(':')[1]) : 0;
+        const irregular = mins % 15 !== 0;
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?client.name:'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(employee.name)})</span>`:''}</div>`;
       }).join('')}
       ${appts.length>3?`<div style="font-size:9px;color:var(--primary);">+${appts.length-3} más</div>`:''}
     </div>`;
@@ -1766,8 +1826,10 @@ function showDayAppts(dateStr) {
         const client = data.clients.find(c => c.id === a.clientId);
         const service = data.services.find(s => s.id === a.serviceId);
         const employee = data.employees.find(e => e.id === a.employeeId);
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;">
-          <div><strong>${esc(a.time||'')}${a.endTime ? ' - ' + esc(a.endTime) : ''}</strong> ${employee ? `<span style="color:var(--primary);font-size:11px;">👤 ${esc(employee.name)}</span>` : ''}<br>${esc(client?client.name:'?')} ${service?`<span style="color:var(--text-light)">(${esc(service.name)})</span>`:''}
+        const mins = a.time ? parseInt(a.time.split(':')[1]) : 0;
+        const irregular = mins % 15 !== 0;
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;${irregular?'border-left:4px solid #e74c3c !important;':''}">
+          <div><strong>${esc(a.time||'')}${a.endTime ? ' - ' + esc(a.endTime) : ''}</strong>${irregular?' <span style="color:#e74c3c;font-size:10px;">⏱️ irregular</span>':''} ${employee ? `<span style="color:var(--primary);font-size:11px;">👤 ${esc(employee.name)}</span>` : ''}<br>${esc(client?client.name:'?')} ${service?`<span style="color:var(--text-light)">(${esc(service.name)})</span>`:''}
           ${a.notes?`<br><small style="color:var(--text-light)">${esc(a.notes)}</small>`:''}${a.source==='online'?` <span style="display:inline-block;background:#d5f5e3;color:#0d4a2a;font-size:12px;padding:2px 8px;border-radius:4px;margin-top:3px;font-weight:600;">🌐 Online</span>`:''}</div>
           <div class="btn-group">
             <button class="btn btn-primary btn-sm" onclick="editAppt('${a.id}')">✏️</button>
@@ -1790,8 +1852,10 @@ function showDayAppts(dateStr) {
       ${list.map(a => {
         const client = data.clients.find(c => c.id === a.clientId);
         const service = data.services.find(s => s.id === a.serviceId);
-        return `<div style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px;">
-          <div style="font-weight:600;font-size:12px;">${esc(a.time||'')}${a.endTime ? ' - ' + esc(a.endTime) : ''}</div>
+        const mins2 = a.time ? parseInt(a.time.split(':')[1]) : 0;
+        const irregular2 = mins2 % 15 !== 0;
+        return `<div style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px;${irregular2?'border-left:4px solid #e74c3c !important;':''}">
+          <div style="font-weight:600;font-size:12px;">${esc(a.time||'')}${a.endTime ? ' - ' + esc(a.endTime) : ''}${irregular2?' <span style="color:#e74c3c;font-size:10px;">⏱️</span>':''}</div>
           <div style="font-size:12px;">${esc(client?client.name:'?')}</div>
           ${service?`<div style="font-size:11px;color:var(--text-light);">${esc(service.name)}</div>`:''}
           ${a.notes?`<div style="font-size:11px;color:var(--text-light);margin-top:2px;">${esc(a.notes)}</div>`:''}${a.source==='online'?` <span style="display:inline-block;background:#d5f5e3;color:#1a6e3a;font-size:10px;padding:1px 6px;border-radius:4px;">🌐 Online</span>`:''}
@@ -1917,10 +1981,17 @@ function saveAppointment() {
     msg += '¿Guardar de todos modos?';
     if (!confirm(msg)) return;
   }
+  let notes = document.getElementById('apptNotes').value.trim();
+  if (id_) {
+    const existing = data.appointments.find(x => x.id === id_);
+    if (existing && existing.source === 'online' && notes.indexOf('Reserva online modificada por salon') === -1) {
+      notes = notes ? notes + ' | Reserva online modificada por salon' : 'Reserva online modificada por salon';
+    }
+  }
   const obj = {
     clientId, serviceId,
     employeeId,
-    date, time, endTime, notes: document.getElementById('apptNotes').value.trim(),
+    date, time, endTime, notes: notes,
     status: 'pending',
     _modified: Date.now(),
     _deleted: false

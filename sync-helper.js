@@ -3,6 +3,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 
+process.env.TZ = 'Europe/Madrid';
 console.log('Starting sync-helper... Forward URL:', process.env.SYNC_FORWARD_URL || '(none)');
 const PORT = parseInt(process.env.PORT) || parseInt(process.env.SYNC_PORT) || 3456;
 const HOST = process.env.HOST || '0.0.0.0';
@@ -326,7 +327,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const employeesList = (data.employees||[]).filter(e => !e._deleted);
     const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted);
     const now = new Date();
-    const isToday = date === now.toISOString().split('T')[0];
+    const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const isToday = date === todayLocal.toISOString().split('T')[0];
     const currentHour = now.getHours() + now.getMinutes() / 60;
 
     const BUSINESS_START = 9;
@@ -338,22 +340,39 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
 
     availableEmps.forEach(emp => {
       const empAppts = appts.filter(a => !a.employeeId || a.employeeId === emp.id);
+      
+      const allTimes = new Set();
       for (let h = BUSINESS_START; h < BUSINESS_END; h++) {
         for (let m = 0; m < 60; m += SLOT_INTERVAL) {
-          const start = h + m / 60;
-          const end = start + duration / 60;
-          if (end > BUSINESS_END) break;
-          if (isToday && start < currentHour) continue;
-          const timeStr = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
-          const occupied = empAppts.some(a => {
-            const srv = (data.services||[]).find(s => s.id === a.serviceId);
-            const aStart = parseTime(a.time);
-            const aEnd = aStart + (srv ? (srv.duration || 30) : 30) / 60;
-            return start < aEnd && end > aStart;
-          });
-          slots.push({ time: timeStr, employeeId: emp.id, employeeName: emp.name || '', available: !occupied });
+          allTimes.add(h * 60 + m);
         }
       }
+      empAppts.forEach(a => {
+        const t = parseTime(a.time);
+        const mins = Math.round(t * 60);
+        if (mins >= BUSINESS_START * 60 && mins < BUSINESS_END * 60) {
+          allTimes.add(mins);
+        }
+      });
+      
+      const sortedMins = [...allTimes].sort((a, b) => a - b);
+      
+      sortedMins.forEach(totalMins => {
+        const h = Math.floor(totalMins / 60);
+        const m = totalMins % 60;
+        const start = h + m / 60;
+        const end = start + duration / 60;
+        if (end > BUSINESS_END) return;
+        if (isToday && start < currentHour) return;
+        const timeStr = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
+        const occupied = empAppts.some(a => {
+          const srv = (data.services||[]).find(s => s.id === a.serviceId);
+          const aStart = parseTime(a.time);
+          const aEnd = aStart + (srv ? (srv.duration || 30) : 30) / 60;
+          return start < aEnd && end > aStart;
+        });
+        slots.push({ time: timeStr, employeeId: emp.id, employeeName: emp.name || '', available: !occupied });
+      });
     });
 
     slots.sort((a,b) => a.time.localeCompare(b.time) || a.employeeName.localeCompare(b.employeeName));
