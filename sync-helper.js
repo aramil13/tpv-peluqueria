@@ -356,6 +356,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       });
       
       const sortedMins = [...allTimes].sort((a, b) => a - b);
+      console.log('[SLOTS] Generating for emp', emp.name, 'times:', sortedMins.slice(0,5), '...');
       
       sortedMins.forEach(totalMins => {
         const h = Math.floor(totalMins / 60);
