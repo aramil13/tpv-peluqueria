@@ -97,16 +97,6 @@
         <p>Extensiones de calidad. Volumen y longitud con resultado natural.</p>
         <span class="service-price">Consulta precio</span>
       </div>
-      <div class="service-card clickable" onclick="location.href='/booking'">
-        <div class="service-icon">🧴</div>
-        <h3>Productos para el cuidado de tu cabello y cuero cabelludo</h3>
-        <p>Champús, acondicionadores y tratamientos profesionales para todo tipo de cabello.</p>
-      </div>
-      <div class="service-card clickable" onclick="location.href='/booking'">
-        <div class="service-icon">🏷️</div>
-        <h3>Ofertas</h3>
-        <p>Promociones y paquetes especiales. ¡Pregunta por nuestras ofertas del mes!</p>
-      </div>
     </div>
   </div>
 </section>
@@ -114,10 +104,11 @@
 <section class="products" id="productos">
   <div class="container">
     <span class="section-tag">Productos</span>
-    <h2 class="section-title">Productos para el cuidado de tu cabello</h2>
+    <h2 class="section-title">Productos para el cuidado de tu cabello y cuero cabelludo</h2>
     <div class="products-grid" id="webProductsGrid">
       <p style="color:var(--text-light);text-align:center;">Cargando productos...</p>
     </div>
+    <p id="productsCount" style="text-align:center;margin-top:16px;color:var(--text-light);font-size:14px;"></p>
   </div>
 </section>
 
@@ -128,6 +119,7 @@
     <div class="offers-grid" id="webOffersGrid">
       <p style="color:var(--text-light);text-align:center;">Cargando ofertas...</p>
     </div>
+    <p id="offersCount" style="text-align:center;margin-top:16px;color:var(--text-light);font-size:14px;"></p>
   </div>
 </section>
 
@@ -213,14 +205,14 @@ fetch('/api/web-products').then(r=>r.json()).then(products => {
       </div>
     </div>
   `).join('');
+  document.getElementById('productsCount').textContent = 'Total: ' + products.length + ' producto' + (products.length !== 1 ? 's' : '');
 }).catch(() => { document.getElementById('webProductsGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; });
 
 fetch('/api/web-offers').then(r=>r.json()).then(offers => {
   const grid = document.getElementById('webOffersGrid');
   if (!offers.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
-  grid.innerHTML = offers.map(o => {
-    const total = 0; // price is calculated on the server side if needed
-    return `<div class="offer-card">
+  grid.innerHTML = offers.map(o => `
+    <div class="offer-card">
       ${o.photo ? `<div class="offer-photo"><img src="${o.photo}" alt="${o.name}" loading="lazy"></div>` : '<div class="offer-photo"><div class="offer-photo-placeholder">🏷️</div></div>'}
       <div class="offer-info">
         <h3>${o.name}</h3>
@@ -229,6 +221,7 @@ fetch('/api/web-offers').then(r=>r.json()).then(offers => {
       </div>
     </div>`;
   }).join('');
+  document.getElementById('offersCount').textContent = 'Total: ' + offers.length + ' oferta' + (offers.length !== 1 ? 's' : '');
 }).catch(() => { document.getElementById('webOffersGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; });
 </script>
 </body>
