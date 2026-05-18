@@ -2687,6 +2687,16 @@ function esc(s) { const d=document.createElement('div'); d.textContent=s; return
 function escAttr(s) { return s.replace(/"/g,'&quot;'); }
 
 // ============ INIT ============
+function cleanOldAppointments() {
+  const today = new Date().toISOString().split('T')[0];
+  const before = data.appointments.filter(a => a.date < today && !a._deleted);
+  if (before.length) {
+    before.forEach(a => { a._deleted = true; a._modified = Date.now(); });
+    saveKey('appointments');
+    console.log('Eliminadas '+before.length+' citas anteriores a hoy');
+  }
+}
+
 function init() {
   // Set today's date for appointment form
   const today = new Date().toISOString().split('T')[0];
@@ -2695,7 +2705,7 @@ function init() {
   const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth()-1);
   document.getElementById('reportFrom').value = monthAgo.toISOString().split('T')[0];
   
-  
+  cleanOldAppointments();
   renderDashboard();
   updateAppHeader();
   if (getSyncCfg().enabled) syncPush();
