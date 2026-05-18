@@ -211,8 +211,8 @@ fetch('/api/web-products').then(r=>r.json()).then(products => {
 fetch('/api/web-offers').then(r=>r.json()).then(offers => {
   const grid = document.getElementById('webOffersGrid');
   if (!offers.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
-  grid.innerHTML = offers.map(o => `
-    <div class="offer-card">
+  grid.innerHTML = offers.map(o => {
+    return `<div class="offer-card">
       ${o.photo ? `<div class="offer-photo"><img src="${o.photo}" alt="${o.name}" loading="lazy"></div>` : '<div class="offer-photo"><div class="offer-photo-placeholder">🏷️</div></div>'}
       <div class="offer-info">
         <h3>${o.name}</h3>
