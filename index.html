@@ -1819,12 +1819,30 @@ function fillAppointmentSelects() {
     data.employees.filter(e => !e._deleted).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
 }
 
+function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
+  if (!employeeId || !endTime) return null;
+  const t1 = parseFloat(time.split(':')[0]) + parseFloat(time.split(':')[1])/60;
+  const e1 = parseFloat(endTime.split(':')[0]) + parseFloat(endTime.split(':')[1])/60;
+  const appts = data.appointments.filter(a => a.id !== excludeId && a.date === date && a.employeeId === employeeId && !a._deleted && a.endTime);
+  for (const a of appts) {
+    const t2 = parseFloat(a.time.split(':')[0]) + parseFloat(a.time.split(':')[1])/60;
+    const e2 = parseFloat(a.endTime.split(':')[0]) + parseFloat(a.endTime.split(':')[1])/60;
+    if (t1 < e2 && e1 > t2) {
+      const cli = data.clients.find(c => c.id === a.clientId);
+      const srv = data.services.find(s => s.id === a.serviceId);
+      return { client: cli?.name || '?', service: srv?.name || '?', time: a.time, endTime: a.endTime };
+    }
+  }
+  return null;
+}
+
 function saveAppointment() {
   const id_ = document.getElementById('apptEditId').value;
   const clientId = document.getElementById('apptClient').value;
   const date = document.getElementById('apptDate').value;
   const time = document.getElementById('apptTime').value;
   const serviceId = document.getElementById('apptService').value;
+  const employeeId = document.getElementById('apptEmployee').value||'';
   if (!clientId || !date) { alert('Cliente y fecha son obligatorios'); return; }
   let endTime = '';
   if (time && serviceId) {
@@ -1837,9 +1855,11 @@ function saveAppointment() {
       endTime = `${String(endH).padStart(2,'0')}:${String(endMin).padStart(2,'0')}`;
     }
   }
+  const overlap = checkApptOverlap(date, time, endTime, employeeId, id_);
+  if (overlap && !confirm('⚠️ El empleado tiene otra cita en ese horario:\n'+overlap.client+' - '+overlap.service+'\n'+overlap.time+'-'+overlap.endTime+'\n\n¿Guardar de todos modos?')) return;
   const obj = {
     clientId, serviceId,
-    employeeId: document.getElementById('apptEmployee').value||'',
+    employeeId,
     date, time, endTime, notes: document.getElementById('apptNotes').value.trim(),
     status: 'pending',
     _modified: Date.now(),
