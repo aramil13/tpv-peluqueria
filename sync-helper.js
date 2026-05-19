@@ -485,28 +485,16 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const d = readData();
     const webOffers = (d.projects||[]).filter(p => p.showOnWeb && !p._deleted);
     const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
-    const prodMap = {}; (d.products||[]).forEach(p => { if (!p._deleted) prodMap[p.id] = p; });
-    console.log('[web-offers] projects:', webOffers.length, 'services:', Object.keys(svcMap).length, 'products:', Object.keys(prodMap).length);
-    webOffers.forEach((p, i) => { console.log(`[web-offers] offer ${i}:`, p.name, 'services:', p.services, 'products:', p.products, 'discount:', p.discount); });
+    const prodMap = {}; (d.products||[]).forEach(p => prodMap[p.id] = p);
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
-    const result = webOffers.map(p => {
-      const productIds = p.products || [];
-      console.log('[web-offers] offer:', p.name, 'productIds:', productIds);
-      let productTotal = 0;
-      productIds.forEach(pid => {
-        const prod = prodMap[pid];
-        console.log('[web-offers] looking product', pid, 'found:', prod ? prod.name + ' - ' + prod.price : 'NOT FOUND');
-        if (prod) productTotal += prod.price || 0;
-      });
+    res.end(JSON.stringify(webOffers.map(p => {
       const serviceTotal = (p.services||[]).reduce((sum, sid) => { const price = svcMap[sid]?.price || 0; return sum + price; }, 0);
+      const productTotal = (p.products||[]).reduce((sum, pid) => { const price = prodMap[pid]?.price || 0; return sum + price; }, 0);
       const subtotal = serviceTotal + productTotal;
       const discount = p.discount || 0;
       const totalPrice = subtotal * (1 - discount / 100);
-      console.log('[web-offers] calculated:', p.name, 'productTotal:', productTotal, 'serviceTotal:', serviceTotal, 'subtotal:', subtotal, 'discount:', discount, 'totalPrice:', totalPrice);
       return { services: p.services||[], products: p.products||[], discount: p.discount||0, description: p.description||'', photo: p.photo||'', totalPrice: Math.round(totalPrice * 100) / 100 };
-    });
-    console.log('[web-offers] returning:', JSON.stringify(result));
-    res.end(JSON.stringify(result));
+    })));
     return;
   }
 
