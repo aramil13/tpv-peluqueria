@@ -93,6 +93,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .appt-grid th { background: var(--primary); color: #fff; padding: 6px 4px; font-weight: 600; text-align: center; white-space: nowrap; font-size: 11px; }
 .appt-grid td { padding: 3px; text-align: center; border: 1px solid var(--border); }
 .appt-grid .appt-grid-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; font-size: 10px; width: 38px; }
+.appt-grid-cell { padding: 0 !important; min-width: 50px; }
+.appt-grid-occ { color: #fff; font-size: 9px; font-weight: 600; cursor: pointer; border-radius: 6px; line-height: 1.3; text-shadow: 0 1px 2px rgba(0,0,0,.3); }
 .appt-grid-sq { width: 28px; height: 28px; border-radius: 8px; display: inline-block; cursor: pointer; border: 2px solid transparent; }
 .appt-grid-free { background: #fff; border: 2px dashed #ccc; }
 .section-tabs { display:flex; gap:0; margin-bottom:12px; }
@@ -454,9 +456,7 @@ function showDayAppts(dateStr) {
         const service = data.services.find(s => s.id === appt.serviceId);
         const color = colorMap[appt.id];
         const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${service?service.name:'?'} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}`;
-        html += `<td rowspan="${rowspan}" class="appt-grid-cell">
-          <div class="appt-grid-sq" style="background:${color};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')"></div>
-        </td>`;
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ" style="background:${color};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')">${esc(appt.time)}${appt.endTime?'-'+esc(appt.endTime):''}</td>`;
       } else {
         const empId = e ? e.id : '';
         html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
