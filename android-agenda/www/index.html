@@ -89,6 +89,11 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .emp-col h4 { font-weight:600; font-size:12px; margin-bottom:6px; padding-bottom:4px; border-bottom:2px solid var(--primary); color:var(--primary); }
 .emp-appt { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:6px 8px; margin-bottom:4px; font-size:11px; }
 .emp-appt .time { font-weight:600; font-size:11px; color:var(--primary); }
+.appt-grid { border-collapse: collapse; width: 100%; font-size: 11px; }
+.appt-grid th { background: var(--primary); color: #fff; padding: 6px 4px; font-weight: 600; text-align: center; white-space: nowrap; font-size: 11px; }
+.appt-grid td { padding: 3px; text-align: center; border: 1px solid var(--border); }
+.appt-grid .appt-grid-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; font-size: 10px; width: 38px; }
+.appt-grid-sq { width: 28px; height: 28px; border-radius: 8px; display: inline-block; cursor: pointer; border: 2px solid transparent; }
 .section-tabs { display:flex; gap:0; margin-bottom:12px; }
 .section-tab { flex:1; padding:8px; text-align:center; font-size:12px; cursor:pointer; border-bottom:2px solid var(--border); color:var(--text-light); -webkit-tap-highlight-color:transparent; }
 .section-tab.active { border-bottom-color:var(--primary); color:var(--primary); font-weight:600; }
@@ -330,6 +335,9 @@ function saveKey(k) { DB.set(k, data[k]) }
 
 function id() { return Date.now().toString(36)+Math.random().toString(36).substr(2,4) }
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML }
+function escAttr(s) { return s.replace(/"/g,'&quot;'); }
+function addMinutes(time, mins) { const [h,m]=time.split(':').map(Number); return String(h+Math.floor((m+mins)/60)).padStart(2,'0')+':'+String((m+mins)%60).padStart(2,'0'); }
+function timeToMinutes(time) { const [h,m]=time.split(':').map(Number); return h*60+m; }
 function cur(n) { return parseFloat(n||0).toFixed(2)+'€' }
 function getIvaRate() { return parseFloat(data.ivaRate) || 21 }
 
@@ -406,57 +414,71 @@ function showDayAppts(dateStr) {
     </div>`;
     return;
   }
-  // Group by employee (like Windows TPV)
   const employees = data.employees.filter(e => !e._deleted).sort((a,b) => a.name.localeCompare(b.name));
   const unassigned = appts.filter(a => !a.employeeId);
   const byEmployee = {};
   employees.forEach(e => { byEmployee[e.id] = appts.filter(a => a.employeeId === e.id); });
   let cols = employees.filter(e => byEmployee[e.id].length > 0);
   if (unassigned.length > 0) cols = [...cols, null];
-  if (!cols.length) {
-    div.innerHTML = `<div class="appt-list"><p style="font-size:13px;font-weight:500;margin-bottom:8px;">${appts.length} cita(s)</p>` +
-      appts.map(a => {
-        const client = data.clients.find(c => c.id === a.clientId);
-        const service = data.services.find(s => s.id === a.serviceId);
-        const employee = data.employees.find(e => e.id === a.employeeId);
-        return `<div class="appt-item">
-          <div class="appt-time">${esc(a.time||'')}${a.endTime ? '<br><small style="color:var(--text-light)">'+esc(a.endTime)+'</small>' : ''}</div>
-          <div class="appt-info">
-            <div class="name">${esc(client?client.name:'?')}</div>
-            <div class="detail">${service?esc(service.name):''}${employee?' · '+esc(employee.name):''}${a.notes?' · '+esc(a.notes):''}</div>
-          </div>
-          <div class="btn-group" style="flex-shrink:0;">
-            <button class="btn btn-xs btn-secondary" onclick="editAppt('${a.id}')">✏️</button>
-            <button class="btn btn-xs btn-danger" onclick="deleteAppt('${a.id}')">🗑️</button>
-          </div>
-        </div>`;
-      }).join('') +
-      `<button class="btn btn-sm btn-primary" style="margin-top:8px;width:100%;" onclick="quickAppt('${dateStr}')">+ Agendar cita</button></div>`;
-    return;
-  }
-  let html = `<div class="emp-columns" style="grid-template-columns:repeat(${cols.length},1fr);padding:10px 14px;">`;
-  cols.forEach(e => {
-    const name = e ? esc(e.name) : 'Sin asignar';
-    const list = e ? byEmployee[e.id] : unassigned;
-    html += `<div class="emp-col">
-      <h4>${name}</h4>
-      ${list.map(a => {
-        const client = data.clients.find(c => c.id === a.clientId);
-        const service = data.services.find(s => s.id === a.serviceId);
-        return `<div class="emp-appt">
-          <div class="time">${esc(a.time||'')}${a.endTime ? ' - '+esc(a.endTime) : ''}</div>
-          <div>${esc(client?client.name:'?')}</div>
-          ${service?`<div style="color:var(--text-light);font-size:10px;">${esc(service.name)}</div>`:''}
-          ${a.notes?`<div style="color:var(--text-light);font-size:10px;margin-top:1px;">${esc(a.notes)}</div>`:''}
-          <div style="margin-top:3px;display:flex;gap:3px;">
-            <button class="btn btn-xs btn-secondary" onclick="editAppt('${a.id}')">✏️</button>
-            <button class="btn btn-xs btn-danger" onclick="deleteAppt('${a.id}')">🗑️</button>
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
+
+  const APPT_COLORS = ['#8E44AD','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#16A085','#2980B9','#D35400','#C0392B','#2C3E50'];
+  const colorMap = {};
+  appts.forEach((a, i) => { colorMap[a.id] = APPT_COLORS[i % APPT_COLORS.length]; });
+
+  let minTime = '23:59', maxTime = '00:00';
+  appts.forEach(a => {
+    if (a.time < minTime) minTime = a.time;
+    const end = a.endTime || addMinutes(a.time, 30);
+    if (end > maxTime) maxTime = end;
   });
-  html += `</div><div style="padding:0 14px 10px;"><button class="btn btn-sm btn-primary" style="width:100%;" onclick="quickAppt('${dateStr}')">+ Agendar cita</button></div>`;
+
+  const slots = [];
+  let cur = minTime;
+  while (cur < maxTime) { slots.push(cur); cur = addMinutes(cur, 30); }
+
+  const grid = {};
+  slots.forEach(t => {
+    grid[t] = {};
+    cols.forEach((e, ci) => {
+      const list = e ? byEmployee[e.id] : unassigned;
+      grid[t][ci] = list.find(a => {
+        const aEnd = a.endTime || addMinutes(a.time, 30);
+        return t >= a.time && t < aEnd;
+      }) || null;
+    });
+  });
+
+  // Android no tiene hover como tal, se usa title (tooltip nativo)
+  let html = `<div style="overflow-x:auto;padding:10px 14px;"><table class="appt-grid" style="font-size:11px;">`;
+  html += '<thead><tr><th class="appt-grid-hdr">Hora</th>';
+  cols.forEach(e => { html += `<th class="appt-grid-hdr">${esc(e ? e.name : 'Sin asignar')}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  const skipRow = {};
+  slots.forEach(t => {
+    html += `<tr><td class="appt-grid-time">${t}</td>`;
+    cols.forEach((e, ci) => {
+      if (skipRow[ci]) { skipRow[ci]--; return; }
+      const appt = grid[t][ci];
+      if (appt) {
+        const aEnd = appt.endTime || addMinutes(appt.time, 30);
+        const rowspan = Math.max(1, Math.round((timeToMinutes(aEnd) - timeToMinutes(appt.time)) / 30));
+        if (rowspan > 1) skipRow[ci] = rowspan - 1;
+        const client = data.clients.find(c => c.id === appt.clientId);
+        const service = data.services.find(s => s.id === appt.serviceId);
+        const color = colorMap[appt.id];
+        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${service?service.name:'?'} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}`;
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell">
+          <div class="appt-grid-sq" style="background:${color};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')"></div>
+        </td>`;
+      } else {
+        html += '<td class="appt-grid-cell"></td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += `<div style="padding:0 14px 10px;"><button class="btn btn-sm btn-primary" style="width:100%;" onclick="quickAppt('${dateStr}')">+ Agendar cita</button></div>`;
   div.innerHTML = html;
 }
 

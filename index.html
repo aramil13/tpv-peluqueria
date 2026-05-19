@@ -113,6 +113,13 @@ tr:hover td { background: #f8f9fa; }
 .agenda-day .appt { font-size: 9px; padding: 1px 3px; border-radius: 2px; margin-bottom: 1px; background: #d6eaf8; color: #1a5276; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agenda-day .appt-online { background: #d5f5e3; color: #0d4a2a; }
 .agenda-day .appt-online::after { content: ' 🌐'; font-size: 9px; }
+.appt-grid { border-collapse: collapse; width: 100%; font-size: 12px; }
+.appt-grid th { position: sticky; top: 0; background: var(--primary); color: #fff; padding: 8px 6px; font-weight: 600; text-align: center; white-space: nowrap; z-index: 2; }
+.appt-grid th:first-child { background: var(--primary-dark); z-index: 3; left: 0; }
+.appt-grid td { padding: 4px; text-align: center; border: 1px solid var(--border); }
+.appt-grid .appt-grid-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; position: sticky; left: 0; z-index: 1; font-size: 11px; width: 45px; }
+.appt-grid-sq { width: 34px; height: 34px; border-radius: 10px; display: inline-block; cursor: pointer; transition: transform .15s, box-shadow .15s; border: 2px solid transparent; }
+.appt-grid-sq:hover { transform: scale(1.15); box-shadow: 0 2px 8px rgba(0,0,0,.2); border-color: #fff; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
 .stat-card { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 20px; text-align: center; }
 .stat-card .stat-number { font-size: 28px; font-weight: 700; color: var(--primary); }
@@ -1816,56 +1823,72 @@ function showDayAppts(dateStr) {
   const unassigned = appts.filter(a => !a.employeeId);
   const byEmployee = {};
   employees.forEach(e => { byEmployee[e.id] = appts.filter(a => a.employeeId === e.id); });
-
   let cols = employees.filter(e => byEmployee[e.id].length > 0);
   if (unassigned.length > 0) cols = [...cols, null];
 
-  if (!cols.length) {
-    div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${title} — ${appts.length} cita(s)</p>` +
-      appts.map(a => {
-        const client = data.clients.find(c => c.id === a.clientId);
-        const service = data.services.find(s => s.id === a.serviceId);
-        const employee = data.employees.find(e => e.id === a.employeeId);
-        const mins = a.time ? parseInt(a.time.split(':')[1]) : 0;
-        const irregular = mins % 15 !== 0;
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;${irregular?'border-left:4px solid #e74c3c !important;':''}">
-          <div><strong>${esc(a.time||'')}${a.endTime ? ' - ' + esc(a.endTime) : ''}</strong>${irregular?' <span style="color:#e74c3c;font-size:10px;">⏱️ irregular</span>':''} ${employee ? `<span style="color:var(--primary);font-size:11px;">👤 ${esc(employee.name)}</span>` : ''}<br>${esc(client?client.name:'?')} ${service?`<span style="color:var(--text-light)">(${esc(service.name)})</span>`:''}
-          ${a.notes?`<br><small style="color:var(--text-light)">${esc(a.notes)}</small>`:''}${a.source==='online'?` <span style="display:inline-block;background:#d5f5e3;color:#0d4a2a;font-size:12px;padding:2px 8px;border-radius:4px;margin-top:3px;font-weight:600;">🌐 Online</span>`:''}</div>
-          <div class="btn-group">
-            <button class="btn btn-primary btn-sm" onclick="editAppt('${a.id}')">✏️</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteAppt('${a.id}')">🗑️</button>
-          </div>
-        </div>`;
-      }).join('') +
-      `<button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="quickAppt('${dateStr}')">+ Agendar cita</button>`;
-    return;
-  }
+  // Colores para cada cita
+  const APPT_COLORS = ['#8E44AD','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#16A085','#2980B9','#D35400','#C0392B','#2C3E50'];
+  const colorMap = {};
+  appts.forEach((a, i) => { colorMap[a.id] = APPT_COLORS[i % APPT_COLORS.length]; });
 
-  const colWidth = Math.floor(12 / cols.length);
-  let html = `<p style="margin-bottom:10px;font-weight:500;">${title} — ${appts.length} cita(s)</p>`;
-  html += `<div style="display:grid;grid-template-columns:repeat(${cols.length},1fr);gap:10px;">`;
-  cols.forEach(e => {
-    const name = e ? esc(e.name) : 'Sin asignar';
-    const list = e ? byEmployee[e.id] : unassigned;
-    html += `<div style="background:var(--bg);border-radius:8px;padding:10px;">
-      <div style="font-weight:600;font-size:13px;margin-bottom:8px;padding-bottom:6px;border-bottom:2px solid var(--primary);color:var(--primary);">${name}</div>
-      ${list.map(a => {
-        const client = data.clients.find(c => c.id === a.clientId);
-        const service = data.services.find(s => s.id === a.serviceId);
-        const mins2 = a.time ? parseInt(a.time.split(':')[1]) : 0;
-        const irregular2 = mins2 % 15 !== 0;
-        return `<div style="background:var(--card);border:1px solid var(--border);border-radius:6px;padding:8px 10px;margin-bottom:6px;${irregular2?'border-left:4px solid #e74c3c !important;':''}">
-          <div style="font-weight:600;font-size:12px;">${esc(a.time||'')}${a.endTime ? ' - ' + esc(a.endTime) : ''}${irregular2?' <span style="color:#e74c3c;font-size:10px;">⏱️</span>':''}</div>
-          <div style="font-size:12px;">${esc(client?client.name:'?')}</div>
-          ${service?`<div style="font-size:11px;color:var(--text-light);">${esc(service.name)}</div>`:''}
-          ${a.notes?`<div style="font-size:11px;color:var(--text-light);margin-top:2px;">${esc(a.notes)}</div>`:''}${a.source==='online'?` <span style="display:inline-block;background:#d5f5e3;color:#1a6e3a;font-size:10px;padding:1px 6px;border-radius:4px;">🌐 Online</span>`:''}
-          <div style="margin-top:4px;display:flex;gap:4px;"><button class="btn btn-primary btn-sm" style="padding:2px 6px;font-size:10px;" onclick="editAppt('${a.id}')">✏️</button><button class="btn btn-danger btn-sm" style="padding:2px 6px;font-size:10px;" onclick="deleteAppt('${a.id}')">🗑️</button></div>
-        </div>`;
-      }).join('')}
-    </div>`;
+  // Calcular rango horario
+  let minTime = '23:59', maxTime = '00:00';
+  appts.forEach(a => {
+    if (a.time < minTime) minTime = a.time;
+    const end = a.endTime || addMinutes(a.time, 30);
+    if (end > maxTime) maxTime = end;
   });
-  html += `</div>`;
-  html += `<button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="quickAppt('${dateStr}')">+ Agendar cita</button>`;
+
+  // Generar slots de 30 min
+  const slots = [];
+  let cur = minTime;
+  while (cur < maxTime) { slots.push(cur); cur = addMinutes(cur, 30); }
+
+  // Construir grid 2D
+  const grid = {};
+  slots.forEach(t => {
+    grid[t] = {};
+    cols.forEach((e, ci) => {
+      const list = e ? byEmployee[e.id] : unassigned;
+      grid[t][ci] = list.find(a => {
+        const aEnd = a.endTime || addMinutes(a.time, 30);
+        return t >= a.time && t < aEnd;
+      }) || null;
+    });
+  });
+
+  // Renderizar tabla
+  let html = `<p style="margin-bottom:10px;font-weight:500;">${title} — ${appts.length} cita(s)</p>`;
+  html += `<div style="overflow-x:auto;margin-bottom:8px;"><table class="appt-grid">`;
+  html += '<thead><tr><th class="appt-grid-hdr">Hora</th>';
+  cols.forEach(e => { html += `<th class="appt-grid-hdr">${esc(e ? e.name : 'Sin asignar')}</th>`; });
+  html += '</tr></thead><tbody>';
+
+  const skipRow = {};
+  slots.forEach(t => {
+    html += `<tr><td class="appt-grid-time">${t}</td>`;
+    cols.forEach((e, ci) => {
+      if (skipRow[ci]) { skipRow[ci]--; return; }
+      const appt = grid[t][ci];
+      if (appt) {
+        const aEnd = appt.endTime || addMinutes(appt.time, 30);
+        const rowspan = Math.max(1, Math.round((timeToMinutes(aEnd) - timeToMinutes(appt.time)) / 30));
+        if (rowspan > 1) skipRow[ci] = rowspan - 1;
+        const client = data.clients.find(c => c.id === appt.clientId);
+        const service = data.services.find(s => s.id === appt.serviceId);
+        const color = colorMap[appt.id];
+        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${service?service.name:'?'} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}`;
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell">
+          <div class="appt-grid-sq" style="background:${color};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')"></div>
+        </td>`;
+      } else {
+        html += '<td class="appt-grid-cell"></td>';
+      }
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div>';
+  html += `<button class="btn btn-primary btn-sm" onclick="quickAppt('${dateStr}')">+ Agendar cita</button>`;
   div.innerHTML = html;
 }
 
@@ -2836,6 +2859,8 @@ function renderDashboard() {
 // ============ UTILITY ============
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function escAttr(s) { return s.replace(/"/g,'&quot;'); }
+function addMinutes(time, mins) { const [h,m]=time.split(':').map(Number); return String(h+Math.floor((m+mins)/60)).padStart(2,'0')+':'+String((m+mins)%60).padStart(2,'0'); }
+function timeToMinutes(time) { const [h,m]=time.split(':').map(Number); return h*60+m; }
 
 // ============ INIT ============
 function cleanOldAppointments() {
