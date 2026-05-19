@@ -484,8 +484,20 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
   if (url === '/api/web-offers' && req.method === 'GET') {
     const d = readData();
     const webOffers = (d.projects||[]).filter(p => p.showOnWeb && !p._deleted);
+    const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
+    const prodMap = {}; (d.products||[]).forEach(p => { if (!p._deleted) prodMap[p.id] = p; });
+    console.log('[web-offers] projects:', webOffers.length, 'services:', Object.keys(svcMap).length, 'products:', Object.keys(prodMap).length);
+    webOffers.forEach((p, i) => { console.log(`[web-offers] offer ${i}:`, p.name, 'services:', p.services, 'products:', p.products, 'discount:', p.discount); });
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify(webOffers.map(p => ({ services: p.services||[], products: p.products||[], discount: p.discount||0, description: p.description||'', photo: p.photo||'' }))));
+    res.end(JSON.stringify(webOffers.map(p => {
+      const serviceTotal = (p.services||[]).reduce((sum, sid) => { const price = svcMap[sid]?.price || 0; return sum + price; }, 0);
+      const productTotal = (p.products||[]).reduce((sum, pid) => { const price = prodMap[pid]?.price || 0; return sum + price; }, 0);
+      const subtotal = serviceTotal + productTotal;
+      const discount = p.discount || 0;
+      const totalPrice = subtotal * (1 - discount / 100);
+      console.log('[web-offers] calculated:', p.name, 'serviceTotal:', serviceTotal, 'productTotal:', productTotal, 'totalPrice:', totalPrice);
+      return { services: p.services||[], products: p.products||[], discount: p.discount||0, description: p.description||'', photo: p.photo||'', totalPrice: Math.round(totalPrice * 100) / 100 };
+    })));
     return;
   }
 
