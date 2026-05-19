@@ -74,6 +74,15 @@ tr:hover td { background: #f8f9fa; }
 .badge-warning { background: #fdebd0; color: #935d0a; }
 .badge-danger { background: #fadbd8; color: #a93226; }
 .badge-info { background: #d6eaf8; color: #1a5276; }
+.section-chip { display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;transition:all .15s;border:1px solid var(--border);background:var(--card); }
+.section-chip:hover { box-shadow:0 2px 8px rgba(0,0,0,.1); }
+.section-chip .dot { width:10px;height:10px;border-radius:50%;flex-shrink:0; }
+.section-chip .name { color:var(--text); }
+.section-chip .del { background:none;border:none;cursor:pointer;font-size:14px;line-height:1;color:var(--text-light);padding:0;margin-left:2px; }
+.section-chip .del:hover { color:var(--danger); }
+.form-group-inline { display:flex;align-items:center;gap:8px;margin-bottom:8px; }
+.form-group-inline label { font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer; }
+.form-group-inline input[type="checkbox"] { width:auto;cursor:pointer; }
 .pos-container { display: grid; grid-template-columns: 1fr 400px; gap: 20px; }
 .pos-ticket { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 20px; }
 .pos-ticket-header { text-align: center; padding-bottom: 10px; border-bottom: 2px dashed var(--border); margin-bottom: 10px; }
@@ -278,9 +287,9 @@ tr:hover td { background: #f8f9fa; }
     <!-- SECTIONS -->
     <div class="section" id="sec-sections">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Secciones</h3><button class="btn btn-primary" onclick="clearSectionForm();openModal('sectionModal')">+ Nueva Sección</button></div>
-        <div class="search-bar"><input type="text" id="searchSection" placeholder="Buscar sección..." oninput="renderSections()"></div>
-        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="sectionsTable"></tbody></table></div>
+        <div class="card-header"><h3>Secciones</h3><button class="btn btn-primary btn-sm" onclick="clearSectionForm();openModal('sectionModal')">+ Nueva</button></div>
+        <div class="search-bar" style="margin-bottom:8px;"><input type="text" id="searchSection" placeholder="Buscar sección..." oninput="renderSections()" style="padding:6px 10px;font-size:12px;"></div>
+        <div id="sectionsList" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
       </div>
     </div>
 
@@ -414,6 +423,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Sección</label><select id="serviceSection"><option value="">Sin sección</option></select></div>
     </div>
     <div class="form-group"><label>Descripción</label><textarea id="serviceDesc" placeholder="Descripción..."></textarea></div>
+    <div class="form-group-inline"><input type="checkbox" id="serviceShowPos" checked> <label for="serviceShowPos">Mostrar en caja (TPV)</label></div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('serviceModal')">Cancelar</button><button class="btn btn-primary" onclick="saveService()">Guardar</button></div>
     <input type="hidden" id="serviceEditId">
   </div>
@@ -464,6 +474,7 @@ tr:hover td { background: #f8f9fa; }
     <div class="grid-2" style="margin-top:12px;">
       <div class="form-group"><label>Foto</label><div style="display:flex;gap:8px;align-items:center;"><input type="text" id="projectPhoto" placeholder="URL o selecciona archivo" style="flex:1;" oninput="updatePhotoPreview(this.value,'projectPhotoPreview')"><input type="file" id="projectPhotoFile" accept="image/*" style="display:none;" onchange="handleLocalPhoto(this,'projectPhoto')"><button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('projectPhotoFile').click()">📁</button></div><div id="projectPhotoPreview" style="margin-top:8px;"></div></div>
       <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding-top:22px;"><input type="checkbox" id="projectShowWeb" style="width:auto;"> Mostrar en la web</label></div>
+      <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;padding-top:22px;"><input type="checkbox" id="projectShowPos" checked style="width:auto;"> Mostrar en caja (TPV)</label></div>
     </div>
     <div class="form-group"><label>Descripción</label><textarea id="projectDescription" placeholder="Descripción de la oferta para la web" rows="3"></textarea></div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('projectModal')">Cancelar</button><button class="btn btn-primary" onclick="saveProject()" style="padding:10px 28px;">Guardar Oferta</button></div>
@@ -485,7 +496,10 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Foto</label><div style="display:flex;gap:8px;align-items:center;"><input type="text" id="productPhoto" placeholder="URL o selecciona archivo" style="flex:1;" oninput="updatePhotoPreview(this.value,'productPhotoPreview')"><input type="file" id="productPhotoFile" accept="image/*" style="display:none;" onchange="handleLocalPhoto(this,'productPhoto')"><button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('productPhotoFile').click()">📁</button></div><div id="productPhotoPreview" style="margin-top:8px;"></div></div>
     </div>
     <div class="form-group"><label>Descripción</label><textarea id="productDescription" placeholder="Descripción del producto para la web" rows="3"></textarea></div>
-    <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="productShowWeb" style="width:auto;"> Mostrar en la web</label></div>
+    <div class="form-group-inline" style="justify-content:space-between;flex-wrap:wrap;gap:4px 12px;">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="productShowWeb" style="width:auto;"> Mostrar en la web</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="productShowPos" checked style="width:auto;"> Mostrar en caja (TPV)</label>
+    </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('productModal')">Cancelar</button><button class="btn btn-primary" onclick="saveProduct()">Guardar</button></div>
     <input type="hidden" id="productEditId">
   </div>
@@ -1219,6 +1233,7 @@ function saveService() {
     duration: parseInt(document.getElementById('serviceDuration').value)||0,
     desc: document.getElementById('serviceDesc').value.trim(),
     sectionId: document.getElementById('serviceSection').value || '',
+    showInPos: document.getElementById('serviceShowPos').checked,
     _modified: Date.now(),
     _deleted: false
   };
@@ -1240,6 +1255,7 @@ function editService(id) {
   document.getElementById('serviceDuration').value = s.duration||'';
   document.getElementById('serviceDesc').value = s.desc||'';
   document.getElementById('serviceSection').value = s.sectionId||'';
+  document.getElementById('serviceShowPos').checked = s.showInPos !== false;
   document.getElementById('serviceModalTitle').textContent = 'Editar Servicio'; openModal('serviceModal');
 }
 
@@ -1253,25 +1269,23 @@ function deleteService(id) {
 function clearServiceForm() {
   ['serviceEditId','serviceName','servicePrice','serviceDuration','serviceDesc'].forEach(id => document.getElementById(id).value='');
   document.getElementById('serviceSection').value = '';
+  document.getElementById('serviceShowPos').checked = true;
   document.getElementById('serviceModalTitle').textContent = 'Nuevo Servicio';
 }
 
 // ============ SECTIONS ============
 function renderSections() {
   const q = (document.getElementById('searchSection').value||'').toLowerCase();
-  const tbody = document.getElementById('sectionsTable');
   const list = data.sections.filter(s => !s._deleted && s.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="3" class="empty-state">No hay secciones</td></tr>'; return; }
-  tbody.innerHTML = list.map(s => {
-    const bg = s.color ? hexToRgba(s.color, 0.08) : '';
-    return `<tr style="${bg ? 'background:'+bg+';' : ''}">
-    <td><strong><span style="display:inline-block;width:14px;height:14px;border-radius:50%;background:${s.color||'#ccc'};margin-right:8px;vertical-align:middle;"></span>${esc(s.name)}</strong></td>
-    <td>${esc(s.desc||'-')}</td>
-    <td><div class="btn-group">
-      <button class="btn btn-primary btn-sm" onclick="editSection('${s.id}')">✏️</button>
-      <button class="btn btn-danger btn-sm" onclick="deleteSection('${s.id}')">🗑️</button>
-    </div></td>
-  </tr>`}).join('');
+  const div = document.getElementById('sectionsList');
+  if (!list.length) { div.innerHTML = '<span style="font-size:13px;color:var(--text-light);">No hay secciones</span>'; return; }
+  div.innerHTML = list.map(s => {
+    return `<span class="section-chip" onclick="editSection('${s.id}')" style="border-color:${s.color||'#ccc'};background:${hexToRgba(s.color||'#ccc',0.08)};">
+      <span class="dot" style="background:${s.color||'#ccc'};"></span>
+      <span class="name">${esc(s.name)}</span>
+      <button class="del" onclick="event.stopPropagation();deleteSection('${s.id}')" title="Eliminar">&times;</button>
+    </span>`;
+  }).join('');
 }
 
 function saveSection() {
@@ -1363,6 +1377,7 @@ function clearProjectForm() {
   document.getElementById('projectPhotoFile').value = '';
   document.getElementById('projectDescription').value = '';
   document.getElementById('projectShowWeb').checked = false;
+  document.getElementById('projectShowPos').checked = true;
   document.getElementById('projectModalTitle').textContent = 'Nueva Oferta';
 }
 
@@ -1462,6 +1477,7 @@ function saveProject() {
     description: document.getElementById('projectDescription').value.trim(),
     photo: document.getElementById('projectPhoto').value.trim(),
     showOnWeb: document.getElementById('projectShowWeb').checked,
+    showInPos: document.getElementById('projectShowPos').checked,
     _modified: Date.now(), _deleted: false
   };
   if (id_) { const p = data.projects.find(x => x.id === id_); if (p) Object.assign(p, obj); }
@@ -1478,6 +1494,7 @@ function editProject(id) {
   updatePhotoPreview(p.photo||'', 'projectPhotoPreview');
   document.getElementById('projectDescription').value = p.description||'';
   document.getElementById('projectShowWeb').checked = p.showOnWeb||false;
+  document.getElementById('projectShowPos').checked = p.showInPos !== false;
   document.getElementById('projectModalTitle').textContent = 'Editar Oferta';
   renderProjectServices();
   renderProjectProducts();
@@ -1556,6 +1573,7 @@ function saveProduct() {
     description: document.getElementById('productDescription').value.trim(),
     photo: document.getElementById('productPhoto').value.trim(),
     showOnWeb: document.getElementById('productShowWeb').checked,
+    showInPos: document.getElementById('productShowPos').checked,
     _modified: Date.now(),
     _deleted: false
   };
@@ -1579,6 +1597,7 @@ function editProduct(id) {
   document.getElementById('productPhoto').value = p.photo||'';
   updatePhotoPreview(p.photo||'', 'productPhotoPreview');
   document.getElementById('productShowWeb').checked = p.showOnWeb||false;
+  document.getElementById('productShowPos').checked = p.showInPos !== false;
   document.getElementById('productModalTitle').textContent = 'Editar Producto'; openModal('productModal');
 }
 
@@ -1606,6 +1625,7 @@ function clearProductForm() {
   document.getElementById('productProvider').value = '';
   document.getElementById('productDescription').value = '';
   document.getElementById('productShowWeb').checked = false;
+  document.getElementById('productShowPos').checked = true;
   document.getElementById('productModalTitle').textContent = 'Nuevo Producto';
 }
 
@@ -2073,17 +2093,17 @@ function renderPosItems(filter) {
   const q = (document.getElementById('posSearch').value||'').toLowerCase();
   let items = [];
   
-  data.services.filter(s => !s._deleted).forEach(s => {
+  data.services.filter(s => !s._deleted && s.showInPos !== false).forEach(s => {
     const sec = data.sections.find(x => x.id === s.sectionId && !x._deleted);
     const se = sec ? sec.name + ' · ' : '';
     items.push({type:'service', id:s.id, name:s.name, price:s.price, extra: se + s.duration+' min', ref:s, secColor: sec&&sec.color ? sec.color : null});
   });
-  data.products.filter(p => !p._deleted).forEach(p => {
+  data.products.filter(p => !p._deleted && p.showInPos !== false).forEach(p => {
     const prov = data.providers.find(x => x.id === p.providerId && !x._deleted);
     const pe = prov ? prov.name + ' · ' : '';
     items.push({type:'product', id:p.id, name:p.name, price:p.price, extra: 'Stock: '+(p.stock||0), ref:p, provColor: prov&&prov.color ? prov.color : null});
   });
-  data.projects.filter(p => !p._deleted).forEach(p => {
+  data.projects.filter(p => !p._deleted && p.showInPos !== false).forEach(p => {
     const total = calcProjectPrice(p);
     const final = total * (1 - (p.discount||0)/100);
     items.push({type:'project', id:p.id, name:p.name, price:final, extra: (p.discount||0)>0?p.discount+'% desc.':'Oferta', ref:p});

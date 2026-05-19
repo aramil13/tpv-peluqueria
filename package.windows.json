@@ -1,6 +1,6 @@
 {
   "name": "tpv-peluqueria",
-  "version": "1.9.3",
+  "version": "1.9.4",
   "description": "TPV Agenda para Peluquería",
   "main": "main.js",
   "scripts": {
@@ -11,18 +11,16 @@
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3"
   },
-  "build": {
-    "appId": "com.peluqueria.tpv",
-    "files": [
-      "index.html",
-      "main.js",
-      "sync-helper.js",
-      "package.json",
-      "booking/**"
-    ],
-    "win": {
-      "target": "portable",
-      "icon": "icon.png"
-    }
+  "appId": "com.peluqueria.tpv",
+  "files": [
+    "index.html",
+    "main.js",
+    "sync-helper.js",
+    "package.json",
+    "booking/**"
+  ],
+  "win": {
+    "target": "portable",
+    "icon": "icon.png"
   }
 }
