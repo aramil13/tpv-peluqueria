@@ -219,7 +219,7 @@ fetch('/api/web-offers').then(r => { console.log('offers status:', r.status); re
         ${o.description ? `<p>${o.description}</p>` : '<p style="color:var(--text-light);">Sin descripción</p>'}
         <div>
           ${o.discount > 0 ? `<span class="offer-discount">-${o.discount}%</span>` : ''}
-          ${o.totalPrice !== undefined ? `<span class="offer-price">${o.totalPrice.toFixed(2)}€</span>` : ''}
+          <span class="offer-price">${o.totalPrice !== undefined ? o.totalPrice.toFixed(2) + '€' : 'Precio no disponible'}</span>
         </div>
       </div>
     </div>`;
