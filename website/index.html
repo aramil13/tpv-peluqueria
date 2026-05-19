@@ -217,7 +217,10 @@ fetch('/api/web-offers').then(r => { console.log('offers status:', r.status); re
       ${o.photo ? `<div class="offer-photo"><img src="${o.photo}" alt="Oferta" loading="lazy"></div>` : '<div class="offer-photo"><div class="offer-photo-placeholder">🏷️</div></div>'}
       <div class="offer-info">
         ${o.description ? `<p>${o.description}</p>` : '<p style="color:var(--text-light);">Sin descripción</p>'}
-        ${o.discount > 0 ? `<span class="offer-discount">-${o.discount}%</span>` : ''}
+        <div>
+          ${o.discount > 0 ? `<span class="offer-discount">-${o.discount}%</span>` : ''}
+          ${o.totalPrice !== undefined ? `<span class="offer-price">${o.totalPrice.toFixed(2)}€</span>` : ''}
+        </div>
       </div>
     </div>`;
   }).join('');
