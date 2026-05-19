@@ -188,7 +188,10 @@ section { padding: 100px 0; }
 
 .product-info p { font-size: 14px; color: var(--text-light); line-height: 1.6; margin-bottom: 12px; }
 
-.product-price { font-size: 15px; font-weight: 700; color: var(--primary); }
+.product-price {
+  display: inline-block; background: var(--primary); color: var(--white);
+  padding: 6px 14px; border-radius: 50px; font-size: 16px; font-weight: 700;
+}
 
 /* Offers */
 .offers { background: var(--bg); }
