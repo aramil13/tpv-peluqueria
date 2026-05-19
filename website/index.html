@@ -27,19 +27,10 @@
 
 <section class="hero">
   <div class="hero-overlay"></div>
-  <div class="hero-inner">
-    <div class="hero-text">
-      <h1>Nymara Estilistas</h1>
-      <p>Tu salón de belleza de confianza. Cuidamos de ti con pasión y estilo.</p>
-      <a href="/booking" class="btn-primary">Reserva tu cita</a>
-      <div class="hero-contact">
-        <span>📍 Calle Antonio Machado, 11. 33420 Lugones. Siero</span>
-        <span>📞 <a href="tel:624143658">624 14 36 58</a></span>
-      </div>
-    </div>
-    <div class="hero-map">
-      <iframe src="https://www.google.com/maps?q=Calle+Antonio+Machado+11+Lugones&output=embed" style="border:0;width:100%;height:100%;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
-    </div>
+  <div class="hero-content">
+    <h1>Nymara Estilistas</h1>
+    <p>Tu salón de belleza de confianza. Cuidamos de ti con pasión y estilo.</p>
+    <a href="/booking" class="btn-primary">Reserva tu cita</a>
   </div>
 </section>
 
@@ -174,16 +165,21 @@
 
 <section class="contact" id="contacto">
   <div class="container">
-    <span class="section-tag">Contacto</span>
-    <h2 class="section-title">Estamos aquí para ti</h2>
-    <div class="contact-items">
-      <div class="contact-item">📍 Calle Antonio Machado, 11. 33420 Lugones. Siero</div>
-      <div class="contact-item">📞 <a href="tel:624143658">624 14 36 58</a></div>
-      <div class="contact-item">✉️ <a href="mailto:nymara.estilistas@gmail.com">nymara.estilistas@gmail.com</a></div>
-      <div class="contact-item">💬 <a href="https://wa.me/34624143658" target="_blank">WhatsApp</a></div>
-      <div class="contact-item">📸 <a href="https://www.instagram.com/nymara.estilistas" target="_blank">@nymara.estilistas</a></div>
+    <div class="contact-grid">
+      <div class="contact-info">
+        <span class="section-tag">Contacto</span>
+        <h2>Estamos aquí para ti</h2>
+        <div class="contact-item">📍 Calle Antonio Machado, 11. 33420 Lugones. Siero</div>
+        <div class="contact-item">📞 <a href="tel:624143658">624 14 36 58</a></div>
+        <div class="contact-item">✉️ <a href="mailto:nymara.estilistas@gmail.com">nymara.estilistas@gmail.com</a></div>
+        <div class="contact-item">💬 <a href="https://wa.me/34624143658" target="_blank">WhatsApp</a></div>
+        <div class="contact-item">📸 <a href="https://www.instagram.com/nymara.estilistas" target="_blank">@nymara.estilistas</a></div>
+        <a href="/booking" class="btn-primary" style="margin-top:20px;">Reserva tu cita online</a>
+      </div>
+      <div class="contact-map">
+        <iframe src="https://www.google.com/maps?q=Calle+Antonio+Machado+11+Lugones&output=embed" style="border:0;width:100%;height:100%;min-height:320px;border-radius:16px;" allowfullscreen="" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+      </div>
     </div>
-    <div style="text-align:center;margin-top:24px;"><a href="/booking" class="btn-primary">Reserva tu cita online</a></div>
   </div>
 </section>
 
@@ -220,8 +216,11 @@ fetch('/api/web-offers').then(r => { console.log('offers status:', r.status); re
         <div>
           ${o.discount > 0 ? `<span class="offer-discount">-${o.discount}%</span>` : ''}
           <span class="offer-price">${o.totalPrice !== undefined ? o.totalPrice.toFixed(2) + '€' : 'Precio no disponible'}</span>
-        </div>
-      </div>
+    </div>
+    <div style="text-align:center;margin-top:32px;">
+      <a href="https://g.page/r/CYQDlg4VuoCEEAE/review" target="_blank" class="btn-primary" style="background:#1a73e8;box-shadow:0 4px 15px rgba(26,115,232,.3);">⭐ Deja tu reseña en Google</a>
+    </div>
+  </div>
     </div>`;
   }).join('');
   document.getElementById('offersCount').textContent = 'Total: ' + offers.length + ' oferta' + (offers.length !== 1 ? 's' : '');
