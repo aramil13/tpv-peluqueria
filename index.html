@@ -120,6 +120,8 @@ tr:hover td { background: #f8f9fa; }
 .appt-grid .appt-grid-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; position: sticky; left: 0; z-index: 1; font-size: 11px; width: 45px; }
 .appt-grid-sq { width: 34px; height: 34px; border-radius: 10px; display: inline-block; cursor: pointer; transition: transform .15s, box-shadow .15s; border: 2px solid transparent; }
 .appt-grid-sq:hover { transform: scale(1.15); box-shadow: 0 2px 8px rgba(0,0,0,.2); border-color: #fff; }
+.appt-grid-free { background: #fff; border: 2px dashed #ccc; }
+.appt-grid-free:hover { background: #e8f5e9; border-color: #27ae60; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
 .stat-card { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 20px; text-align: center; }
 .stat-card .stat-number { font-size: 28px; font-weight: 700; color: var(--primary); }
@@ -1813,52 +1815,37 @@ function showDayAppts(dateStr) {
   const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted).sort((a,b) => (a.time||'').localeCompare(b.time||''));
   const d = new Date(dateStr);
   const title = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  if (!appts.length) {
-    div.innerHTML = `<div class="empty-state"><p>${title}</p><p style="margin-top:10px;font-size:13px;">Sin citas programadas</p>
-      <button class="btn btn-primary btn-sm" style="margin-top:10px;" onclick="quickAppt('${dateStr}')">+ Agendar cita</button></div>`;
-    return;
-  }
-
-  const employees = data.employees.sort((a,b) => a.name.localeCompare(b.name));
-  const unassigned = appts.filter(a => !a.employeeId);
-  const byEmployee = {};
-  employees.forEach(e => { byEmployee[e.id] = appts.filter(a => a.employeeId === e.id); });
-  let cols = employees.filter(e => byEmployee[e.id].length > 0);
-  if (unassigned.length > 0) cols = [...cols, null];
+  const employees = data.employees.filter(e => !e._deleted).sort((a,b) => a.name.localeCompare(b.name));
 
   // Colores para cada cita
   const APPT_COLORS = ['#8E44AD','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#16A085','#2980B9','#D35400','#C0392B','#2C3E50'];
   const colorMap = {};
   appts.forEach((a, i) => { colorMap[a.id] = APPT_COLORS[i % APPT_COLORS.length]; });
 
-  // Calcular rango horario
-  let minTime = '23:59', maxTime = '00:00';
-  appts.forEach(a => {
-    if (a.time < minTime) minTime = a.time;
-    const end = a.endTime || addMinutes(a.time, 30);
-    if (end > maxTime) maxTime = end;
-  });
-
-  // Generar slots de 30 min
+  // Todos los slots de 9:00 a 20:30 cada 15 min
   const slots = [];
-  let cur = minTime;
-  while (cur < maxTime) { slots.push(cur); cur = addMinutes(cur, 30); }
+  for (let h = 9; h <= 20; h++) {
+    if (h < 20) { slots.push(String(h).padStart(2,'0')+':00'); slots.push(String(h).padStart(2,'0')+':15'); slots.push(String(h).padStart(2,'0')+':30'); slots.push(String(h).padStart(2,'0')+':45'); }
+    else { slots.push('20:00'); slots.push('20:15'); slots.push('20:30'); }
+  }
 
-  // Construir grid 2D
-  const grid = {};
+  // Todos los empleados como columnas + columna "Sin asignar"
+  const cols = [...employees, null];
+
+  // Construir grid: buscar cita en cada slot/empleado
+  const apptGrid = {};
   slots.forEach(t => {
-    grid[t] = {};
+    apptGrid[t] = {};
     cols.forEach((e, ci) => {
-      const list = e ? byEmployee[e.id] : unassigned;
-      grid[t][ci] = list.find(a => {
+      const list = e ? appts.filter(a => a.employeeId === e.id) : appts.filter(a => !a.employeeId);
+      apptGrid[t][ci] = list.find(a => {
         const aEnd = a.endTime || addMinutes(a.time, 30);
         return t >= a.time && t < aEnd;
       }) || null;
     });
   });
 
-  // Renderizar tabla
-  let html = `<p style="margin-bottom:10px;font-weight:500;">${title} — ${appts.length} cita(s)</p>`;
+  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><span style="font-weight:500;">${title} — ${appts.length} cita(s)</span><button class="btn btn-primary btn-sm" onclick="quickAppt('${dateStr}')">+ Agendar</button></div>`;
   html += `<div style="overflow-x:auto;margin-bottom:8px;"><table class="appt-grid">`;
   html += '<thead><tr><th class="appt-grid-hdr">Hora</th>';
   cols.forEach(e => { html += `<th class="appt-grid-hdr">${esc(e ? e.name : 'Sin asignar')}</th>`; });
@@ -1869,10 +1856,10 @@ function showDayAppts(dateStr) {
     html += `<tr><td class="appt-grid-time">${t}</td>`;
     cols.forEach((e, ci) => {
       if (skipRow[ci]) { skipRow[ci]--; return; }
-      const appt = grid[t][ci];
+      const appt = apptGrid[t][ci];
       if (appt) {
         const aEnd = appt.endTime || addMinutes(appt.time, 30);
-        const rowspan = Math.max(1, Math.round((timeToMinutes(aEnd) - timeToMinutes(appt.time)) / 30));
+        const rowspan = Math.max(1, Math.round((timeToMinutes(aEnd) - timeToMinutes(appt.time)) / 15));
         if (rowspan > 1) skipRow[ci] = rowspan - 1;
         const client = data.clients.find(c => c.id === appt.clientId);
         const service = data.services.find(s => s.id === appt.serviceId);
@@ -1882,13 +1869,13 @@ function showDayAppts(dateStr) {
           <div class="appt-grid-sq" style="background:${color};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')"></div>
         </td>`;
       } else {
-        html += '<td class="appt-grid-cell"></td>';
+        const empId = e ? e.id : '';
+        html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
       }
     });
     html += '</tr>';
   });
   html += '</tbody></table></div>';
-  html += `<button class="btn btn-primary btn-sm" onclick="quickAppt('${dateStr}')">+ Agendar cita</button>`;
   div.innerHTML = html;
 }
 
@@ -1907,12 +1894,12 @@ function editAppt(id) {
   openModal('appointmentModal');
 }
 
-function quickAppt(dateStr) {
+function quickAppt(dateStr, time, employeeId) {
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
   document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
-  document.getElementById('apptTime').value = '10:00';
-  document.getElementById('apptEmployee').value = '';
+  document.getElementById('apptTime').value = time || '10:00';
+  document.getElementById('apptEmployee').value = employeeId || '';
   document.getElementById('apptNotes').value = '';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
   openModal('appointmentModal');

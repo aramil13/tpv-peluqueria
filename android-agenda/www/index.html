@@ -94,6 +94,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .appt-grid td { padding: 3px; text-align: center; border: 1px solid var(--border); }
 .appt-grid .appt-grid-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; font-size: 10px; width: 38px; }
 .appt-grid-sq { width: 28px; height: 28px; border-radius: 8px; display: inline-block; cursor: pointer; border: 2px solid transparent; }
+.appt-grid-free { background: #fff; border: 2px dashed #ccc; }
 .section-tabs { display:flex; gap:0; margin-bottom:12px; }
 .section-tab { flex:1; padding:8px; text-align:center; font-size:12px; cursor:pointer; border-bottom:2px solid var(--border); color:var(--text-light); -webkit-tap-highlight-color:transparent; }
 .section-tab.active { border-bottom-color:var(--primary); color:var(--primary); font-weight:600; }
@@ -407,49 +408,34 @@ function showDayAppts(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   const title = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   document.getElementById('dayTitle').textContent = title;
-  if (!appts.length) {
-    div.innerHTML = `<div class="empty-state">
-      <p>Sin citas programadas</p>
-      <button class="btn btn-sm btn-primary" onclick="quickAppt('${dateStr}')">+ Agendar cita</button>
-    </div>`;
-    return;
-  }
   const employees = data.employees.filter(e => !e._deleted).sort((a,b) => a.name.localeCompare(b.name));
-  const unassigned = appts.filter(a => !a.employeeId);
-  const byEmployee = {};
-  employees.forEach(e => { byEmployee[e.id] = appts.filter(a => a.employeeId === e.id); });
-  let cols = employees.filter(e => byEmployee[e.id].length > 0);
-  if (unassigned.length > 0) cols = [...cols, null];
 
   const APPT_COLORS = ['#8E44AD','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#16A085','#2980B9','#D35400','#C0392B','#2C3E50'];
   const colorMap = {};
   appts.forEach((a, i) => { colorMap[a.id] = APPT_COLORS[i % APPT_COLORS.length]; });
 
-  let minTime = '23:59', maxTime = '00:00';
-  appts.forEach(a => {
-    if (a.time < minTime) minTime = a.time;
-    const end = a.endTime || addMinutes(a.time, 30);
-    if (end > maxTime) maxTime = end;
-  });
-
+  // Todos los slots de 9:00 a 20:30 cada 15 min
   const slots = [];
-  let cur = minTime;
-  while (cur < maxTime) { slots.push(cur); cur = addMinutes(cur, 30); }
+  for (let h = 9; h <= 20; h++) {
+    if (h < 20) { slots.push(String(h).padStart(2,'0')+':00'); slots.push(String(h).padStart(2,'0')+':15'); slots.push(String(h).padStart(2,'0')+':30'); slots.push(String(h).padStart(2,'0')+':45'); }
+    else { slots.push('20:00'); slots.push('20:15'); slots.push('20:30'); }
+  }
 
-  const grid = {};
+  const cols = [...employees, null];
+
+  const apptGrid = {};
   slots.forEach(t => {
-    grid[t] = {};
+    apptGrid[t] = {};
     cols.forEach((e, ci) => {
-      const list = e ? byEmployee[e.id] : unassigned;
-      grid[t][ci] = list.find(a => {
+      const list = e ? appts.filter(a => a.employeeId === e.id) : appts.filter(a => !a.employeeId);
+      apptGrid[t][ci] = list.find(a => {
         const aEnd = a.endTime || addMinutes(a.time, 30);
         return t >= a.time && t < aEnd;
       }) || null;
     });
   });
 
-  // Android no tiene hover como tal, se usa title (tooltip nativo)
-  let html = `<div style="overflow-x:auto;padding:10px 14px;"><table class="appt-grid" style="font-size:11px;">`;
+  let html = `<div style="overflow-x:auto;padding:10px 14px;"><table class="appt-grid" style="font-size:10px;">`;
   html += '<thead><tr><th class="appt-grid-hdr">Hora</th>';
   cols.forEach(e => { html += `<th class="appt-grid-hdr">${esc(e ? e.name : 'Sin asignar')}</th>`; });
   html += '</tr></thead><tbody>';
@@ -459,10 +445,10 @@ function showDayAppts(dateStr) {
     html += `<tr><td class="appt-grid-time">${t}</td>`;
     cols.forEach((e, ci) => {
       if (skipRow[ci]) { skipRow[ci]--; return; }
-      const appt = grid[t][ci];
+      const appt = apptGrid[t][ci];
       if (appt) {
         const aEnd = appt.endTime || addMinutes(appt.time, 30);
-        const rowspan = Math.max(1, Math.round((timeToMinutes(aEnd) - timeToMinutes(appt.time)) / 30));
+        const rowspan = Math.max(1, Math.round((timeToMinutes(aEnd) - timeToMinutes(appt.time)) / 15));
         if (rowspan > 1) skipRow[ci] = rowspan - 1;
         const client = data.clients.find(c => c.id === appt.clientId);
         const service = data.services.find(s => s.id === appt.serviceId);
@@ -472,13 +458,13 @@ function showDayAppts(dateStr) {
           <div class="appt-grid-sq" style="background:${color};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')"></div>
         </td>`;
       } else {
-        html += '<td class="appt-grid-cell"></td>';
+        const empId = e ? e.id : '';
+        html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
       }
     });
     html += '</tr>';
   });
   html += '</tbody></table></div>';
-  html += `<div style="padding:0 14px 10px;"><button class="btn btn-sm btn-primary" style="width:100%;" onclick="quickAppt('${dateStr}')">+ Agendar cita</button></div>`;
   div.innerHTML = html;
 }
 
@@ -497,12 +483,12 @@ function editAppt(id) {
   document.getElementById('appointmentModal').classList.add('show');
 }
 
-function quickAppt(dateStr) {
+function quickAppt(dateStr, time, employeeId) {
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
   document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
-  document.getElementById('apptTime').value = new Date().toTimeString().slice(0,5);
-  document.getElementById('apptEmployee').value = '';
+  document.getElementById('apptTime').value = time || new Date().toTimeString().slice(0,5);
+  document.getElementById('apptEmployee').value = employeeId || '';
   document.getElementById('apptNotes').value = '';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
   document.getElementById('appointmentModal').classList.add('show');
