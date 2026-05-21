@@ -91,10 +91,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .emp-appt .time { font-weight:600; font-size:11px; color:var(--primary); }
 .appt-grid { border-collapse: collapse; width: 100%; font-size: 11px; }
 .appt-grid th { background: var(--primary); color: #fff; padding: 6px 4px; font-weight: 600; text-align: center; white-space: nowrap; font-size: 11px; }
-.appt-grid td { padding: 3px; text-align: center; border: 1px solid var(--border); }
-.appt-grid .appt-grid-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; font-size: 10px; width: 38px; }
+.appt-grid td { padding: 0; text-align: center; border: 1px solid var(--border); height: 30px; vertical-align: top; }
+.appt-grid .appt-grid-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; font-size: 10px; width: 42px; height: 30px; vertical-align: middle; }
 .appt-grid-cell { padding: 0 !important; min-width: 50px; }
-.appt-grid-occ { color: #fff; font-size: 9px; font-weight: 600; cursor: pointer; border-radius: 6px; line-height: 1.3; text-shadow: 0 1px 2px rgba(0,0,0,.3); position: relative; }
+.appt-grid-occ { color: #fff; font-size: 9px; font-weight: 600; cursor: pointer; border-radius: 6px; line-height: 1.3; text-shadow: 0 1px 2px rgba(0,0,0,.3); position: relative; padding: 3px 4px !important; height: auto; box-sizing: border-box; }
 .appt-grid-del { position: absolute; top: 1px; right: 1px; width: 14px; height: 14px; background: rgba(0,0,0,.3); color: #fff; border-radius: 50%; font-size: 8px; line-height: 14px; text-align: center; cursor: pointer; text-shadow: none; }
 .appt-grid-sq { width: 28px; height: 28px; border-radius: 8px; display: inline-block; cursor: pointer; border: 2px solid transparent; }
 .appt-grid-free { background: #fff; border: 2px dashed #ccc; }
@@ -103,6 +103,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .section-tab.active { border-bottom-color:var(--primary); color:var(--primary); font-weight:600; }
 .stock-low { color: var(--danger); font-weight:700; }
 #importIcsInput { display: none; }
+.service-dd-item { padding:8px 10px; cursor:pointer; white-space:nowrap; font-size:13px; border-bottom:1px solid #eee; }
+.service-dd-item:hover { background:var(--primary); color:#fff; }
+.service-dd-empty { padding:8px 10px; color:#999; font-size:12px; }
 @media (min-width: 600px) {
   .modal-content { border-radius: 16px; margin: auto; max-width: 500px; }
   .modal-overlay { align-items: center; }
@@ -187,6 +190,11 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
   </div>
 
   <div class="card">
+    <div class="card-header"><h3>Recordatorios WAS</h3></div>
+    <div id="waReminderList" style="padding:10px 14px;max-height:300px;overflow-y:auto;"></div>
+  </div>
+
+  <div class="card">
     <div style="padding:14px;text-align:center;color:var(--text-light);font-size:11px;">
       <div id="versionText" onclick="handleVersionClick()" style="cursor:pointer;user-select:none;">Agenda TPV v3.0 — Sincronización Cloud</div>
     </div>
@@ -209,15 +217,26 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
     <div class="form-group"><label>Cliente *</label><select id="apptClient"></select></div>
     <div class="form-row">
       <div class="form-group"><label>Fecha *</label><input type="date" id="apptDate"></div>
-      <div class="form-group"><label>Hora *</label><input type="time" id="apptTime"></div>
+      <div class="form-group"><label>Hora Inicio *</label><input type="time" id="apptTime" oninput="updateApptEndFromServices()"></div>
+        <div class="form-group"><label>Hora Fin *</label><input type="time" id="apptEndTime"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Servicio</label><select id="apptService"></select></div>
+      <div class="form-group"><label>Servicios</label>
+        <div id="apptServicesList" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <div style="position:relative;flex:1;">
+            <input type="text" id="apptServiceSearch" placeholder="Buscar servicio..." autocomplete="off" oninput="filterServiceDropdown()" onfocus="toggleServiceSelect(true)" onblur="setTimeout(()=>toggleServiceSelect(false),200)">
+            <div id="apptServiceDropdown" style="position:absolute;top:100%;left:0;width:100%;z-index:100;display:none;background:#fff;border:1px solid #ccc;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:200px;overflow-y:auto;"></div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="addApptService()" style="white-space:nowrap;">+ Añadir</button>
+        </div>
+      </div>
       <div class="form-group"><label>Empleado</label><select id="apptEmployee"></select></div>
     </div>
     <div class="form-group"><label>Notas</label><textarea id="apptNotes" placeholder="Notas..."></textarea></div>
     <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cancelar</button>
+      <button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button>
+      <button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button>
       <button class="btn btn-primary" onclick="saveAppointment()">Guardar</button>
     </div>
     <input type="hidden" id="apptEditId">
@@ -243,6 +262,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
       <div class="form-group"><label>Email</label><input type="email" id="clientEmail" placeholder="Email"></div>
       <div class="form-group"><label>Notas</label><textarea id="clientNotes" placeholder="Notas..." style="min-height:40px;"></textarea></div>
     </div>
+    <input type="checkbox" id="clientWhatsApp" style="display:none;">
+    <div id="clientWhatsAppToggle" onclick="toggleClientWas(this)" style="width:44px;height:24px;background:#ccc;border-radius:12px;position:relative;transition:background .2s;cursor:pointer;"><div style="width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .2s;pointer-events:none;"></div></div>
+    <span id="clientWhatsAppLabel" style="font-size:13px;">Enviar recordatorio WhatsApp (72h antes)</span>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveClient()">Guardar</button>
@@ -292,15 +314,16 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
   <div class="modal-content">
     <div class="modal-header"><h3 id="productModalTitle">Nuevo Producto</h3><button class="modal-close" onclick="closeModal('productModal')">&times;</button></div>
     <div class="form-group"><label>Nombre *</label><input type="text" id="productName" placeholder="Nombre del producto"></div>
+    <div class="form-group"><label>Código Barras</label><input type="text" id="productBarcode" placeholder="Escaner código barras" inputmode="numeric"></div>
     <div class="form-row">
-      <div class="form-group"><label>Precio venta (€) *</label><input type="number" id="productPrice" step="0.01" placeholder="0.00"></div>
-      <div class="form-group"><label>Coste (€)</label><input type="number" id="productCost" step="0.01" placeholder="0.00"></div>
+      <div class="form-group"><label>Precio venta (€) *</label><input type="text" id="productPrice" inputmode="decimal" placeholder="0.00"></div>
+      <div class="form-group"><label>Coste (€)</label><input type="text" id="productCost" inputmode="decimal" placeholder="0.00"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>Stock actual</label><input type="number" id="productStock" placeholder="0"></div>
-      <div class="form-group"><label>Stock mínimo</label><input type="number" id="productMinStock" placeholder="5"></div>
+      <div class="form-group"><label>Stock actual</label><input type="text" id="productStock" inputmode="numeric" placeholder="0"></div>
+      <div class="form-group"><label>Stock mínimo</label><input type="text" id="productMinStock" inputmode="numeric" placeholder="5"></div>
     </div>
-    <div class="form-group"><label>IVA (%)</label><input type="number" id="productIva" step="0.01" value="21"></div>
+    <div class="form-group"><label>IVA (%)</label><input type="text" id="productIva" inputmode="decimal" value="21"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('productModal')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveProduct()">Guardar</button>
@@ -333,6 +356,23 @@ let data = {
   ivaRate: DB.get('ivaRate') || 21
 };
 ['appointments','clients','services','employees','products'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
+
+// Clean up any corrupted entries in main entities (caused by sync of binary-imported files on Windows)
+['clients', 'employees', 'services', 'products'].forEach(k => {
+  if (Array.isArray(data[k])) {
+    const initialCount = data[k].length;
+    data[k] = data[k].filter(item => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+      if (typeof item.name !== 'string' || item.name.trim() === '') return false;
+      const keys = Object.keys(item);
+      const isCorrupted = keys.some(key => key.includes('\u0011') || key.includes('\u001a') || key.includes('\u0000') || key.includes('\u0003') || key.includes('\u0004'));
+      return !isCorrupted;
+    });
+    if (data[k].length !== initialCount) {
+      saveKey(k);
+    }
+  }
+});
 
 function saveAll() { for (let k in data) DB.set(k, data[k]) }
 function saveKey(k) { DB.set(k, data[k]) }
@@ -444,19 +484,25 @@ function showDayAppts(dateStr) {
   html += '</tr></thead><tbody>';
 
   const skipRow = {};
+  const drawnAppts = new Set();
   slots.forEach(t => {
     html += `<tr><td class="appt-grid-time">${t}</td>`;
     cols.forEach((e, ci) => {
       if (skipRow[ci]) { skipRow[ci]--; return; }
-      const appt = apptGrid[t][ci];
+      let appt = apptGrid[t][ci];
+      if (appt && drawnAppts.has(appt.id)) appt = null;
       if (appt) {
+        drawnAppts.add(appt.id);
         const aEnd = appt.endTime || addMinutes(appt.time, 30);
-        const rowspan = Math.max(1, Math.round((timeToMinutes(aEnd) - timeToMinutes(appt.time)) / 15));
+        const durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
+        const rowspan = Math.max(1, Math.ceil(durMins / 15));
         if (rowspan > 1) skipRow[ci] = rowspan - 1;
         const client = data.clients.find(c => c.id === appt.clientId);
-        const service = data.services.find(s => s.id === appt.serviceId);
+        const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
+        const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
+        const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
         const color = colorMap[appt.id];
-        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${service?service.name:'?'} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}`;
+        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}`;
         html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ" style="background:${color};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')">${esc(appt.time)}${appt.endTime?'-'+esc(appt.endTime):''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       } else {
         const empId = e ? e.id : '';
@@ -476,11 +522,17 @@ function editAppt(id) {
   document.getElementById('apptEditId').value = id;
   document.getElementById('apptDate').value = a.date;
   document.getElementById('apptTime').value = a.time||'';
+  document.getElementById('apptEndTime').value = a.endTime||'';
   document.getElementById('apptEmployee').value = a.employeeId||'';
   document.getElementById('apptNotes').value = a.notes||'';
   document.getElementById('appointmentModalTitle').textContent = 'Editar Cita';
   document.getElementById('apptClient').value = a.clientId;
-  document.getElementById('apptService').value = a.serviceId||'';
+  apptSelectedServices = (a.serviceIds||(a.serviceId?[a.serviceId]:[])).map(sid => data.services.find(s=>s.id===sid)).filter(Boolean);
+  renderApptServices();
+  document.getElementById('apptServiceSearch').value = '';
+  document.getElementById('apptServiceSearch').dataset.selectedId = '';
+  document.getElementById('apptServiceDropdown').style.display = 'none';
+  document.getElementById('cancelApptBtn').style.display = '';
   document.getElementById('appointmentModal').classList.add('show');
 }
 
@@ -489,17 +541,95 @@ function quickAppt(dateStr, time, employeeId) {
   document.getElementById('apptEditId').value = '';
   document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
   document.getElementById('apptTime').value = time || new Date().toTimeString().slice(0,5);
+  document.getElementById('apptEndTime').value = '';
   document.getElementById('apptEmployee').value = employeeId || '';
   document.getElementById('apptNotes').value = '';
+  apptSelectedServices = [];
+  renderApptServices();
+  document.getElementById('apptServiceSearch').value = '';
+  document.getElementById('apptServiceSearch').dataset.selectedId = '';
+  document.getElementById('apptServiceDropdown').style.display = 'none';
+  document.getElementById('cancelApptBtn').style.display = 'none';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
   document.getElementById('appointmentModal').classList.add('show');
+}
+
+function toggleServiceSelect(show) {
+  const dd = document.getElementById('apptServiceDropdown');
+  if (show) {
+    filterServiceDropdown();
+    dd.style.display = 'block';
+  } else {
+    dd.style.display = 'none';
+  }
+}
+
+function filterServiceDropdown() {
+  const q = document.getElementById('apptServiceSearch').value.toLowerCase().trim();
+  const dd = document.getElementById('apptServiceDropdown');
+  const services = data.services.filter(s => !s._deleted && (!q || s.name.toLowerCase().includes(q)));
+  dd.innerHTML = services.map(s =>
+    `<div class="service-dd-item" data-id="${s.id}" onmousedown="selectServiceFromDropdown('${s.id}')">${esc(s.name)}</div>`
+  ).join('');
+  if (!services.length) {
+    dd.innerHTML = '<div class="service-dd-empty">Sin resultados</div>';
+  }
+}
+
+function selectServiceFromDropdown(id) {
+  const svc = data.services.find(s => s.id === id);
+  if (!svc) return;
+  const inp = document.getElementById('apptServiceSearch');
+  inp.value = svc.name;
+  inp.dataset.selectedId = id;
+  document.getElementById('apptServiceDropdown').style.display = 'none';
+}
+
+let apptSelectedServices = [];
+
+function renderApptServices() {
+  const list = document.getElementById('apptServicesList');
+  if (!apptSelectedServices.length) { list.innerHTML = ''; return; }
+  list.innerHTML = apptSelectedServices.map(s => `
+    <span style="display:inline-flex;align-items:center;gap:4px;background:var(--primary);color:#fff;padding:2px 8px;border-radius:12px;font-size:11px;">
+      ${esc(s.name)} ${s.price ? ' - ' + cur(s.price) : ''}
+      <span onclick="removeApptService('${s.id}')" style="cursor:pointer;font-weight:bold;opacity:.8;">&times;</span>
+    </span>`).join('');
+}
+
+function addApptService() {
+  const inp = document.getElementById('apptServiceSearch');
+  const selId = inp.dataset.selectedId || '';
+  if (!selId) { alert('Selecciona un servicio de la lista'); return; }
+  if (apptSelectedServices.find(s => s.id === selId)) { alert('Servicio ya añadido'); return; }
+  const svc = data.services.find(s => s.id === selId);
+  if (svc) { apptSelectedServices.push(svc); renderApptServices(); updateApptEndFromServices(); }
+  inp.value = '';
+  inp.dataset.selectedId = '';
+  document.getElementById('apptServiceDropdown').style.display = 'none';
+}
+
+function removeApptService(id) {
+  apptSelectedServices = apptSelectedServices.filter(s => s.id !== id);
+  renderApptServices();
+  updateApptEndFromServices();
+}
+
+function updateApptEndFromServices() {
+  const startTime = document.getElementById('apptTime').value;
+  if (!startTime) return;
+  if (!apptSelectedServices.length) { document.getElementById('apptEndTime').value = ''; return; }
+  const totalDur = apptSelectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const [h, m] = startTime.split(':').map(Number);
+  const endM = m + totalDur;
+  const endH = h + Math.floor(endM / 60);
+  const endMin = endM % 60;
+  document.getElementById('apptEndTime').value = String(endH).padStart(2,'0')+':'+String(endMin).padStart(2,'0');
 }
 
 function fillAppointmentSelects() {
   const clientSel = document.getElementById('apptClient');
   clientSel.innerHTML = data.clients.filter(c => !c._deleted).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-  const servSel = document.getElementById('apptService');
-  servSel.innerHTML = '<option value="">Sin servicio</option>' + data.services.filter(s => !s._deleted).map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
   const empSel = document.getElementById('apptEmployee');
   empSel.innerHTML = '<option value="">Sin asignar</option>' + data.employees.filter(e => !e._deleted).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
 }
@@ -552,20 +682,11 @@ function saveAppointment() {
   const clientId = document.getElementById('apptClient').value;
   const date = document.getElementById('apptDate').value;
   const time = document.getElementById('apptTime').value;
-  const serviceId = document.getElementById('apptService').value;
+  const endTime = document.getElementById('apptEndTime').value || '';
+  const serviceId = apptSelectedServices.length === 1 ? apptSelectedServices[0].id : '';
+  const serviceIds = apptSelectedServices.map(s => s.id);
   const employeeId = document.getElementById('apptEmployee').value||'';
   if (!clientId || !date) { alert('Cliente y fecha son obligatorios'); return; }
-  let endTime = '';
-  if (time && serviceId) {
-    const svc = data.services.find(s => s.id === serviceId);
-    if (svc && svc.duration) {
-      const [h, m] = time.split(':').map(Number);
-      const endM = m + (svc.duration || 0);
-      const endH = h + Math.floor(endM / 60);
-      const endMin = endM % 60;
-      endTime = `${String(endH).padStart(2,'0')}:${String(endMin).padStart(2,'0')}`;
-    }
-  }
   const overlap = checkApptOverlap(date, time, endTime, employeeId, id_);
   let msg = '';
   if (overlap) {
@@ -577,14 +698,17 @@ function saveAppointment() {
     if (!confirm(msg)) return;
   }
   const obj = {
-    clientId, serviceId,
+    clientId, serviceId, serviceIds,
     employeeId,
     date, time, endTime, notes: document.getElementById('apptNotes').value.trim(),
     status: 'pending',
     _modified: Date.now(),
     _deleted: false
   };
-  if (id_) { const a = data.appointments.find(x => x.id === id_); if (a) Object.assign(a, obj); }
+  if (id_) {
+    const a = data.appointments.find(x => x.id === id_);
+    if (a) { delete a.waReminder; Object.assign(a, obj); }
+  }
   else { obj.id = id(); data.appointments.push(obj); }
   saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
 }
@@ -594,6 +718,13 @@ function deleteAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (a) { a._deleted = true; a._modified = Date.now(); }
   saveKey('appointments'); renderAgenda(); syncPush();
+}
+
+function deleteApptFromModal() {
+  const id = document.getElementById('apptEditId').value;
+  if (!id) return;
+  deleteAppt(id);
+  closeModal('appointmentModal');
 }
 
 // ============ CLIENTS ============
@@ -619,6 +750,8 @@ function openClientModal() {
   document.getElementById('clientPhone').value = '';
   document.getElementById('clientEmail').value = '';
   document.getElementById('clientNotes').value = '';
+  document.getElementById('clientWhatsApp').checked = false;
+  updateClientWasToggle(false);
   document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
   document.getElementById('clientModal').classList.add('show');
 }
@@ -635,8 +768,23 @@ function editClient(id) {
   document.getElementById('clientPhone').value = c.phone||'';
   document.getElementById('clientEmail').value = c.email||'';
   document.getElementById('clientNotes').value = c.notes||'';
+  document.getElementById('clientWhatsApp').checked = !!c.whatsapp;
+  updateClientWasToggle(!!c.whatsapp);
   document.getElementById('clientModalTitle').textContent = 'Editar Cliente';
   document.getElementById('clientModal').classList.add('show');
+}
+
+function toggleClientWas(el) {
+  const cb = document.getElementById('clientWhatsApp');
+  cb.checked = !cb.checked;
+  updateClientWasToggle(cb.checked);
+}
+function updateClientWasToggle(checked) {
+  const toggle = document.getElementById('clientWhatsAppToggle');
+  const ball = toggle ? toggle.querySelector('div') : null;
+  if (!toggle || !ball) return;
+  toggle.style.background = checked ? '#28a745' : '#ccc';
+  ball.style.left = checked ? '22px' : '2px';
 }
 
 function saveClient() {
@@ -652,6 +800,7 @@ function saveClient() {
     phone: document.getElementById('clientPhone').value.trim(),
     email: document.getElementById('clientEmail').value.trim(),
     notes: document.getElementById('clientNotes').value.trim(),
+    whatsapp: document.getElementById('clientWhatsApp').checked,
     _modified: Date.now(),
     _deleted: false
   };
@@ -785,7 +934,7 @@ function deleteService(id) {
 function renderProducts() {
   const div = document.getElementById('productsList');
   const q = (document.getElementById('searchProduct').value||'').toLowerCase();
-  const list = data.products.filter(p => !p._deleted && p.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
+  const list = data.products.filter(p => p && !p._deleted && (p.name || '').toLowerCase().includes(q)).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   if (!list.length) { div.innerHTML = '<div class="empty-state"><p>No hay productos</p></div>'; return; }
   div.innerHTML = list.map(p => {
     const stock = p.stock||0;
@@ -814,6 +963,7 @@ function editProduct(id) {
   const p = data.products.find(x => x.id === id); if (!p) return;
   document.getElementById('productEditId').value = id;
   document.getElementById('productName').value = p.name;
+  document.getElementById('productBarcode').value = p.barcode||'';
   document.getElementById('productPrice').value = p.price;
   document.getElementById('productCost').value = p.cost||'';
   document.getElementById('productStock').value = p.stock||0;
@@ -830,6 +980,7 @@ function saveProduct() {
   if (!name || isNaN(price) || price<=0) { alert('Nombre y precio válido son obligatorios'); return; }
   const obj = {
     name, price,
+    barcode: document.getElementById('productBarcode').value.trim(),
     cost: parseFloat(document.getElementById('productCost').value)||0,
     stock: parseInt(document.getElementById('productStock').value)||0,
     minStock: parseInt(document.getElementById('productMinStock').value)||5,
@@ -887,7 +1038,56 @@ function saveSyncSettings() {
 
   const c = getSyncCfg();
   if (c.enabled) { syncPush(); startSyncPoller(); } else stopSyncPoller();
-  updateSyncStatus();
+  renderWaReminderList();
+}
+
+function normalizeUrl(u) { if (!u) return ''; u = u.trim(); if (!/^https?:\/\//i.test(u)) u = 'https://' + u; return u.replace(/\/+$/, ''); }
+
+function renderWaReminderList() {
+  const div = document.getElementById('waReminderList');
+  if (!div) return;
+  const now = new Date();
+  const limit = new Date(now.getTime() + 72 * 3600000);
+  const pending = data.appointments.filter(a => {
+    if (!a || a._deleted || !a.date || !a.time) return false;
+    const cl = data.clients.find(c => c.id === a.clientId && !c._deleted);
+    if (!cl || !cl.whatsapp || !cl.phone) return false;
+    const apptTime = new Date(a.date + 'T' + a.time + ':00');
+    return apptTime >= now && apptTime <= limit;
+  });
+  if (!pending.length) { div.innerHTML = '<p style="color:var(--text-light);font-size:12px;text-align:center;">Sin recordatorios pendientes</p>'; return; }
+  pending.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  div.innerHTML = '<table style="width:100%;font-size:12px;"><thead><tr><th>Cliente</th><th>Fecha</th><th>Hora</th><th>Estado</th><th style="width:60px;">Acc.</th></tr></thead><tbody>' +
+    pending.map(a => {
+      const cl = data.clients.find(c => c.id === a.clientId);
+      const dt = new Date(a.date + 'T' + a.time + ':00');
+      const fecha = dt.toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit'});
+      const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
+      const sent = a.waReminder === 'sent';
+      return `<tr style="${sent?'background:#d4edda;':''}"><td>${esc(cl?cl.name:'')}</td><td>${fecha}</td><td>${hora}</td><td>${sent?'<span style="color:#155724;font-weight:bold;">✓</span>':'<span style="color:#856404;font-weight:bold;">⏳</span>'}</td><td>
+        <button class="btn btn-xs ${sent?'btn-secondary':'btn-success'}" onclick="sendWaReminder('${a.id}')">${sent?'↗':'📲'}</button></td></tr>`;
+    }).join('') + '</tbody></table>';
+}
+
+function sendWaReminder(apptId) {
+  const a = data.appointments.find(x => x.id === apptId); if (!a) return;
+  const cl = data.clients.find(c => c.id === a.clientId && !c._deleted); if (!cl || !cl.phone) return;
+  let phone = cl.phone.replace(/\D/g,'');
+  if (!phone.startsWith('34')) phone = '34' + phone;
+  const dt = new Date(a.date + 'T' + a.time + ':00');
+  const dia = dt.toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'});
+  const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
+  const msg = encodeURIComponent('Hola ' + cl.name + '.\nTe recordamos que tienes cita en Nymara Estilistas el ' + dia + ' a las ' + hora + '.\nEn caso de no poder asistir, por favor avísanos con antelación para poder ceder tu plaza.\nTe esperamos!');
+  if (typeof Capacitor !== 'undefined' && Capacitor.Plugins && Capacitor.Plugins.App) {
+    Capacitor.Plugins.App.openUrl({ url: 'https://wa.me/' + phone + '?text=' + msg });
+  } else {
+    window.open('https://wa.me/' + phone + '?text=' + msg, '_blank');
+  }
+  a.waReminder = 'sent';
+  a._modified = Date.now();
+  saveKey('appointments');
+  syncPush();
+  renderWaReminderList();
 }
 
 function updateSyncStatus(msg, isErr) {
@@ -940,7 +1140,10 @@ function syncPush() {
       clients: Array.isArray(data.clients) ? data.clients : [],
       services: Array.isArray(data.services) ? data.services : [],
       employees: Array.isArray(data.employees) ? data.employees : [],
-      products: Array.isArray(data.products) ? data.products : []
+      products: Array.isArray(data.products) ? data.products : [],
+      sections: Array.isArray(data.sections) ? data.sections : [],
+      projects: Array.isArray(data.projects) ? data.projects : [],
+      providers: Array.isArray(data.providers) ? data.providers : []
     })
   }).then(() => updateSyncStatus('✅ Sincronizado ✓')).catch(e => updateSyncStatus('❌ Error sync', true));
 }
@@ -951,6 +1154,14 @@ function mergeRemote(type, remote) {
   const localMap = new Map(data[type].map(item => [item.id, item]));
   let changed = false;
   remote.forEach(item => {
+    if (['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'].includes(type)) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+      if (typeof item.name !== 'string' || item.name.trim() === '') return;
+      const keys = Object.keys(item);
+      const isCorrupted = keys.some(key => key.includes('\u0011') || key.includes('\u001a') || key.includes('\u0000') || key.includes('\u0003') || key.includes('\u0004'));
+      if (isCorrupted) return;
+    }
+
     const existing = localMap.get(item.id);
     if (!existing) { data[type].push(item); changed = true; }
     else if ((item._modified||0) > (existing._modified||0)) { 
@@ -977,7 +1188,11 @@ function syncPull() {
       if (mergeRemote('services', remote.services)) { saveKey('services'); changed = true; }
       if (mergeRemote('employees', remote.employees)) { saveKey('employees'); changed = true; }
       if (mergeRemote('products', remote.products)) { saveKey('products'); changed = true; }
+      if (mergeRemote('sections', remote.sections)) { saveKey('sections'); changed = true; }
+      if (mergeRemote('projects', remote.projects)) { saveKey('projects'); changed = true; }
+      if (mergeRemote('providers', remote.providers)) { saveKey('providers'); changed = true; }
       if (changed) {
+        renderWaReminderList();
         const active = document.querySelector('.bottom-nav .tab.active');
         if (active) {
           const tab = active.dataset.tab;
@@ -1175,9 +1390,17 @@ function showImportResult(events) {
 }
 
 // ============ INIT ============
+function awakeRender() {
+  const c = getSyncCfg();
+  if (!c.enabled || !c.url) return;
+  fetch(c.url.replace(/\/+$/, '') + '/api/sync-pull', { method: 'POST' }).catch(() => {});
+}
+
 renderAgenda();
 renderClients();
+renderWaReminderList();
 loadSyncSettings();
+awakeRender();
 if (getSyncCfg().enabled) {
   syncPull();
   startSyncPoller();

@@ -563,7 +563,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Empleado</label><select id="apptEmployee"></select></div>
       <div class="form-group"><label>Notas</label><textarea id="apptNotes" placeholder="Notas..."></textarea></div>
     </div>
-    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cancelar</button><button class="btn btn-primary" onclick="saveAppointment()">Guardar</button></div>
+    <div class="modal-footer"><button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button><button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button><button class="btn btn-primary" onclick="saveAppointment()">Guardar</button></div>
     <input type="hidden" id="apptEditId">
   </div>
 </div>
@@ -2402,6 +2402,7 @@ function editAppt(id) {
   document.getElementById('apptServiceSearch').value = '';
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
+  document.getElementById('cancelApptBtn').style.display = '';
   openModal('appointmentModal');
 }
 
@@ -2418,6 +2419,7 @@ function quickAppt(dateStr, time, employeeId) {
   document.getElementById('apptServiceSearch').value = '';
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
+  document.getElementById('cancelApptBtn').style.display = 'none';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
   openModal('appointmentModal');
 }
@@ -2603,6 +2605,13 @@ function deleteAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (a) { a._deleted = true; a._modified = Date.now(); }
   saveKey('appointments'); renderAgenda(); syncPush();
+}
+
+function deleteApptFromModal() {
+  const id = document.getElementById('apptEditId').value;
+  if (!id) return;
+  deleteAppt(id);
+  closeModal('appointmentModal');
 }
 
 function exportToIcs() {
