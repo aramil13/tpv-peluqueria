@@ -154,7 +154,11 @@ section { padding: 70px 0; }
 
 .clickable { cursor: pointer; }
 
-.service-icon { font-size: 36px; margin-bottom: 16px; }
+.service-icon {
+  width: 56px; height: 56px; display: flex; align-items: center; justify-content: center;
+  background: var(--accent); border-radius: 16px; margin-bottom: 16px;
+}
+.service-icon svg { width: 32px; height: 32px; color: var(--primary); }
 
 .service-card h3 { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
 
