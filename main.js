@@ -17,7 +17,7 @@ function createWindow() {
   });
 
   mainWindow.loadFile('index.html');
-  // mainWindow.webContents.openDevTools(); // Descomentar para depurar
+  // mainWindow.webContents.openDevTools();
 
   mainWindow.on('closed', function () {
     mainWindow = null;

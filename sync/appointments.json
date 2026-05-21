@@ -1,4 +1,4 @@
-{
+en almacen del TPV, poner en cada fila{
   "appointments": [
     {
       "clientId": "moycytfbdc7n",
@@ -267,5 +267,11 @@
       "id": "mp1jb3yb5ici"
     }
   ],
-  "lastModified": 1778524269054
+  "lastModified": 1779266171495,
+  "products": [],
+  "projects": [],
+  "movements": [],
+  "sections": [],
+  "providers": [],
+  "settings": {}
 }

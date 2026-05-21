@@ -16,6 +16,7 @@ const SYNC_FILE = process.env.SYNC_FILE || path.join(DATA_DIR, 'appointments.jso
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const SYNC_FORWARD_URL = process.env.SYNC_FORWARD_URL || '';
 const SYNC_FORWARD_KEY = process.env.SYNC_FORWARD_KEY || '';
+const WEB_API_KEY = process.env.WEB_API_KEY || '';
 
 // Email config
 const SMTP_HOST = process.env.SMTP_HOST || '';
@@ -149,6 +150,20 @@ function readData() {
       if (!Array.isArray(raw.sections)) raw.sections = [];
       if (!Array.isArray(raw.providers)) raw.providers = [];
       if (!raw.settings) raw.settings = {};
+      
+      // Auto-heal database on read (remove binary Excel corrupted items)
+      ['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'].forEach(k => {
+        if (Array.isArray(raw[k])) {
+          raw[k] = raw[k].filter(item => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+            if (typeof item.name !== 'string' || item.name.trim() === '') return false;
+            const keys = Object.keys(item);
+            const isCorrupted = keys.some(key => key.includes('\u0011') || key.includes('\u001a') || key.includes('\u0000') || key.includes('\u0003') || key.includes('\u0004'));
+            return !isCorrupted;
+          });
+        }
+      });
+
       return raw;
     }
   } catch (e) { /* fall through */ }
@@ -184,6 +199,24 @@ function mergeArray(local, remote) {
 }
 
 function pathname(url) { return url.split('?')[0].split('#')[0] }
+
+function computeETag(data) {
+  const hash = require('crypto').createHash('md5').update(JSON.stringify(data)).digest('hex');
+  return '"' + hash + '"';
+}
+
+function sanitizeUrl(url) {
+  if (!url || typeof url !== 'string') return '';
+  const s = url.trim();
+  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+  return '';
+}
+
+function requireWebAuth(req, res) {
+  if (!WEB_API_KEY) return true;
+  const auth = req.headers['authorization'] || '';
+  return auth === 'Bearer ' + WEB_API_KEY || auth === WEB_API_KEY;
+}
 
 // === SEED DATA for fresh deployments (Render) ===
 function seedInitialData() {
@@ -474,27 +507,64 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
   }
 
   if (url === '/api/web-products' && req.method === 'GET') {
+    if (!requireWebAuth(req, res)) {
+      res.writeHead(401, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
     const d = readData();
     const webProducts = (d.products||[]).filter(p => p.showOnWeb && !p._deleted);
-    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify(webProducts.map(p => ({ price: p.price, description: p.description||'', photo: p.photo||'' }))));
+    const body = JSON.stringify(webProducts.map(p => ({
+      name: p.name || '',
+      price: p.price,
+      description: p.description||'',
+      photo: sanitizeUrl(p.photo)
+    })));
+    const etag = computeETag(body);
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { ...CORS_HEADERS, 'ETag': etag });
+      res.end();
+      return;
+    }
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8', 'ETag': etag, 'Cache-Control': 'no-cache' });
+    res.end(body);
     return;
   }
 
   if (url === '/api/web-offers' && req.method === 'GET') {
+    if (!requireWebAuth(req, res)) {
+      res.writeHead(401, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
     const d = readData();
     const webOffers = (d.projects||[]).filter(p => p.showOnWeb && !p._deleted);
     const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
     const prodMap = {}; (d.products||[]).forEach(p => prodMap[p.id] = p);
-    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8' });
-    res.end(JSON.stringify(webOffers.map(p => {
+    const payload = webOffers.map(p => {
       const serviceTotal = (p.services||[]).reduce((sum, sid) => { const price = svcMap[sid]?.price || 0; return sum + price; }, 0);
       const productTotal = (p.products||[]).reduce((sum, pid) => { const price = prodMap[pid]?.price || 0; return sum + price; }, 0);
       const subtotal = serviceTotal + productTotal;
       const discount = p.discount || 0;
       const totalPrice = subtotal * (1 - discount / 100);
-      return { services: p.services||[], products: p.products||[], discount: p.discount||0, description: p.description||'', photo: p.photo||'', totalPrice: Math.round(totalPrice * 100) / 100 };
-    })));
+      return { services: p.services||[], products: p.products||[], discount: p.discount||0, description: p.description||'', photo: sanitizeUrl(p.photo), totalPrice: Math.round(totalPrice * 100) / 100 };
+    });
+    const body = JSON.stringify(payload);
+    const etag = computeETag(body);
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { ...CORS_HEADERS, 'ETag': etag });
+      res.end();
+      return;
+    }
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8', 'ETag': etag, 'Cache-Control': 'no-cache' });
+    res.end(body);
+    return;
+  }
+
+  if (url === '/api/sync-pull' && req.method === 'POST') {
+    pullFromSync();
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, message: 'Sync pull triggered' }));
     return;
   }
 
@@ -706,8 +776,13 @@ function sendStaticFile(res, baseDir, filePath) {
     }
     const ext = path.extname(fullPath);
     const mimes = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
+    let data = content;
+    if (ext === '.html' && WEB_API_KEY) {
+      const inject = `<script>window.__WEB_API_KEY__=${JSON.stringify(WEB_API_KEY)};</script>`;
+      data = content.toString().replace('</head>', inject + '</head>');
+    }
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': mimes[ext] || 'application/octet-stream' });
-    res.end(content);
+    res.end(data);
   });
 }
 

@@ -5,7 +5,8 @@
     "main.js",
     "sync-helper.js",
     "package.json",
-    "booking/**"
+    "booking/**",
+    "lib/**"
   ],
   "win": {
     "target": "portable",

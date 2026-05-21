@@ -563,7 +563,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Empleado</label><select id="apptEmployee"></select></div>
       <div class="form-group"><label>Notas</label><textarea id="apptNotes" placeholder="Notas..."></textarea></div>
     </div>
-    <div class="modal-footer"><button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button><button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button><button class="btn btn-primary" onclick="saveAppointment()">Guardar</button></div>
+    <div class="modal-footer"><button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button><button class="btn btn-success" id="whatsappApptBtn" style="display:none;" onclick="sendWaReminderFromModal()">📱 WhatsApp</button><button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button><button class="btn btn-primary" onclick="saveAppointment()">Guardar</button></div>
     <input type="hidden" id="apptEditId">
   </div>
 </div>
@@ -1259,14 +1259,21 @@ function sendWaReminder(apptId) {
   const dt = new Date(a.date + 'T' + a.time + ':00');
   const dia = dt.toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'});
   const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
-  const phone = cl.phone.replace(/\D/g,'');
-  const msg = encodeURIComponent(`Hola ${cl.name}.\nTe recordamos que tienes cita en Nymara Estilistas el ${dia} a las ${hora}.\nEn caso de no poder asistir, por favor avísanos con antelación para poder ceder tu plaza.\nTe esperamos!`);
-  window.location.href = `https://api.whatsapp.com/send?phone=${phone}&text=${msg}`;
+  let phone = cl.phone.replace(/\D/g,'');
+  if (phone.length === 9 && (phone.startsWith('6') || phone.startsWith('7'))) phone = '34' + phone;
+  const bizName = (data.settings && data.settings.businessName) ? data.settings.businessName : 'Nymara Estilistas';
+  const msg = encodeURIComponent(`Hola ${cl.name}.\nTe recordamos que tienes cita en ${bizName} el ${dia} a las ${hora}.\nEn caso de no poder asistir, por favor avísanos con antelación para poder ceder tu plaza.\nTe esperamos!`);
+  window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
   a.waReminder = 'sent';
   a._modified = Date.now();
   saveKey('appointments');
   syncPush();
   renderWaReminderList();
+}
+
+function sendWaReminderFromModal() {
+  const id = document.getElementById('apptEditId').value;
+  if (id) sendWaReminder(id);
 }
 
 function updateAppHeader() {
@@ -2403,12 +2410,18 @@ function editAppt(id) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
+  const btnWa = document.getElementById('whatsappApptBtn');
+  if (btnWa) {
+    const cl = data.clients.find(c => c.id === a.clientId);
+    btnWa.style.display = (cl && cl.phone) ? 'inline-flex' : 'none';
+  }
   openModal('appointmentModal');
 }
 
 function quickAppt(dateStr, time, employeeId) {
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
+  document.getElementById('whatsappApptBtn').style.display = 'none';
   document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
   document.getElementById('apptTime').value = time || '10:00';
   document.getElementById('apptEndTime').value = '';
