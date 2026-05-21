@@ -59,7 +59,7 @@
         <div class="service-icon">🔬</div>
         <h3>Diagnósticos Capilares</h3>
         <p>Análisis profesional del cuero cabelludo y cabello para determinar el tratamiento ideal.</p>
-        <span class="service-price">Desde 20€</span>
+        <span class="service-price">Gratis</span>
       </div>
       <div class="service-card">
         <div class="service-icon">✂️</div>
@@ -90,12 +90,6 @@
         <h3>Cepillado</h3>
         <p>Lavado y cepillado con productos profesionales para tu tipo de cabello.</p>
         <span class="service-price">Desde 15€</span>
-      </div>
-      <div class="service-card">
-        <div class="service-icon">✨</div>
-        <h3>Extensiones</h3>
-        <p>Extensiones de calidad. Volumen y longitud con resultado natural.</p>
-        <span class="service-price">Consulta precio</span>
       </div>
     </div>
   </div>
@@ -174,6 +168,7 @@
         <div class="contact-item">✉️ <a href="mailto:nymara.estilistas@gmail.com">nymara.estilistas@gmail.com</a></div>
         <div class="contact-item">💬 <a href="https://wa.me/34624143658" target="_blank">WhatsApp</a></div>
         <div class="contact-item">📸 <a href="https://www.instagram.com/nymara.estilistas" target="_blank">@nymara.estilistas</a></div>
+        <a href="https://g.page/r/CYQDlg4VuoCEEAE/review" target="_blank" class="btn-primary" style="background:#1a73e8;box-shadow:0 4px 15px rgba(26,115,232,.3);margin-bottom:12px;">⭐ Deja tu reseña en Google</a>
         <a href="/booking" class="btn-primary" style="margin-top:20px;">Reserva tu cita online</a>
       </div>
       <div class="contact-map">
@@ -188,7 +183,32 @@
 </footer>
 
 <script>
-fetch('/api/web-products').then(r => { console.log('products status:', r.status); return r.json(); }).then(products => {
+const API_KEY = window.__WEB_API_KEY__ || '';
+const AUTH_HEADERS = API_KEY ? { 'Authorization': 'Bearer ' + API_KEY } : {};
+
+async function fetchJSON(url) {
+  const cacheKey = 'webcache_' + url;
+  const cached = localStorage.getItem(cacheKey);
+  let etag = '';
+  if (cached) {
+    try { const p = JSON.parse(cached); if (p.etag) etag = p.etag; } catch(e) {}
+  }
+  const headers = { ...AUTH_HEADERS };
+  if (etag) headers['If-None-Match'] = etag;
+  const res = await fetch(url, { headers });
+  if (res.status === 304 && cached) {
+    try { return JSON.parse(cached).data; } catch(e) {}
+  }
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const data = await res.json();
+  const newEtag = res.headers.get('ETag') || '';
+  if (newEtag) localStorage.setItem(cacheKey, JSON.stringify({ etag: newEtag, data }));
+  return data;
+}
+
+fetch('/api/sync-pull', { method: 'POST' }).then(r => r.json()).then(d => console.log('sync-pull:', d)).catch(e => console.log('sync-pull error:', e));
+
+fetchJSON('/api/web-products').then(products => {
   console.log('products:', products);
   const grid = document.getElementById('webProductsGrid');
   if (!products.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
@@ -196,7 +216,8 @@ fetch('/api/web-products').then(r => { console.log('products status:', r.status)
     <div class="product-card">
       ${p.photo ? `<div class="product-photo"><img src="${p.photo}" alt="Producto" loading="lazy"></div>` : '<div class="product-photo"><div class="product-photo-placeholder">🧴</div></div>'}
       <div class="product-info">
-        ${p.description ? `<p>${p.description}</p>` : '<p style="color:var(--text-light);">Sin descripción</p>'}
+        <h3>${esc(p.name)}</h3>
+        ${p.description ? `<p>${esc(p.description)}</p>` : ''}
         <span class="product-price">${parseFloat(p.price).toFixed(2)}€</span>
       </div>
     </div>
@@ -204,7 +225,7 @@ fetch('/api/web-products').then(r => { console.log('products status:', r.status)
   document.getElementById('productsCount').textContent = 'Total: ' + products.length + ' producto' + (products.length !== 1 ? 's' : '');
 }).catch(e => { console.log('products error:', e); document.getElementById('webProductsGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Error: '+e.message+'</p>'; });
 
-fetch('/api/web-offers').then(r => { console.log('offers status:', r.status); return r.json(); }).then(offers => {
+fetchJSON('/api/web-offers').then(offers => {
   console.log('offers:', offers);
   const grid = document.getElementById('webOffersGrid');
   if (!offers.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
@@ -212,19 +233,23 @@ fetch('/api/web-offers').then(r => { console.log('offers status:', r.status); re
     return `<div class="offer-card">
       ${o.photo ? `<div class="offer-photo"><img src="${o.photo}" alt="Oferta" loading="lazy"></div>` : '<div class="offer-photo"><div class="offer-photo-placeholder">🏷️</div></div>'}
       <div class="offer-info">
-        ${o.description ? `<p>${o.description}</p>` : '<p style="color:var(--text-light);">Sin descripción</p>'}
+        ${o.description ? `<p>${esc(o.description)}</p>` : '<p style="color:var(--text-light);">Sin descripción</p>'}
         <div>
           ${o.discount > 0 ? `<span class="offer-discount">-${o.discount}%</span>` : ''}
           <span class="offer-price">${o.totalPrice !== undefined ? o.totalPrice.toFixed(2) + '€' : 'Precio no disponible'}</span>
-    </div>
-    <div style="text-align:center;margin-top:32px;">
-      <a href="https://g.page/r/CYQDlg4VuoCEEAE/review" target="_blank" class="btn-primary" style="background:#1a73e8;box-shadow:0 4px 15px rgba(26,115,232,.3);">⭐ Deja tu reseña en Google</a>
     </div>
   </div>
     </div>`;
   }).join('');
   document.getElementById('offersCount').textContent = 'Total: ' + offers.length + ' oferta' + (offers.length !== 1 ? 's' : '');
 }).catch(e => { console.log('offers error:', e); document.getElementById('webOffersGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Error: '+e.message+'</p>'; });
+
+function esc(s) {
+  if (!s) return '';
+  const d = document.createElement('div');
+  d.appendChild(document.createTextNode(s));
+  return d.innerHTML;
+}
 </script>
 </body>
 </html>

@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>TPV Peluquería - Terminal Punto de Venta</title>
+<script src="lib/xlsx.full.min.js"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -69,6 +70,11 @@ tr:hover td { background: #f8f9fa; }
 .search-bar { display: flex; gap: 10px; margin-bottom: 15px; }
 .search-bar input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
 .search-bar input:focus { outline: none; border-color: var(--primary); }
+.alphabet-filter { display: flex; flex-wrap: wrap; gap: 4px; padding: 10px 15px; background: #faf8fb; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 15px; align-items: center; }
+.alphabet-label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--primary-dark); margin-right: 8px; }
+.alphabet-btn { background: #fff; border: 1px solid var(--border); color: #555; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; min-width: 28px; text-align: center; transition: all 0.2s; user-select: none; }
+.alphabet-btn:hover { background: var(--primary-light); color: #fff; border-color: var(--primary-light); }
+.alphabet-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
 .badge { display: inline-block; padding: 3px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
 .badge-success { background: #d4efdf; color: #1a6e3a; }
 .badge-warning { background: #fdebd0; color: #935d0a; }
@@ -83,6 +89,9 @@ tr:hover td { background: #f8f9fa; }
 .form-group-inline { display:flex;align-items:center;gap:8px;margin-bottom:8px; }
 .form-group-inline label { font-size:13px;font-weight:500;white-space:nowrap;cursor:pointer; }
 .form-group-inline input[type="checkbox"] { width:auto;cursor:pointer; }
+.service-dd-item { padding:8px 10px; cursor:pointer; white-space:nowrap; font-size:13px; border-bottom:1px solid #eee; }
+.service-dd-item:hover { background:var(--primary); color:#fff; }
+.service-dd-empty { padding:8px 10px; color:#999; font-size:12px; }
 .pos-container { display: grid; grid-template-columns: 1fr 400px; gap: 20px; }
 .pos-ticket { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 20px; }
 .pos-ticket-header { text-align: center; padding-bottom: 10px; border-bottom: 2px dashed var(--border); margin-bottom: 10px; }
@@ -125,10 +134,10 @@ tr:hover td { background: #f8f9fa; }
 .appt-grid { border-collapse: collapse; width: 100%; font-size: 12px; }
 .appt-grid th { position: sticky; top: 0; background: var(--primary); color: #fff; padding: 8px 6px; font-weight: 600; text-align: center; white-space: nowrap; z-index: 2; }
 .appt-grid th:first-child { background: var(--primary-dark); z-index: 3; left: 0; }
-.appt-grid td { padding: 4px; text-align: center; border: 1px solid var(--border); }
-.appt-grid .appt-grid-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; position: sticky; left: 0; z-index: 1; font-size: 11px; width: 45px; }
+.appt-grid td { padding: 0; text-align: center; border: 1px solid var(--border); height: 35px; vertical-align: top; }
+.appt-grid .appt-grid-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; position: sticky; left: 0; z-index: 1; font-size: 11px; width: 50px; height: 35px; vertical-align: middle; }
 .appt-grid-cell { padding: 0 !important; min-width: 60px; }
-.appt-grid-occ { color: #fff; font-size: 10px; font-weight: 600; cursor: pointer; border-radius: 8px; line-height: 1.3; text-shadow: 0 1px 3px rgba(0,0,0,.3); transition: opacity .15s; position: relative; }
+.appt-grid-occ { color: #fff; font-size: 10px; font-weight: 600; cursor: pointer; border-radius: 8px; line-height: 1.3; text-shadow: 0 1px 3px rgba(0,0,0,.3); transition: opacity .15s; position: relative; padding: 4px 6px !important; height: auto; box-sizing: border-box; }
 .appt-grid-occ:hover { opacity: .85; }
 .appt-grid-del { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; background: rgba(0,0,0,.3); color: #fff; border-radius: 50%; font-size: 9px; line-height: 16px; text-align: center; cursor: pointer; text-shadow: none; display: none; }
 .appt-grid-occ:hover .appt-grid-del { display: block; }
@@ -214,6 +223,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="pos-container">
         <div class="card">
           <div class="pos-search"><input type="text" id="posSearch" placeholder="Buscar servicios o productos..." oninput="filterPosItems()"></div>
+          <div class="alphabet-filter" id="posAlphabetFilter" style="margin: 0 15px 15px 15px;"></div>
           <div class="pos-items-header" id="posTabs">
             <button class="btn btn-primary" onclick="filterPosItems('services')">Servicios</button>
             <button class="btn btn-secondary" onclick="filterPosItems('products')">Productos</button>
@@ -228,7 +238,7 @@ tr:hover td { background: #f8f9fa; }
             <div class="pos-ticket-header">
               <h3 id="posTicketHeader">TPV Peluquería</h3>
               <p id="ticketDate"></p>
-              <div id="editBadge" style="display:none;margin-top:6px;padding:4px 8px;background:#fdebd0;color:#935d0a;border-radius:4px;font-size:12px;font-weight:500;">✏️ Editando ticket <span id="editBadgeNum"></span> <button class="btn btn-sm" style="background:transparent;border:1px solid #935d0a;color:#935d0a;padding:2px 8px;margin-left:6px;" onclick="cancelEditTicket()">Cancelar</button></div>
+              <div id="editBadge" style="display:none;margin-top:6px;padding:4px 8px;background:#fdebd0;color:#935d0a;border-radius:4px;font-size:12px;font-weight:500;">✏️ Editando <span id="editBadgeLabel">ticket</span> <span id="editBadgeNum"></span> <button class="btn btn-sm" style="background:transparent;border:1px solid #935d0a;color:#935d0a;padding:2px 8px;margin-left:6px;" onclick="cancelEditTicket()">Cancelar</button></div>
             </div>
             <div id="ticketItems"></div>
             <div class="ticket-total">
@@ -278,8 +288,9 @@ tr:hover td { background: #f8f9fa; }
     <!-- SERVICES -->
     <div class="section" id="sec-services">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Servicios</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('services')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('services')">📤 Exportar</button><button class="btn btn-primary" onclick="openServiceModal()">+ Nuevo Servicio</button></div></div>
+        <div class="card-header"><h3>Gestión de Servicios</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('services')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('services')">📤 Exportar</button><button class="btn btn-danger btn-sm" onclick="clearAllData('services')">🗑️ Vaciar</button><button class="btn btn-primary" onclick="openServiceModal()">+ Nuevo Servicio</button></div></div>
         <div class="search-bar"><input type="text" id="searchService" placeholder="Buscar servicio..." oninput="renderServices()"></div>
+        <div class="alphabet-filter" id="serviceAlphabetFilter"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Sección</th><th>Duración</th><th>Precio</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="servicesTable"></tbody></table></div>
       </div>
     </div>
@@ -305,8 +316,9 @@ tr:hover td { background: #f8f9fa; }
     <!-- PRODUCTS -->
     <div class="section" id="sec-products">
       <div class="card">
-        <div class="card-header"><h3>Gestión de Productos</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('products')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('products')">📤 Exportar</button><button class="btn btn-primary" onclick="openProductModal()">+ Nuevo Producto</button></div></div>
+        <div class="card-header"><h3>Gestión de Productos</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('products')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('products')">📤 Exportar</button><button class="btn btn-danger btn-sm" onclick="clearAllData('products')">🗑️ Vaciar</button><button class="btn btn-primary" onclick="openProductModal()">+ Nuevo Producto</button></div></div>
         <div class="search-bar"><input type="text" id="searchProduct" placeholder="Buscar producto..." oninput="renderProducts()"></div>
+        <div class="alphabet-filter" id="productAlphabetFilter"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Proveedor</th><th>Precio Venta</th><th>Stock</th><th>Stock Mín.</th><th>Estado</th><th>Web</th><th>Acciones</th></tr></thead><tbody id="productsTable"></tbody></table></div>
       </div>
     </div>
@@ -323,7 +335,8 @@ tr:hover td { background: #f8f9fa; }
     <!-- WAREHOUSE -->
     <div class="section" id="sec-warehouse">
       <div class="card">
-        <div class="card-header"><h3>Control de Almacén</h3><button class="btn btn-primary" onclick="openWarehouseMovement()">+ Movimiento</button></div>
+        <div class="card-header"><h3>Control de Almacén</h3></div>
+        <div class="search-bar" style="padding:0 15px 10px;"><input type="text" id="searchWarehouse" placeholder="Buscar producto en almacén..." oninput="renderWarehouse()"></div>
         <div class="tabs">
           <div class="tab active" onclick="switchWarehouseTab('stock',this)">Stock Actual</div>
           <div class="tab" onclick="switchWarehouseTab('movements',this)">Historial Movimientos</div>
@@ -408,6 +421,11 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Email</label><input type="email" id="clientEmail" placeholder="email@ejemplo.com"></div>
     </div>
     <div class="form-group"><label>Notas</label><textarea id="clientNotes" placeholder="Notas adicionales..."></textarea></div>
+    <div class="form-group-inline" style="justify-content:space-between;flex-wrap:wrap;gap:4px 12px;">
+      <input type="checkbox" id="clientWhatsApp" style="display:none;">
+    <div id="clientWhatsAppToggle" onclick="toggleClientWas(this)" style="width:44px;height:24px;background:#ccc;border-radius:12px;position:relative;transition:background .2s;cursor:pointer;"><div style="width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .2s;pointer-events:none;"></div></div>
+    <span id="clientWhatsAppLabel" style="font-size:13px;">Enviar recordatorio WhatsApp (72h antes)</span>
+    </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button><button class="btn btn-primary" onclick="saveClient()">Guardar</button></div>
     <input type="hidden" id="clientEditId">
   </div>
@@ -448,10 +466,12 @@ tr:hover td { background: #f8f9fa; }
         <span>Servicios incluidos</span>
         <span id="selectedCount" style="font-size:12px;color:var(--text-light);background:var(--bg);padding:2px 10px;border-radius:10px;">0 seleccionados</span>
       </label>
+      <input type="text" id="projectServicesSearch" placeholder="Buscar servicio..." oninput="renderProjectServices()" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;">
       <div id="projectServices" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px;"></div>
     </div>
     <div class="form-group">
       <label>Productos incluidos</label>
+      <input type="text" id="projectProductsSearch" placeholder="Buscar producto..." oninput="renderProjectProducts()" style="width:100%;padding:7px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:6px;box-sizing:border-box;">
       <div id="projectProducts" style="max-height:180px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px;"></div>
     </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 0;border-top:1px solid var(--border);margin-top:4px;">
@@ -487,11 +507,12 @@ tr:hover td { background: #f8f9fa; }
     <div class="modal-header"><h3 id="productModalTitle">Nuevo Producto</h3><button class="modal-close" onclick="closeModal('productModal')">&times;</button></div>
     <div class="grid-2">
       <div class="form-group"><label>Nombre *</label><input type="text" id="productName" placeholder="Nombre del producto"></div>
-      <div class="form-group"><label>Precio Venta *</label><input type="number" id="productPrice" placeholder="0.00" step="0.01" min="0"></div>
-      <div class="form-group"><label>Precio Coste</label><input type="number" id="productCost" placeholder="0.00" step="0.01" min="0"></div>
-      <div class="form-group"><label>Stock Inicial</label><input type="number" id="productStock" placeholder="0" min="0" value="0"></div>
-      <div class="form-group"><label>Stock Mínimo</label><input type="number" id="productMinStock" placeholder="5" min="0" value="5"></div>
-      <div class="form-group"><label>IVA (%)</label><input type="number" id="productIva" placeholder="21" step="0.01" min="0" max="100" value="21"></div>
+      <div class="form-group"><label>Código Barras</label><input type="text" id="productBarcode" placeholder="Escaner código barras" inputmode="numeric"></div>
+      <div class="form-group"><label>Precio Venta *</label><input type="text" id="productPrice" placeholder="0.00" inputmode="decimal"></div>
+      <div class="form-group"><label>Precio Coste</label><input type="text" id="productCost" placeholder="0.00" inputmode="decimal"></div>
+      <div class="form-group"><label>Stock Actual</label><input type="text" id="productStock" placeholder="0" inputmode="numeric"></div>
+      <div class="form-group"><label>Stock Mínimo</label><input type="text" id="productMinStock" placeholder="5" inputmode="numeric"></div>
+      <div class="form-group"><label>IVA (%)</label><input type="text" id="productIva" placeholder="21" inputmode="decimal"></div>
       <div class="form-group"><label>Proveedor</label><select id="productProvider"><option value="">Sin proveedor</option></select></div>
       <div class="form-group"><label>Foto</label><div style="display:flex;gap:8px;align-items:center;"><input type="text" id="productPhoto" placeholder="URL o selecciona archivo" style="flex:1;" oninput="updatePhotoPreview(this.value,'productPhotoPreview')"><input type="file" id="productPhotoFile" accept="image/*" style="display:none;" onchange="handleLocalPhoto(this,'productPhoto')"><button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('productPhotoFile').click()">📁</button></div><div id="productPhotoPreview" style="margin-top:8px;"></div></div>
     </div>
@@ -524,9 +545,19 @@ tr:hover td { background: #f8f9fa; }
     <div class="modal-header"><h3 id="appointmentModalTitle">Nueva Cita</h3><button class="modal-close" onclick="closeModal('appointmentModal')">&times;</button></div>
     <div class="grid-2">
       <div class="form-group"><label>Cliente *</label><select id="apptClient"></select></div>
-      <div class="form-group"><label>Servicio</label><select id="apptService"></select></div>
+      <div class="form-group"><label>Servicios</label>
+        <div id="apptServicesList" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <div style="position:relative;flex:1;">
+            <input type="text" id="apptServiceSearch" placeholder="Buscar servicio..." autocomplete="off" oninput="filterServiceDropdown()" onfocus="toggleServiceSelect(true)" onblur="setTimeout(()=>toggleServiceSelect(false),200)">
+            <div id="apptServiceDropdown" style="position:absolute;top:100%;left:0;width:100%;z-index:100;display:none;background:#fff;border:1px solid #ccc;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:200px;overflow-y:auto;"></div>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="addApptService()" style="white-space:nowrap;">+ Añadir</button>
+        </div>
+      </div>
       <div class="form-group"><label>Fecha *</label><input type="date" id="apptDate"></div>
-      <div class="form-group"><label>Hora *</label><input type="time" id="apptTime"></div>
+      <div class="form-group"><label>Hora Inicio *</label><input type="time" id="apptTime" oninput="updateApptEndFromServices()"></div>
+      <div class="form-group"><label>Hora Fin *</label><input type="time" id="apptEndTime"></div>
     </div>
     <div class="grid-2">
       <div class="form-group"><label>Empleado</label><select id="apptEmployee"></select></div>
@@ -580,6 +611,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="tab" onclick="switchSettingsTab('invoice',this)">Factura</div>
       <div class="tab" onclick="switchSettingsTab('iva',this)">IVA</div>
       <div class="tab" onclick="switchSettingsTab('sync',this)">Sync</div>
+      <div class="tab" onclick="switchSettingsTab('whatsapp',this)">Recordatorios WAS</div>
     </div>
     <div id="settingsBusiness">
       <div class="grid-2">
@@ -595,15 +627,33 @@ tr:hover td { background: #f8f9fa; }
     </div>
     <div id="settingsTicket" style="display:none;">
       <div class="form-group"><label>Pie del Ticket</label><textarea id="setTicketFooter" placeholder="Mensaje al pie del ticket" style="min-height:60px;"></textarea></div>
+      <div style="margin-top:15px;padding-top:12px;border-top:1px solid var(--border);">
+        <div style="font-size:13px;margin-bottom:4px;"><strong>Numeración de Tickets</strong></div>
+        <div style="font-size:12px;margin-bottom:8px;">Actual: <span id="currentTicketNum" style="font-weight:600;">1</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+          <button class="btn btn-primary btn-sm" onclick="backupTicketCounter()">📦 Backup (→ #1)</button>
+          <button class="btn btn-secondary btn-sm" onclick="restoreTicketCounter()">♻️ Restaurar</button>
+        </div>
+        <div id="ticketBackupList" style="font-size:12px;"></div>
+      </div>
     </div>
     <div id="settingsInvoice" style="display:none;">
       <div class="form-group"><label>Prefijo de Factura</label><input type="text" id="setInvoicePrefix" placeholder="FACT-"></div>
       <div class="form-group"><label>Pie de Factura</label><textarea id="setInvoiceFooter" placeholder="Mensaje al pie de la factura" style="min-height:60px;"></textarea></div>
+      <div style="margin-top:15px;padding-top:12px;border-top:1px solid var(--border);">
+        <div style="font-size:13px;margin-bottom:4px;"><strong>Numeración de Facturas</strong></div>
+        <div style="font-size:12px;margin-bottom:8px;">Actual: <span id="currentInvoiceNum" style="font-weight:600;">1</span></div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+          <button class="btn btn-primary btn-sm" onclick="backupInvoiceCounter()">📦 Backup (→ #1)</button>
+          <button class="btn btn-secondary btn-sm" onclick="restoreInvoiceCounter()">♻️ Restaurar</button>
+        </div>
+        <div id="invoiceBackupList" style="font-size:12px;"></div>
+      </div>
     </div>
     <div id="settingsIva" style="display:none;">
       <div class="form-group"><label>Tipo de IVA (%)</label><input type="number" id="ivaRate" step="0.01" min="0" max="100"></div>
     </div>
-    <div id="settingsSync" style="display:none;">
+<div id="settingsSync" style="display:none;">
       <div class="form-group" style="margin-bottom:6px;"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="syncEnabled" style="width:auto;"> Activar sincronización automática</label></div>
       <div class="form-group"><label>URL del servidor Sync</label><input type="text" id="syncUrl" placeholder="http://192.168.1.100:3456"></div>
       <div style="font-size:12px;color:var(--text-light);margin-top:6px;line-height:1.5;">
@@ -611,6 +661,10 @@ tr:hover td { background: #f8f9fa; }
         o una URL cloud (<code>https://tuservidor.onrender.com</code>) para sync desde cualquier lugar.<br>
         Compatible con app Android AgendaTPV.
       </div>
+    </div>
+    <div id="settingsWhatsApp" style="display:none;">
+      <div id="waReminderList" style="max-height:400px;overflow-y:auto;"></div>
+    </div>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('settingsModal')">Cerrar</button><button class="btn btn-primary" onclick="saveSettings()">Guardar</button></div>
   </div>
@@ -660,7 +714,8 @@ let data = {
   sales: DB.get('sales', []),
   movements: DB.get('movements', []),
   ivaRate: DB.get('ivaRate', 21),
-  invoiceCounter: DB.get('invoiceCounter', 1),
+  ticketBackups: DB.get('ticketBackups', []),
+  invoiceBackups: DB.get('invoiceBackups', []),
   settings: DB.get('settings', {
     businessName: 'TPV Peluquería',
     businessNif: '',
@@ -682,11 +737,44 @@ let data = {
 const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','movements'];
 ARRAY_KEYS.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
+// Clean up any corrupted entries in main entities (caused by importing binary files as CSV)
+['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'].forEach(k => {
+  if (Array.isArray(data[k])) {
+    const initialCount = data[k].length;
+    data[k] = data[k].filter(item => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+      if (typeof item.name !== 'string' || item.name.trim() === '') return false;
+      const keys = Object.keys(item);
+      const isCorrupted = keys.some(key => key.includes('\u0011') || key.includes('\u001a') || key.includes('\u0000') || key.includes('\u0003') || key.includes('\u0004'));
+      return !isCorrupted;
+    });
+    if (data[k].length !== initialCount) {
+      console.log(`[Recovery] Cleaned up ${initialCount - data[k].length} corrupted items in ${k}`);
+      saveKey(k);
+    }
+  }
+});
+
 // Migrate old sales without IVA data
 data.sales.forEach(s => {
   if (s.base === undefined) { const r = s.ivaRate || data.ivaRate || 21; s.base = s.total / (1 + r/100); s.iva = s.total - s.base; s.ivaRate = r; }
 });
 saveKey('sales');
+
+// Clean up old persistent counter keys (no longer used, numbering is dynamic)
+localStorage.removeItem('tpv_ticketCounter');
+localStorage.removeItem('tpv_invoiceCounter');
+
+// Migrate old combined counterBackups to separate arrays
+const oldBackups = (() => { try { return JSON.parse(localStorage.getItem('tpv_counterBackups')); } catch { return null; } })();
+if (oldBackups && Array.isArray(oldBackups) && oldBackups.length) {
+  if (!data.ticketBackups.length && !data.invoiceBackups.length) {
+    data.ticketBackups = oldBackups.map(b => ({ date: b.date, value: b.ticketCounter }));
+    data.invoiceBackups = oldBackups.map(b => ({ date: b.date, value: b.invoiceCounter }));
+    saveKey('ticketBackups'); saveKey('invoiceBackups');
+  }
+  localStorage.removeItem('tpv_counterBackups');
+}
 
 // ============ COLORS ============
 const COLORS = ['#6C3483','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#1ABC9C','#16A085','#2980B9','#8E44AD','#D35400','#C0392B','#2C3E50'];
@@ -732,32 +820,89 @@ function handleLocalPhoto(input, targetId) {
 }
 
 function updatePhotoPreview(src, previewId) {
-  const div = document.getElementById(previewId);
-  if (!src) { div.innerHTML = ''; return; }
-  div.innerHTML = src.startsWith('data:') || src.match(/\.(jpg|jpeg|png|gif|webp)$/i) 
-    ? '<img src="'+src+'" style="max-width:150px;max-height:100px;border-radius:8px;border:1px solid var(--border);">' 
-    : '';
+  try {
+    const div = document.getElementById(previewId);
+    if (!div) return;
+    div.innerHTML = '';
+    if (!src) return;
+    if (src.startsWith('data:') || src.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+      const img = document.createElement('img');
+      img.src = src;
+      img.style.cssText = 'max-width:150px;max-height:100px;border-radius:8px;border:1px solid var(--border);';
+      div.appendChild(img);
+    }
+  } catch(e) { console.error('updatePhotoPreview error:', e); }
 }
 
 // ============ IMPORT/EXPORT ============
 function exportData(key) {
   const arr = data[key] || [];
   if (!arr.length) { alert('No hay datos para exportar'); return; }
-  const csv = [Object.keys(arr[0]).join(',')];
-  arr.forEach(row => {
+  
+  const cleanArr = arr.filter(item => !item._deleted).map(item => {
+    const copy = { ...item };
+    delete copy._deleted;
+    delete copy._modified;
+    return copy;
+  });
+
+  if (!cleanArr.length) { alert('No hay datos activos para exportar'); return; }
+
+  if (typeof XLSX !== 'undefined') {
+    try {
+      const worksheet = XLSX.utils.json_to_sheet(cleanArr);
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, key.charAt(0).toUpperCase() + key.slice(1));
+      XLSX.writeFile(workbook, key + '_' + new Date().toISOString().split('T')[0] + '.xlsx');
+      return;
+    } catch (e) {
+      console.error('Error exporting with SheetJS, falling back to CSV:', e);
+    }
+  }
+
+  const csv = [Object.keys(cleanArr[0]).join(',')];
+  cleanArr.forEach(row => {
     csv.push(Object.values(row).map(v => '"' + (v || '') + '"').join(','));
   });
-  const blob = new Blob([csv.join('\n')], { type: 'text/csv' });
+  const blob = new Blob([csv.join('\n')], { type: 'text/csv;charset=utf-8;' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
   a.download = key + '_' + new Date().toISOString().split('T')[0] + '.csv';
   a.click();
 }
 
+function clearAllData(key) {
+  const label = key === 'products' ? 'productos' : key === 'services' ? 'servicios' : key;
+  if (!confirm(`¿ESTÁS COMPLETAMENTE SEGURO de que deseas ELIMINAR TODOS los ${label}?\nEsta acción marcará todos los registros como eliminados en todos los dispositivos y los limpiará de la pantalla.`)) return;
+  if (!confirm(`Confirmación final: ¿Eliminar definitivamente todos los ${label}?`)) return;
+  
+  if (Array.isArray(data[key])) {
+    data[key] = data[key].map(item => {
+      if (item && typeof item === 'object') {
+        item._deleted = true;
+        item._modified = Date.now();
+      }
+      return item;
+    });
+  } else {
+    data[key] = [];
+  }
+  
+  saveKey(key);
+  
+  if (key === 'products') renderProducts();
+  else if (key === 'services') renderServices();
+  else if (key === 'clients') renderClients();
+  else if (key === 'employees') renderEmployees();
+  
+  alert(`Se han eliminado todos los ${label} del catálogo de manera limpia.`);
+  syncPush();
+}
+
 function importData(key) {
   const input = document.createElement('input');
   input.type = 'file';
-  input.accept = '.csv,.json';
+  input.accept = '.csv,.json,.xlsx,.xls';
   input.onchange = function(e) {
     const file = e.target.files[0];
     if (!file) return;
@@ -767,6 +912,11 @@ function importData(key) {
         let newItems = [];
         if (file.name.endsWith('.json')) {
           newItems = JSON.parse(evt.target.result);
+        } else if (file.name.match(/\.xlsx?$/i)) {
+          const u8 = new Uint8Array(evt.target.result);
+          const workbook = XLSX.read(u8, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          newItems = XLSX.utils.sheet_to_json(firstSheet);
         } else {
           const lines = evt.target.result.split('\n');
           if (lines.length < 2) return;
@@ -775,13 +925,108 @@ function importData(key) {
             if (!lines[i].trim()) continue;
             const values = lines[i].split(',');
             const obj = {};
-            headers.forEach((h, idx) => { obj[h.replace(/"/g, '')] = (values[idx] || '').replace(/"/g, ''); });
+            headers.forEach((h, idx) => {
+              const cleanH = h.replace(/"/g, '').trim();
+              if (cleanH) {
+                obj[cleanH] = (values[idx] || '').replace(/"/g, '').trim();
+              }
+            });
             obj._modified = Date.now();
             obj._deleted = false;
             if (!obj.id) obj.id = id();
             newItems.push(obj);
           }
         }
+        
+        const SPANISH_HEADERS_MAP = {
+          'nombre': 'name',
+          'precio': 'price',
+          'precio venta': 'price',
+          'precio de venta': 'price',
+          'coste': 'cost',
+          'precio coste': 'cost',
+          'precio de coste': 'cost',
+          'stock': 'stock',
+          'stock actual': 'stock',
+          'stock minimo': 'minStock',
+          'stock mínimo': 'minStock',
+          'minimo': 'minStock',
+          'mínimo': 'minStock',
+          'iva': 'ivaRate',
+          'tasa iva': 'ivaRate',
+          'descripcion': 'description',
+          'descripción': 'description',
+          'duracion': 'duration',
+          'duración': 'duration',
+          'seccion': 'sectionId',
+          'sección': 'sectionId',
+          'familia': 'sectionId',
+          'categoria': 'sectionId',
+          'categoría': 'sectionId',
+          'proveedor': 'providerId',
+          'id proveedor': 'providerId',
+          'foto': 'photo',
+          'imagen': 'photo',
+          'web': 'showOnWeb',
+          'mostrar en web': 'showOnWeb',
+          'tpv': 'showInPos',
+          'mostrar en TPV': 'showInPos'
+        };
+
+        newItems = newItems.map(item => {
+          if (!item || typeof item !== 'object') return item;
+          const mapped = {};
+          Object.keys(item).forEach(k => {
+            const cleanK = k.replace(/"/g, '').trim().toLowerCase();
+            const targetKey = SPANISH_HEADERS_MAP[cleanK] || k;
+            mapped[targetKey] = item[k];
+          });
+          
+          if (mapped.name) mapped.name = String(mapped.name).trim();
+          if (mapped.price !== undefined) mapped.price = parseFloat(mapped.price) || 0;
+          if (mapped.cost !== undefined) mapped.cost = parseFloat(mapped.cost) || 0;
+          if (mapped.stock !== undefined) mapped.stock = parseInt(mapped.stock) || 0;
+          if (mapped.minStock !== undefined) mapped.minStock = parseInt(mapped.minStock) || 5;
+          if (mapped.ivaRate !== undefined) mapped.ivaRate = parseFloat(mapped.ivaRate) || 21;
+          if (mapped.duration !== undefined) mapped.duration = parseInt(mapped.duration) || 0;
+          
+          // Align product description vs service desc
+          if (mapped.description !== undefined && mapped.desc === undefined) {
+            mapped.desc = String(mapped.description).trim();
+          } else if (mapped.desc !== undefined) {
+            mapped.desc = String(mapped.desc).trim();
+          }
+
+          if (mapped.showOnWeb !== undefined) {
+            const val = String(mapped.showOnWeb).toLowerCase().trim();
+            mapped.showOnWeb = (val === 'true' || val === '1' || val === 'si' || val === 'sí' || val === 'yes');
+          } else {
+            mapped.showOnWeb = false;
+          }
+          
+          if (mapped.showInPos !== undefined) {
+            const val = String(mapped.showInPos).toLowerCase().trim();
+            mapped.showInPos = !(val === 'false' || val === '0' || val === 'no');
+          } else {
+            mapped.showInPos = true;
+          }
+
+          if (!mapped.id) mapped.id = id();
+          mapped._modified = Date.now();
+          mapped._deleted = false;
+          
+          return mapped;
+        });
+
+        // Filter out any imported items that do not have a valid name to prevent database corruption
+        newItems = newItems.filter(item => {
+          if (!item || typeof item !== 'object' || Array.isArray(item)) return false;
+          if (['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'].includes(key)) {
+            return typeof item.name === 'string' && item.name.trim() !== '';
+          }
+          return true;
+        });
+
         data[key] = [...(data[key] || []), ...newItems];
         saveKey(key);
         if (key === 'clients') renderClients();
@@ -792,7 +1037,11 @@ function importData(key) {
         syncPush();
       } catch(err) { alert('Error al importar: ' + err.message); }
     };
-    reader.readAsText(file);
+    if (file.name.match(/\.xlsx?$/i)) {
+      reader.readAsArrayBuffer(file);
+    } else {
+      reader.readAsText(file);
+    }
   };
   input.click();
 }
@@ -816,6 +1065,10 @@ function switchSettingsTab(tab, el) {
   document.getElementById('settingsInvoice').style.display = tab === 'invoice' ? 'block' : 'none';
   document.getElementById('settingsIva').style.display = tab === 'iva' ? 'block' : 'none';
   document.getElementById('settingsSync').style.display = tab === 'sync' ? 'block' : 'none';
+  document.getElementById('settingsWhatsApp').style.display = tab === 'whatsapp' ? 'block' : 'none';
+  if (tab === 'ticket') { populateBackupLists('ticket'); document.getElementById('currentTicketNum').textContent = lastTicketNum(); }
+  if (tab === 'invoice') { populateBackupLists('invoice'); document.getElementById('currentInvoiceNum').textContent = lastInvoiceNum(); }
+  if (tab === 'whatsapp') renderWaReminderList();
 }
 
 function openSettings() {
@@ -835,6 +1088,8 @@ function openSettings() {
   const sync = s.sync || {};
   document.getElementById('syncEnabled').checked = sync.enabled || false;
   document.getElementById('syncUrl').value = sync.url || 'http://localhost:3456';
+  document.getElementById('currentTicketNum').textContent = lastTicketNum();
+  document.getElementById('currentInvoiceNum').textContent = lastInvoiceNum();
   switchSettingsTab('business', document.querySelector('#settingsModal .tab'));
   openModal('settingsModal');
 }
@@ -867,6 +1122,151 @@ function saveSettings() {
   else stopSyncPoller();
   closeModal('settingsModal');
   updateTicket();
+}
+
+// ---- Counter backup/restore ----
+function populateBackupLists(type) {
+  const list = type === 'ticket' ? (data.ticketBackups||[]) : (data.invoiceBackups||[]);
+  const isTicket = type === 'ticket';
+  const label = isTicket ? 'tickets' : 'facturas';
+  const div = document.getElementById(isTicket ? 'ticketBackupList' : 'invoiceBackupList');
+  if (!list.length) { div.innerHTML = '<div style="color:var(--text-light);margin-top:4px;">Sin backups de '+label+' guardados</div>'; return; }
+  div.innerHTML = list.map((b, i) => {
+    const d = new Date(b.date);
+    const dateStr = d.toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+    return `<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px;margin:2px 0;background:var(--card-bg);border-radius:4px;gap:8px;">
+      <span style="font-size:12px;">${dateStr} → #${b.value}</span>
+      <div style="display:flex;gap:4px;">
+        <button class="btn btn-xs btn-secondary" onclick="restoreFromBackup(${i},'${type}')">Restaurar</button>
+        <button class="btn btn-xs btn-danger" onclick="deleteBackup(${i},'${type}')">🗑️</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function nextTicketNum() {
+  let max = 0;
+  data.sales.filter(s => !s.invoiceNumber && !isSaleArchived(s)).forEach(s => {
+    let num = s.number;
+    if (typeof num === 'string' && num.endsWith('REF')) {
+      const parsed = parseInt(num.replace('REF',''), 10);
+      if (!isNaN(parsed)) num = parsed;
+    }
+    if (typeof num === 'number' && num > max) max = num;
+  });
+  return max + 1;
+}
+function lastTicketNum() { return Math.max(0, nextTicketNum() - 1); }
+function nextInvoiceNum() {
+  let max = 0;
+  data.sales.filter(s => s.invoiceNumber && !isSaleArchived(s)).forEach(s => {
+    if (s.invoiceNumber > max) max = s.invoiceNumber;
+  });
+  return max + 1;
+}
+function lastInvoiceNum() { return Math.max(0, nextInvoiceNum() - 1); }
+
+function backupTicketCounter() {
+  const current = nextTicketNum() - 1;
+  if (!confirm('Se guardará el número actual de ticket (#'+current+') y se reiniciará a #0. ¿Continuar?')) return;
+  if (!data.ticketBackups) data.ticketBackups = [];
+  data.ticketBackups.push({ date: new Date().toISOString(), value: current });
+  saveKey('ticketBackups');
+  document.getElementById('currentTicketNum').textContent = lastTicketNum();
+  populateBackupLists('ticket');
+}
+
+function backupInvoiceCounter() {
+  const current = nextInvoiceNum() - 1;
+  if (!confirm('Se guardará el número actual de factura (#'+current+') y se reiniciará a #0. ¿Continuar?')) return;
+  if (!data.invoiceBackups) data.invoiceBackups = [];
+  data.invoiceBackups.push({ date: new Date().toISOString(), value: current });
+  saveKey('invoiceBackups');
+  document.getElementById('currentInvoiceNum').textContent = lastInvoiceNum();
+  populateBackupLists('invoice');
+}
+
+function restoreTicketCounter() {
+  const list = data.ticketBackups || [];
+  if (!list.length) { alert('No hay backups de tickets disponibles.'); return; }
+  populateBackupLists('ticket');
+}
+
+function restoreInvoiceCounter() {
+  const list = data.invoiceBackups || [];
+  if (!list.length) { alert('No hay backups de facturas disponibles.'); return; }
+  populateBackupLists('invoice');
+}
+
+function restoreFromBackup(idx, type) {
+  const isTicket = type === 'ticket';
+  const list = isTicket ? (data.ticketBackups||[]) : (data.invoiceBackups||[]);
+  const b = list[idx];
+  if (!b) return;
+  const label = isTicket ? 'ticket' : 'factura';
+  if (!confirm('Restaurar backup de '+label+' del '+new Date(b.date).toLocaleString('es-ES')+' (#'+b.value+')? Las ventas de ese período volverán a mostrarse.')) return;
+  const key = isTicket ? 'ticketBackups' : 'invoiceBackups';
+  if (isTicket) data.ticketBackups.splice(idx, 1);
+  else data.invoiceBackups.splice(idx, 1);
+  saveKey(key);
+  document.getElementById(isTicket ? 'currentTicketNum' : 'currentInvoiceNum').textContent = isTicket ? lastTicketNum() : lastInvoiceNum();
+  populateBackupLists(type);
+  renderDashboard();
+}
+
+function deleteBackup(idx, type) {
+  const isTicket = type === 'ticket';
+  const list = isTicket ? (data.ticketBackups||[]) : (data.invoiceBackups||[]);
+  const b = list[idx];
+  if (!b) return;
+  if (!confirm('¿Eliminar backup del '+new Date(b.date).toLocaleString('es-ES')+' (#'+b.value+')?')) return;
+  const key = isTicket ? 'ticketBackups' : 'invoiceBackups';
+  if (isTicket) data.ticketBackups.splice(idx, 1);
+  else data.invoiceBackups.splice(idx, 1);
+  saveKey(key);
+  populateBackupLists(type);
+}
+
+function renderWaReminderList() {
+  const div = document.getElementById('waReminderList');
+  const now = new Date();
+  const limit = new Date(now.getTime() + 72 * 3600000);
+  const pending = data.appointments.filter(a => {
+    if (!a || a._deleted || !a.date || !a.time) return false;
+    const cl = data.clients.find(c => c.id === a.clientId && !c._deleted);
+    if (!cl || !cl.whatsapp || !cl.phone) return false;
+    const apptTime = new Date(a.date + 'T' + a.time + ':00');
+    return apptTime >= now && apptTime <= limit;
+  });
+  if (!pending.length) { div.innerHTML = '<div class="empty-state"><p>Sin recordatorios pendientes</p></div>'; return; }
+  pending.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  div.innerHTML = '<table style="width:100%;font-size:13px;"><thead><tr><th>Cliente</th><th>Fecha</th><th>Hora</th><th>Servicios</th><th>Estado</th><th style="width:80px;">Acciones</th></tr></thead><tbody>' +
+    pending.map(a => {
+      const cl = data.clients.find(c => c.id === a.clientId);
+      const dt = new Date(a.date + 'T' + a.time + ':00');
+      const fecha = dt.toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'});
+      const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
+      const svcs = (a.serviceIds||[]).map(sid => { const s = data.services.find(x => x.id === sid); return s ? s.name : ''; }).filter(n => n).join(', ');
+      const sent = a.waReminder === 'sent';
+      return `<tr style="${sent?'background:#d4edda;':''}"><td>${esc(cl?cl.name:'')}</td><td>${fecha}</td><td>${hora}</td><td>${esc(svcs)}</td><td>${sent?'<span style="color:#155724;font-weight:bold;">Enviado ✓</span>':'<span style="color:#856404;font-weight:bold;">Pendiente</span>'}</td><td>
+        <button class="btn btn-xs ${sent?'btn-secondary':'btn-success'}" onclick="sendWaReminder('${a.id}')">${sent?'Reenviar':'Enviar'}</button></td></tr>`;
+    }).join('') + '</tbody></table>';
+}
+
+function sendWaReminder(apptId) {
+  const a = data.appointments.find(x => x.id === apptId); if (!a) return;
+  const cl = data.clients.find(c => c.id === a.clientId && !c._deleted); if (!cl || !cl.phone) return;
+  const dt = new Date(a.date + 'T' + a.time + ':00');
+  const dia = dt.toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'});
+  const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
+  const phone = cl.phone.replace(/\D/g,'');
+  const msg = encodeURIComponent(`Hola ${cl.name}.\nTe recordamos que tienes cita en Nymara Estilistas el ${dia} a las ${hora}.\nEn caso de no poder asistir, por favor avísanos con antelación para poder ceder tu plaza.\nTe esperamos!`);
+  window.location.href = `https://api.whatsapp.com/send?phone=${phone}&text=${msg}`;
+  a.waReminder = 'sent';
+  a._modified = Date.now();
+  saveKey('appointments');
+  syncPush();
+  renderWaReminderList();
 }
 
 function updateAppHeader() {
@@ -925,14 +1325,14 @@ function syncPush() {
   fetch(c.url.replace(/\/+$/,'') + '/sync', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      appointments: Array.isArray(data.appointments) ? data.appointments : [],
-      clients: Array.isArray(data.clients) ? data.clients : [],
-      services: Array.isArray(data.services) ? data.services : [],
-      sections: Array.isArray(data.sections) ? data.sections : [],
-      employees: Array.isArray(data.employees) ? data.employees : [],
-      products: Array.isArray(data.products) ? data.products : [],
-      projects: Array.isArray(data.projects) ? data.projects : [],
-      providers: Array.isArray(data.providers) ? data.providers : [],
+      appointments: Array.isArray(data.appointments) ? data.appointments.filter(a => !a._deleted) : [],
+      clients: Array.isArray(data.clients) ? data.clients.filter(c => !c._deleted) : [],
+      services: Array.isArray(data.services) ? data.services.filter(s => !s._deleted) : [],
+      sections: Array.isArray(data.sections) ? data.sections.filter(s => !s._deleted) : [],
+      employees: Array.isArray(data.employees) ? data.employees.filter(e => !e._deleted) : [],
+      products: Array.isArray(data.products) ? data.products.filter(p => !p._deleted) : [],
+      projects: Array.isArray(data.projects) ? data.projects.filter(p => !p._deleted) : [],
+      providers: Array.isArray(data.providers) ? data.providers.filter(p => !p._deleted) : [],
       settings: data.settings || {}
     })
   }).then(async r => {
@@ -954,11 +1354,26 @@ function mergeRemote(type, remote) {
   const localMap = new Map(data[type].map(item => [item.id, item]));
   let changed = false;
   remote.forEach(item => {
+    if (['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'].includes(type)) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+      if (typeof item.name !== 'string' || item.name.trim() === '') return;
+      const keys = Object.keys(item);
+      const isCorrupted = keys.some(key => key.includes('\u0011') || key.includes('\u001a') || key.includes('\u0000') || key.includes('\u0003') || key.includes('\u0004'));
+      if (isCorrupted) return;
+    }
+
     const existing = localMap.get(item.id);
     if (!existing) { data[type].push(item); changed = true; }
     else if ((item._modified||0) > (existing._modified||0)) { Object.assign(existing, item); changed = true; }
   });
   return changed;
+}
+
+function isModalOpen(id) { const el = document.getElementById(id); return el && el.classList.contains('show'); }
+
+function safeMergeRemote(type, remote, activeModalId) {
+  if (activeModalId && isModalOpen(activeModalId)) return false;
+  return mergeRemote(type, remote);
 }
 
 function syncPull() {
@@ -967,14 +1382,14 @@ function syncPull() {
   fetch(c.url.replace(/\/+$/,'') + '/sync')
     .then(r => r.json()).then(remote => {
       let changed = false;
-      if (mergeRemote('appointments', remote.appointments)) changed = true;
-      if (mergeRemote('clients', remote.clients)) changed = true;
-      if (mergeRemote('services', remote.services)) changed = true;
-      if (mergeRemote('sections', remote.sections)) changed = true;
-      if (mergeRemote('employees', remote.employees)) changed = true;
-      if (mergeRemote('products', remote.products)) changed = true;
-      if (mergeRemote('projects', remote.projects)) changed = true;
-      if (mergeRemote('providers', remote.providers)) changed = true;
+      if (safeMergeRemote('appointments', remote.appointments)) changed = true;
+      if (safeMergeRemote('clients', remote.clients, 'clientModal')) changed = true;
+      if (safeMergeRemote('services', remote.services, 'serviceModal')) changed = true;
+      if (safeMergeRemote('sections', remote.sections, 'sectionModal')) changed = true;
+      if (safeMergeRemote('employees', remote.employees, 'employeeModal')) changed = true;
+      if (safeMergeRemote('products', remote.products, 'productModal')) changed = true;
+      if (safeMergeRemote('projects', remote.projects, 'projectModal')) changed = true;
+      if (safeMergeRemote('providers', remote.providers, 'providerModal')) changed = true;
       if (changed) {
         saveKey('appointments'); saveKey('clients'); saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products'); saveKey('projects'); saveKey('providers');
         const active = document.querySelector('.nav-item.active');
@@ -984,6 +1399,7 @@ function syncPull() {
           else if (sec === 'clients') renderClients();
           else if (sec === 'services') renderServices();
           else if (sec === 'employees') renderEmployees();
+          else if (sec === 'projects') renderProjects();
           else if (sec === 'dashboard') renderDashboard();
         }
       }
@@ -1080,6 +1496,7 @@ function saveClient() {
     phone: document.getElementById('clientPhone').value.trim(),
     email: document.getElementById('clientEmail').value.trim(),
     notes: document.getElementById('clientNotes').value.trim(),
+    whatsapp: document.getElementById('clientWhatsApp').checked,
     _modified: Date.now(),
     _deleted: false
   };
@@ -1106,6 +1523,8 @@ function editClient(id) {
   document.getElementById('clientPhone').value = c.phone||'';
   document.getElementById('clientEmail').value = c.email||'';
   document.getElementById('clientNotes').value = c.notes||'';
+  document.getElementById('clientWhatsApp').checked = !!c.whatsapp;
+  updateClientWasToggle(!!c.whatsapp);
   document.getElementById('clientModalTitle').textContent = 'Editar Cliente';
   openModal('clientModal');
 }
@@ -1118,8 +1537,23 @@ function deleteClient(id) {
   saveKey('clients'); saveKey('appointments'); renderClients(); renderAgenda(); syncPush();
 }
 
+function toggleClientWas(el) {
+  const cb = document.getElementById('clientWhatsApp');
+  cb.checked = !cb.checked;
+  updateClientWasToggle(cb.checked);
+}
+function updateClientWasToggle(checked) {
+  const toggle = document.getElementById('clientWhatsAppToggle');
+  const ball = toggle ? toggle.querySelector('div') : null;
+  if (!toggle || !ball) return;
+  toggle.style.background = checked ? '#28a745' : '#ccc';
+  ball.style.left = checked ? '22px' : '2px';
+}
+
 function clearClientForm() {
   ['clientEditId','clientName','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNotes'].forEach(id => document.getElementById(id).value='');
+  document.getElementById('clientWhatsApp').checked = false;
+  updateClientWasToggle(false);
   document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
 }
 
@@ -1204,7 +1638,16 @@ function openServiceModal() {
 function renderServices() {
   const q = (document.getElementById('searchService').value||'').toLowerCase();
   const tbody = document.getElementById('servicesTable');
-  const list = data.services.filter(s => !s._deleted && s.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
+  const list = data.services.filter(s => {
+    if (!s || s._deleted) return false;
+    const nameMatch = (s.name || '').toLowerCase().includes(q);
+    if (!nameMatch) return false;
+    if (selectedServiceLetter !== 'TODOS') {
+      const firstLetter = (s.name || '').trim().charAt(0).toUpperCase();
+      return firstLetter === selectedServiceLetter;
+    }
+    return true;
+  }).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No hay servicios</td></tr>'; return; }
   tbody.innerHTML = list.map(s => {
     const sec = data.sections.find(x => x.id === s.sectionId);
@@ -1379,6 +1822,8 @@ function clearProjectForm() {
   document.getElementById('projectShowWeb').checked = false;
   document.getElementById('projectShowPos').checked = true;
   document.getElementById('projectModalTitle').textContent = 'Nueva Oferta';
+  document.getElementById('projectServicesSearch').value = '';
+  document.getElementById('projectProductsSearch').value = '';
 }
 
 function openProjectForm() {
@@ -1392,44 +1837,51 @@ function openProjectForm() {
 }
 
 function renderProjectServices() {
-  const div = document.getElementById('projectServices');
-  const editId = document.getElementById('projectEditId').value;
-  const selected = editId ? (data.projects.find(p => p.id===editId)?.services||[]) : [];
-  const avail = data.services.filter(s => !s._deleted);
-  if (!avail.length) { div.innerHTML = '<div style="color:var(--text-light);padding:20px;text-align:center;">Crea servicios primero</div>'; return; }
-  div.innerHTML = avail.map(s => {
-    const sec = data.sections.find(x => x.id === s.sectionId && !x._deleted);
-    const sc = sec && sec.color ? sec.color : '#999';
-    const checked = selected.includes(s.id);
-    return `<label style="display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;border-radius:8px;border:2px solid ${checked?'var(--primary)':'var(--border)'};background:${checked?'rgba(108,52,131,.06)':'transparent'};margin:4px;transition:all .15s;">
-      <input type="checkbox" class="srvcb" value="${s.id}" ${checked?'checked':''} onchange="onPackItemToggle(this)" style="width:18px;height:18px;accent-color:var(--primary);">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:14px;">${esc(s.name)}</div>
-        <div style="font-size:11px;color:var(--text-light);"><span style="color:${sc};">⬤</span> ${sec ? esc(sec.name) : 'Sin sección'} · ${s.duration||'-'} min</div>
-      </div>
-      <div style="font-weight:700;font-size:15px;color:var(--primary);white-space:nowrap;">${cur(s.price)}</div>
-    </label>`;
-  }).join('');
-  updateSelectedCount();
+  try {
+    const div = document.getElementById('projectServices');
+    const editId = document.getElementById('projectEditId').value;
+    const selected = editId ? (data.projects.find(p => p.id===editId)?.services||[]) : [];
+    const q = (document.getElementById('projectServicesSearch').value||'').toLowerCase().trim();
+    let avail = data.services.filter(s => !s._deleted && (!q || s.name.toLowerCase().includes(q)));
+    if (!avail.length) { div.innerHTML = '<div style="color:var(--text-light);padding:20px;text-align:center;">'+(q?'Sin resultados':'Crea servicios primero')+'</div>'; return; }
+    div.innerHTML = avail.map(s => {
+      const sec = data.sections.find(x => x.id === s.sectionId && !x._deleted);
+      const sc = sec && sec.color ? sec.color : '#999';
+      const checked = selected.includes(s.id);
+      return `<label style="display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;border-radius:8px;border:2px solid ${checked?'var(--primary)':'var(--border)'};background:${checked?'rgba(108,52,131,.06)':'transparent'};margin:4px;transition:all .15s;">
+        <input type="checkbox" class="srvcb" value="${s.id}" ${checked?'checked':''} onchange="onPackItemToggle(this)" style="width:18px;height:18px;accent-color:var(--primary);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:14px;">${esc(s.name)}</div>
+          <div style="font-size:11px;color:var(--text-light);"><span style="color:${sc};">⬤</span> ${sec ? esc(sec.name) : 'Sin sección'} · ${s.duration||'-'} min</div>
+        </div>
+        <div style="font-weight:700;font-size:15px;color:var(--primary);white-space:nowrap;">${cur(s.price)}</div>
+      </label>`;
+    }).join('');
+    updateSelectedCount();
+  } catch(e) { console.error('renderProjectServices error:', e); }
 }
 
 function renderProjectProducts() {
-  const div = document.getElementById('projectProducts');
-  const editId = document.getElementById('projectEditId').value;
-  const selected = editId ? (data.projects.find(p => p.id===editId)?.products||[]) : [];
-  const avail = data.products.filter(p => !p._deleted);
-  if (!avail.length) { div.innerHTML = '<div style="color:var(--text-light);padding:20px;text-align:center;">Crea productos primero</div>'; return; }
-  div.innerHTML = avail.map(pr => {
-    const checked = selected.includes(pr.id);
-    return `<label style="display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;border-radius:8px;border:2px solid ${checked?'var(--primary)':'var(--border)'};background:${checked?'rgba(108,52,131,.06)':'transparent'};margin:4px;transition:all .15s;">
-      <input type="checkbox" class="prodcb" value="${pr.id}" ${checked?'checked':''} onchange="onPackItemToggle(this)" style="width:18px;height:18px;accent-color:var(--primary);">
-      <div style="flex:1;min-width:0;">
-        <div style="font-weight:600;font-size:14px;">${esc(pr.name)}</div>
-        <div style="font-size:11px;color:var(--text-light);">Stock: ${pr.stock||0}</div>
-      </div>
-      <div style="font-weight:700;font-size:15px;color:var(--primary);white-space:nowrap;">${cur(pr.price)}</div>
-    </label>`;
-  }).join('');
+  try {
+    const div = document.getElementById('projectProducts');
+    const editId = document.getElementById('projectEditId').value;
+    const selected = editId ? (data.projects.find(p => p.id===editId)?.products||[]) : [];
+    const q = (document.getElementById('projectProductsSearch').value||'').toLowerCase().trim();
+    let avail = data.products.filter(p => !p._deleted && (!q || p.name.toLowerCase().includes(q)));
+    if (!avail.length) { div.innerHTML = '<div style="color:var(--text-light);padding:20px;text-align:center;">'+(q?'Sin resultados':'Crea productos primero')+'</div>'; return; }
+    div.innerHTML = avail.map(pr => {
+      const checked = selected.includes(pr.id);
+      const zeroStock = (pr.stock||0) === 0;
+      return `<label style="display:flex;align-items:center;gap:12px;padding:10px 12px;cursor:pointer;border-radius:8px;border:2px solid ${checked?'var(--primary)':'var(--border)'};background:${checked?'rgba(108,52,131,.06)':'transparent'};margin:4px;transition:all .15s;${zeroStock?'opacity:.6;':''}">
+        <input type="checkbox" class="prodcb" value="${pr.id}" ${checked?'checked':''} onchange="onPackItemToggle(this)" style="width:18px;height:18px;accent-color:var(--primary);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:600;font-size:14px;">${esc(pr.name)}</div>
+          <div style="font-size:11px;color:${zeroStock?'var(--danger)':'var(--text-light)'};">Stock: ${pr.stock||0}${zeroStock?' ⚠️ Sin existencias':''}</div>
+        </div>
+        <div style="font-weight:700;font-size:15px;color:var(--primary);white-space:nowrap;">${cur(pr.price)}</div>
+      </label>`;
+    }).join('');
+  } catch(e) { console.error('renderProjectProducts error:', e); }
 }
 
 function onPackItemToggle(el) {
@@ -1450,16 +1902,18 @@ function updateSelectedCount() {
 }
 
 function calcProjectTotal() {
-  const svcChecks = document.querySelectorAll('#projectServices input:checked');
-  const prodChecks = document.querySelectorAll('#projectProducts input:checked');
-  let total = 0;
-  svcChecks.forEach(cb => { const s = data.services.find(x => x.id===cb.value); if (s) total += s.price; });
-  prodChecks.forEach(cb => { const pr = data.products.find(x => x.id===cb.value); if (pr) total += pr.price; });
-  const disc = parseFloat(document.getElementById('projectDiscount').value)||0;
-  const final = total * (1 - disc/100);
-  document.getElementById('projectSubtotal').textContent = cur(total);
-  document.getElementById('projectTotal').textContent = cur(final);
-  updateSelectedCount();
+  try {
+    const svcChecks = document.querySelectorAll('#projectServices input:checked');
+    const prodChecks = document.querySelectorAll('#projectProducts input:checked');
+    let total = 0;
+    svcChecks.forEach(cb => { const s = data.services.find(x => x.id===cb.value); if (s) total += s.price; });
+    prodChecks.forEach(cb => { const pr = data.products.find(x => x.id===cb.value); if (pr) total += pr.price; });
+    const disc = parseFloat(document.getElementById('projectDiscount').value)||0;
+    const final = total * (1 - disc/100);
+    document.getElementById('projectSubtotal').textContent = cur(total);
+    document.getElementById('projectTotal').textContent = cur(final);
+    updateSelectedCount();
+  } catch(e) { console.error('calcProjectTotal error:', e); }
 }
 
 function saveProject() {
@@ -1471,6 +1925,8 @@ function saveProject() {
   const prodChecks = document.querySelectorAll('#projectProducts input:checked');
   const products = Array.from(prodChecks).map(cb => cb.value);
   if (!services.length && !products.length) { alert('Selecciona al menos un servicio o producto'); return; }
+  const zeroStockProds = products.filter(pid => { const p = data.products.find(x => x.id===pid); return p && (p.stock||0) === 0; });
+  if (zeroStockProds.length && !confirm('⚠️ Los siguientes productos tienen stock 0:\n' + zeroStockProds.map(pid => { const p = data.products.find(x => x.id===pid); return p ? p.name : '?'; }).join('\n') + '\n\n¿Agregarlos de todos modos?')) return;
   const discount = parseFloat(document.getElementById('projectDiscount').value)||0;
   const obj = {
     name, services, products, discount,
@@ -1486,20 +1942,22 @@ function saveProject() {
 }
 
 function editProject(id) {
-  const p = data.projects.find(x => x.id === id); if (!p) return;
-  document.getElementById('projectEditId').value = id;
-  document.getElementById('projectName').value = p.name;
-  document.getElementById('projectDiscount').value = p.discount||0;
-  document.getElementById('projectPhoto').value = p.photo||'';
-  updatePhotoPreview(p.photo||'', 'projectPhotoPreview');
-  document.getElementById('projectDescription').value = p.description||'';
-  document.getElementById('projectShowWeb').checked = p.showOnWeb||false;
-  document.getElementById('projectShowPos').checked = p.showInPos !== false;
-  document.getElementById('projectModalTitle').textContent = 'Editar Oferta';
-  renderProjectServices();
-  renderProjectProducts();
-  calcProjectTotal();
-  openModal('projectModal');
+  try {
+    const p = data.projects.find(x => x.id === id); if (!p) return;
+    document.getElementById('projectEditId').value = id;
+    document.getElementById('projectName').value = p.name||'';
+    document.getElementById('projectDiscount').value = p.discount||0;
+    document.getElementById('projectPhoto').value = p.photo||'';
+    updatePhotoPreview(p.photo||'', 'projectPhotoPreview');
+    document.getElementById('projectDescription').value = p.description||'';
+    document.getElementById('projectShowWeb').checked = p.showOnWeb||false;
+    document.getElementById('projectShowPos').checked = p.showInPos !== false;
+    document.getElementById('projectModalTitle').textContent = 'Editar Oferta';
+    renderProjectServices();
+    renderProjectProducts();
+    calcProjectTotal();
+    openModal('projectModal');
+  } catch(e) { alert('Error al editar oferta: '+e.message); }
 }
 
 function deleteProject(id) {
@@ -1533,7 +1991,16 @@ function openProductModal() {
 function renderProducts() {
   const q = (document.getElementById('searchProduct').value||'').toLowerCase();
   const tbody = document.getElementById('productsTable');
-  const list = data.products.filter(p => !p._deleted && p.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
+  const list = data.products.filter(p => {
+    if (!p || p._deleted) return false;
+    const nameMatch = (p.name || '').toLowerCase().includes(q);
+    if (!nameMatch) return false;
+    if (selectedProductLetter !== 'TODOS') {
+      const firstLetter = (p.name || '').trim().charAt(0).toUpperCase();
+      return firstLetter === selectedProductLetter;
+    }
+    return true;
+  }).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay productos</td></tr>'; return; }
   tbody.innerHTML = list.map(p => {
     const stock = p.stock||0;
@@ -1565,6 +2032,7 @@ function saveProduct() {
   if (!name || isNaN(price) || price<=0) { alert('Nombre y precio válido son obligatorios'); return; }
   const obj = {
     name, price,
+    barcode: document.getElementById('productBarcode').value.trim().toUpperCase().replace(/\s+/g,''),
     cost: parseFloat(document.getElementById('productCost').value)||0,
     stock: parseInt(document.getElementById('productStock').value)||0,
     minStock: parseInt(document.getElementById('productMinStock').value)||5,
@@ -1587,6 +2055,7 @@ function editProduct(id) {
   populateProviderSelect();
   document.getElementById('productEditId').value = id;
   document.getElementById('productName').value = p.name;
+  document.getElementById('productBarcode').value = p.barcode||'';
   document.getElementById('productPrice').value = p.price;
   document.getElementById('productCost').value = p.cost||'';
   document.getElementById('productStock').value = p.stock||0;
@@ -1605,7 +2074,7 @@ function deleteProduct(id) {
   if (!confirm('¿Eliminar este producto?')) return;
   const p = data.products.find(x => x.id === id);
   if (p) { p._deleted = true; p._modified = Date.now(); }
-  saveKey('products'); renderProducts(); syncPush();
+  saveKey('products'); renderProducts(); renderWarehouse(); syncPush();
 }
 
 function toggleProductWeb(id, val) {
@@ -1618,7 +2087,7 @@ function toggleProductWeb(id, val) {
 }
 
 function clearProductForm() {
-  ['productEditId','productName','productPrice','productCost','productStock','productMinStock','productPhoto'].forEach(id => document.getElementById(id).value='');
+  ['productEditId','productName','productBarcode','productPrice','productCost','productStock','productMinStock','productPhoto'].forEach(id => document.getElementById(id).value='');
   document.getElementById('productPhotoFile').value = '';
   document.getElementById('productMinStock').value = '5';
   document.getElementById('productIva').value = '21';
@@ -1704,14 +2173,19 @@ function switchWarehouseTab(tab, el) {
 function renderWarehouse() {
   const div = document.getElementById('warehouseContent');
   if (warehouseTab === 'stock') {
-    if (!data.products.length) { div.innerHTML = '<div class="empty-state"><p>No hay productos</p></div>'; return; }
-    let html = '<div style="overflow-x:auto;"><table><thead><tr><th>Producto</th><th>Stock Actual</th><th>Stock Mín.</th><th>Precio Coste</th><th>Valor Inventario</th><th>Estado</th></tr></thead><tbody>';
-    data.products.sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
+    if (!data.products.filter(p => !p._deleted).length) { div.innerHTML = '<div class="empty-state"><p>No hay productos</p></div>'; return; }
+    const wq = (document.getElementById('searchWarehouse').value||'').toLowerCase().trim();
+    let html = '<div style="overflow-x:auto;"><table><thead><tr><th>Producto</th><th>Stock Actual</th><th>Stock Mín.</th><th>Precio Coste</th><th>Valor Inventario</th><th>Estado</th><th style="width:80px;">Acciones</th></tr></thead><tbody>';
+    data.products.filter(p => !p._deleted && (!wq || p.name.toLowerCase().includes(wq))).sort((a,b) => a.name.localeCompare(b.name)).forEach(p => {
       const stock = p.stock||0;
       const low = stock <= (p.minStock||5);
       html += `<tr><td>${esc(p.name)}</td><td class="${low?'stock-low':''}">${stock}</td><td>${p.minStock||5}</td>
         <td>${cur(p.cost)}</td><td>${cur((p.cost||0)*stock)}</td>
-        <td>${low ? '<span class="badge badge-danger">Stock Bajo</span>' : '<span class="badge badge-success">Ok</span>'}</td></tr>`;
+        <td>${low ? '<span class="badge badge-danger">Stock Bajo</span>' : '<span class="badge badge-success">Ok</span>'}</td>
+        <td>
+          <span style="cursor:pointer;color:#888;padding:2px 6px;font-size:12px;" onclick="openWarehouseMovement('${p.id}')" title="Movimiento">📦</span>
+          <span style="cursor:pointer;color:#c0392b;padding:2px 6px;font-size:12px;" onclick="deleteProduct('${p.id}')" title="Borrar">🗑️</span>
+        </td></tr>`;
     });
     html += '</tbody></table></div>';
     div.innerHTML = html;
@@ -1730,7 +2204,7 @@ function renderWarehouse() {
     html += '</tbody></table></div>';
     div.innerHTML = html;
   } else if (warehouseTab === 'low') {
-    const low = data.products.filter(p => (p.stock||0) <= (p.minStock||5)).sort((a,b) => a.name.localeCompare(b.name));
+    const low = data.products.filter(p => !p._deleted && (p.stock||0) <= (p.minStock||5)).sort((a,b) => a.name.localeCompare(b.name));
     if (!low.length) { div.innerHTML = '<div class="alert alert-success">✅ Todos los productos tienen stock suficiente</div>'; return; }
     let html = '<div class="alert alert-danger">⚠️ Productos con stock bajo</div><table><thead><tr><th>Producto</th><th>Stock Actual</th><th>Stock Mínimo</th><th>Diferencia</th></tr></thead><tbody>';
     low.forEach(p => {
@@ -1742,10 +2216,12 @@ function renderWarehouse() {
   }
 }
 
-function openWarehouseMovement() {
-  if (!data.products.length) { alert('Primero crea productos'); return; }
+function openWarehouseMovement(productId) {
+  const active = data.products.filter(p => !p._deleted);
+  if (!active.length) { alert('Primero crea productos'); return; }
   const sel = document.getElementById('whProduct');
-  sel.innerHTML = data.products.map(p => `<option value="${p.id}">${esc(p.name)} (Stock: ${p.stock||0})</option>`).join('');
+  sel.innerHTML = active.map(p => `<option value="${p.id}">${esc(p.name)} (Stock: ${p.stock||0})</option>`).join('');
+  if (productId) sel.value = productId;
   document.getElementById('whType').value = 'in';
   document.getElementById('whQty').value = '1';
   document.getElementById('whReason').value = '';
@@ -1878,19 +2354,25 @@ function showDayAppts(dateStr) {
   html += '</tr></thead><tbody>';
 
   const skipRow = {};
+  const drawnAppts = new Set();
   slots.forEach(t => {
     html += `<tr><td class="appt-grid-time">${t}</td>`;
     cols.forEach((e, ci) => {
       if (skipRow[ci]) { skipRow[ci]--; return; }
-      const appt = apptGrid[t][ci];
+      let appt = apptGrid[t][ci];
+      if (appt && drawnAppts.has(appt.id)) appt = null;
       if (appt) {
+        drawnAppts.add(appt.id);
         const aEnd = appt.endTime || addMinutes(appt.time, 30);
-        const rowspan = Math.max(1, Math.round((timeToMinutes(aEnd) - timeToMinutes(appt.time)) / 15));
+        const durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
+        const rowspan = Math.max(1, Math.ceil(durMins / 15));
         if (rowspan > 1) skipRow[ci] = rowspan - 1;
         const client = data.clients.find(c => c.id === appt.clientId);
-        const service = data.services.find(s => s.id === appt.serviceId);
+        const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
+        const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
+        const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
         const color = colorMap[appt.id];
-        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${service?service.name:'?'} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}`;
+        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}`;
         html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ" style="background:${color};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')">${esc(appt.time)}${appt.endTime?'-'+esc(appt.endTime):''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       } else {
         const empId = e ? e.id : '';
@@ -1910,11 +2392,16 @@ function editAppt(id) {
   document.getElementById('apptEditId').value = id;
   document.getElementById('apptDate').value = a.date;
   document.getElementById('apptTime').value = a.time||'';
+  document.getElementById('apptEndTime').value = a.endTime||'';
   document.getElementById('apptEmployee').value = a.employeeId||'';
   document.getElementById('apptNotes').value = a.notes||'';
   document.getElementById('appointmentModalTitle').textContent = 'Editar Cita';
   document.getElementById('apptClient').value = a.clientId;
-  document.getElementById('apptService').value = a.serviceId||'';
+  apptSelectedServices = (a.serviceIds||(a.serviceId?[a.serviceId]:[])).map(sid => data.services.find(s=>s.id===sid)).filter(Boolean);
+  renderApptServices();
+  document.getElementById('apptServiceSearch').value = '';
+  document.getElementById('apptServiceSearch').dataset.selectedId = '';
+  document.getElementById('apptServiceDropdown').style.display = 'none';
   openModal('appointmentModal');
 }
 
@@ -1923,10 +2410,90 @@ function quickAppt(dateStr, time, employeeId) {
   document.getElementById('apptEditId').value = '';
   document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
   document.getElementById('apptTime').value = time || '10:00';
+  document.getElementById('apptEndTime').value = '';
   document.getElementById('apptEmployee').value = employeeId || '';
   document.getElementById('apptNotes').value = '';
+  apptSelectedServices = [];
+  renderApptServices();
+  document.getElementById('apptServiceSearch').value = '';
+  document.getElementById('apptServiceSearch').dataset.selectedId = '';
+  document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
   openModal('appointmentModal');
+}
+
+function toggleServiceSelect(show) {
+  const dd = document.getElementById('apptServiceDropdown');
+  if (show) {
+    filterServiceDropdown();
+    dd.style.display = 'block';
+  } else {
+    dd.style.display = 'none';
+  }
+}
+
+function filterServiceDropdown() {
+  const q = document.getElementById('apptServiceSearch').value.toLowerCase().trim();
+  const dd = document.getElementById('apptServiceDropdown');
+  const services = data.services.filter(s => !s._deleted && (!q || s.name.toLowerCase().includes(q)));
+  dd.innerHTML = services.map(s =>
+    `<div class="service-dd-item" data-id="${s.id}" onmousedown="selectServiceFromDropdown('${s.id}')">${esc(s.name)}</div>`
+  ).join('');
+  if (!services.length) {
+    dd.innerHTML = '<div class="service-dd-empty">Sin resultados</div>';
+  }
+}
+
+function selectServiceFromDropdown(id) {
+  const svc = data.services.find(s => s.id === id);
+  if (!svc) return;
+  const inp = document.getElementById('apptServiceSearch');
+  inp.value = svc.name;
+  inp.dataset.selectedId = id;
+  document.getElementById('apptServiceDropdown').style.display = 'none';
+}
+
+let apptSelectedServices = [];
+let apptEditingServiceId = null;
+
+function renderApptServices() {
+  const list = document.getElementById('apptServicesList');
+  if (!apptSelectedServices.length) { list.innerHTML = ''; return; }
+  list.innerHTML = apptSelectedServices.map(s => `
+    <span style="display:inline-flex;align-items:center;gap:4px;background:var(--primary);color:#fff;padding:2px 8px;border-radius:12px;font-size:12px;">
+      ${esc(s.name)} ${s.price ? ' - ' + cur(s.price) : ''}
+      <span onclick="removeApptService('${s.id}')" style="cursor:pointer;font-weight:bold;opacity:.8;">&times;</span>
+    </span>`).join('');
+}
+
+function addApptService() {
+  const inp = document.getElementById('apptServiceSearch');
+  const selId = inp.dataset.selectedId || '';
+  if (!selId) { alert('Selecciona un servicio de la lista'); return; }
+  if (apptSelectedServices.find(s => s.id === selId)) { alert('Servicio ya añadido'); return; }
+  const svc = data.services.find(s => s.id === selId);
+  if (svc) { apptSelectedServices.push(svc); renderApptServices(); updateApptEndFromServices(); }
+  inp.value = '';
+  inp.dataset.selectedId = '';
+  document.getElementById('apptServiceDropdown').style.display = 'none';
+}
+
+function removeApptService(id) {
+  apptSelectedServices = apptSelectedServices.filter(s => s.id !== id);
+  renderApptServices();
+  updateApptEndFromServices();
+}
+
+function updateApptEndFromServices() {
+  const startTime = document.getElementById('apptTime').value;
+  if (!startTime) return;
+  if (!apptSelectedServices.length) { document.getElementById('apptEndTime').value = ''; return; }
+  const totalDur = apptSelectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const [h, m] = startTime.split(':').map(Number);
+  const endM = m + totalDur;
+  const endH = h + Math.floor(endM / 60);
+  const endMin = endM % 60;
+  document.getElementById('apptEndTime').value = String(endH).padStart(2,'0')+':'+String(endMin).padStart(2,'0');
 }
 
 function fillAppointmentSelects() {
@@ -1934,9 +2501,6 @@ function fillAppointmentSelects() {
   clientSel.innerHTML = '<option value="">Seleccionar cliente...</option>' + 
     data.clients.filter(c => !c._deleted).sort((a,b) => a.name.localeCompare(b.name))
       .map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
-  const svcSel = document.getElementById('apptService');
-  svcSel.innerHTML = '<option value="">Sin servicio</option>' + 
-    data.services.filter(s => !s._deleted).map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
   const empSel = document.getElementById('apptEmployee');
   empSel.innerHTML = '<option value="">Sin asignar</option>' + 
     data.employees.filter(e => !e._deleted).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
@@ -1991,20 +2555,11 @@ function saveAppointment() {
   const clientId = document.getElementById('apptClient').value;
   const date = document.getElementById('apptDate').value;
   const time = document.getElementById('apptTime').value;
-  const serviceId = document.getElementById('apptService').value;
+  const endTime = document.getElementById('apptEndTime').value || '';
+  const serviceId = apptSelectedServices.length === 1 ? apptSelectedServices[0].id : '';
+  const serviceIds = apptSelectedServices.map(s => s.id);
   const employeeId = document.getElementById('apptEmployee').value||'';
   if (!clientId || !date) { alert('Cliente y fecha son obligatorios'); return; }
-  let endTime = '';
-  if (time && serviceId) {
-    const svc = data.services.find(s => s.id === serviceId);
-    if (svc && svc.duration) {
-      const [h, m] = time.split(':').map(Number);
-      const endM = m + (svc.duration || 0);
-      const endH = h + Math.floor(endM / 60);
-      const endMin = endM % 60;
-      endTime = `${String(endH).padStart(2,'0')}:${String(endMin).padStart(2,'0')}`;
-    }
-  }
   const overlap = checkApptOverlap(date, time, endTime, employeeId, id_);
   let msg = '';
   if (overlap) {
@@ -2023,14 +2578,22 @@ function saveAppointment() {
     }
   }
   const obj = {
-    clientId, serviceId,
+    clientId, serviceId, serviceIds,
     employeeId,
     date, time, endTime, notes: notes,
     status: 'pending',
     _modified: Date.now(),
     _deleted: false
   };
-  if (id_) { const a = data.appointments.find(x => x.id === id_); if (a) Object.assign(a, obj); }
+  if (id_) {
+    const a = data.appointments.find(x => x.id === id_);
+    if (a) {
+      const wasModified = a._modified && a._modified < Date.now() - 5000;
+      delete a.waReminder;
+      Object.assign(a, obj);
+      if (wasModified) delete a.waReminder;
+    }
+  }
   else { obj.id = id(); data.appointments.push(obj); }
   saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
 }
@@ -2043,7 +2606,7 @@ function deleteAppt(id) {
 }
 
 function exportToIcs() {
-  const appts = data.appointments.sort((a,b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
+  const appts = data.appointments.filter(a => !a._deleted).sort((a,b) => a.date.localeCompare(b.date) || (a.time||'').localeCompare(b.time||''));
   if (!appts.length) { alert('No hay citas para exportar'); return; }
   const s = data.settings;
   const location = [s.businessAddress, s.businessCity, s.businessProvince].filter(Boolean).join(', ');
@@ -2117,7 +2680,18 @@ function renderPosItems(filter) {
       items = items.filter(i => i.type === filter || (filter==='services'&&i.type==='service')||(filter==='products'&&i.type==='product')||(filter==='projects'&&i.type==='project'));
     }
   }
-  if (q) items = items.filter(i => i.name.toLowerCase().includes(q));
+  if (q) {
+    const bc = q.toUpperCase().replace(/\s+/g,'');
+    const bcMatch = bc.length >= 3 ? data.products.find(p => !p._deleted && p.showInPos !== false && (p.barcode||'').toUpperCase().replace(/\s+/g,'') === bc) : null;
+    if (bcMatch) { addToTicket('product', bcMatch.id, bcMatch.name, bcMatch.price); document.getElementById('posSearch').value=''; renderPosItems(filter); return; }
+    items = items.filter(i => i.name.toLowerCase().includes(q));
+  }
+  if (selectedPosLetter !== 'TODOS') {
+    items = items.filter(i => {
+      const firstLetter = (i.name || '').trim().charAt(0).toUpperCase();
+      return firstLetter === selectedPosLetter;
+    });
+  }
   if (!filter) items = items.filter(i => i.type === 'service');
   
   if (!items.length) { div.innerHTML = '<div class="empty-state" style="grid-column:span 2;"><p>Sin resultados</p></div>'; return; }
@@ -2156,7 +2730,7 @@ function renderPosSectionTabs() {
 function addToTicket(type, id, name, price) {
   if (type === 'product') {
     const prod = data.products.find(p => p.id === id);
-    if (prod && prod.stock === 0) { alert('⚠️ Stock 0 - Producto sin existencias'); }
+    if (prod && prod.stock === 0) { if (!confirm('⚠️ Stock 0 - Producto sin existencias.\n¿Agregarlo de todos modos?')) return; }
   }
   const existing = ticket.items.find(i => i.type === type && i.id === id);
   if (existing) { existing.qty++; }
@@ -2170,9 +2744,15 @@ function updateTicket() {
   const editBadge = document.getElementById('editBadge');
   if (editingSaleId && originalSaleForRectify) {
     editBadge.style.display = 'block';
+    const hasInvoice = originalSaleForRectify.invoiceNumber;
+    const typeLabel = hasInvoice ? 'Factura' : 'ticket';
+    const numLabel = hasInvoice
+      ? (data.settings.invoicePrefix||'FACT-') + String(originalSaleForRectify.invoiceNumber).padStart(4,'0')
+      : '#' + originalSaleForRectify.number;
+    document.getElementById('editBadgeLabel').textContent = typeLabel;
     const label = originalSaleForRectify.isRectifying
-      ? 'Editando rectificativo #' + originalSaleForRectify.number + ' (base: #' + originalSaleForRectify.originalNumber + ')'
-      : '#' + originalSaleForRectify.number + ' → ticket rectificativo';
+      ? 'Editando rectificativ' + (hasInvoice ? 'a' : 'o') + ' ' + numLabel + ' (base: ' + (hasInvoice ? 'FACT-REF-' + String(originalSaleForRectify.originalInvoiceNumber).padStart(4,'0') : '#' + originalSaleForRectify.originalNumber) + ')'
+      : numLabel + ' → ' + typeLabel + ' rectificativ' + (hasInvoice ? 'a' : 'o');
     document.getElementById('editBadgeNum').textContent = label;
   } else {
     editBadge.style.display = 'none';
@@ -2209,7 +2789,7 @@ function updateTicket() {
   const sel = document.getElementById('ticketClientSelect');
   const currentVal = sel.value;
   sel.innerHTML = '<option value="">Mostrador</option>' +
-    data.clients.map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    data.clients.filter(c => !c._deleted).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   sel.value = ticket.clientId || '';
   updateTicketClient();
 }
@@ -2272,7 +2852,7 @@ function clearTicket() {
 
 function editTicket(id) {
   const sale = data.sales.find(s => s.id === id);
-  if (!sale || sale.invoiceNumber) return;
+  if (!sale) return;
   editingSaleId = id;
   originalSaleForRectify = JSON.parse(JSON.stringify(sale));
   // If rectifying, reconstruct combined state (original + rectifying) for editing
@@ -2303,8 +2883,9 @@ function editTicket(id) {
 
 function deleteTicket(id) {
   const sale = data.sales.find(s => s.id === id);
-  if (!sale || sale.invoiceNumber) return;
-  if (!confirm('¿Eliminar este ticket definitivamente?')) return;
+  if (!sale) return;
+  const label = sale.invoiceNumber ? 'factura' : 'ticket';
+  if (!confirm('¿Eliminar esta '+label+' definitivamente?')) return;
   data.sales = data.sales.filter(s => s.id !== id);
   saveKey('sales');
   renderReports();
@@ -2410,6 +2991,7 @@ function completeSale() {
       });
       
       const refNumber = existing.number + 'REF';
+      const isRectifyingInvoice = !!existing.invoiceNumber;
       const rectifyingSale = {
         id: id(),
         number: refNumber,
@@ -2423,8 +3005,12 @@ function completeSale() {
         paymentMethod: ticket.paymentMethod || 'cash',
         isRectifying: true,
         rectifiesSaleId: existing.id,
-        originalNumber: existing.number
+        originalNumber: existing.number,
+        originalInvoiceNumber: existing.invoiceNumber || null
       };
+      if (isRectifyingInvoice) {
+        rectifyingSale.invoiceNumber = nextInvoiceNum();
+      }
       data.sales.push(rectifyingSale);
       saveKey('sales');
       saveKey('products');
@@ -2441,7 +3027,8 @@ function completeSale() {
       clearTicket();
       renderPosItems();
       renderDashboard();
-      showRectifyingReceipt(rectifyingSale, diffBase, diffIva);
+      if (isRectifyingInvoice) showInvoice(rectifyingSale.id);
+      else showRectifyingReceipt(rectifyingSale, diffBase, diffIva);
       return;
     }
     editingSaleId = null;
@@ -2450,7 +3037,7 @@ function completeSale() {
   
   const sale = {
     id: id(),
-    number: (data.sales.length + 1),
+    number: nextTicketNum(),
     items: JSON.parse(JSON.stringify(ticket.items)),
     total,
     base,
@@ -2605,10 +3192,13 @@ function showInvoice(saleId) {
   const client = data.clients.find(c => c.id === sale.clientId);
   const bs = data.settings;
   if (!sale.invoiceNumber) {
-    sale.invoiceNumber = data.invoiceCounter++;
-    saveKey('sales'); saveKey('invoiceCounter');
+    sale.invoiceNumber = nextInvoiceNum();
+    saveKey('sales');
   }
-  const invNum = (bs.invoicePrefix||'FACT-') + String(sale.invoiceNumber).padStart(4,'0');
+  const isRectifyingInvoice = sale.isRectifying && sale.originalInvoiceNumber;
+  const invNum = isRectifyingInvoice
+    ? 'FACT-REF-' + String(sale.originalInvoiceNumber).padStart(4,'0')
+    : (bs.invoicePrefix||'FACT-') + String(sale.invoiceNumber).padStart(4,'0');
   const itemsHtml = sale.items.map(i => `
     <tr>
       <td style="padding:6px 8px;border-bottom:1px solid #eee;font-size:13px;">${i.qty}x ${esc(i.name)}</td>
@@ -2627,7 +3217,7 @@ function showInvoice(saleId) {
         ${bs.businessEmail ? `<div style="font-size:12px;color:#555;">${esc(bs.businessEmail)}</div>` : ''}
       </div>
       <div style="text-align:right;">
-        <div style="font-size:18px;font-weight:700;color:var(--primary);">FACTURA</div>
+        <div style="font-size:18px;font-weight:700;${isRectifyingInvoice?'color:var(--danger);':'color:var(--primary);'}">${isRectifyingInvoice ? 'FACTURA RECTIFICATIVA' : 'FACTURA'}</div>
         <div style="font-size:14px;font-weight:600;color:#555;">${esc(invNum)}</div>
         <div style="font-size:12px;color:#555;">${new Date(sale.date).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})}</div>
       </div>
@@ -2692,7 +3282,7 @@ function renderReports() {
   const to = document.getElementById('reportTo').value;
   
   if (reportTab === 'sales') {
-    let sales = data.sales;
+    let sales = data.sales.filter(s => !isSaleArchived(s));
     if (from) sales = sales.filter(s => s.date >= from);
     if (to) sales = sales.filter(s => s.date <= to+'T23:59:59');
     sales = sales.sort((a,b) => new Date(b.date) - new Date(a.date));
@@ -2702,31 +3292,38 @@ function renderReports() {
     const totalBase = sales.reduce((sum, s) => sum + (s.base||0), 0);
     if (!sales.length) { div.innerHTML = '<div class="empty-state"><p>Sin ventas en este período</p></div>'; return; }
     div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${sales.length} ventas · Total: <strong>${cur(total)}</strong> · Base: <strong>${cur(totalBase)}</strong> · IVA: <strong>${cur(totalIva)}</strong> · Media: <strong>${cur(total/sales.length)}</strong></p>
-      <div style="overflow-x:auto;"><table><thead><tr><th>Fecha</th><th>Cliente</th><th>Items</th><th>Base</th><th>IVA</th><th>Total</th><th>Pago</th><th>Tipo</th><th>Acción</th></tr></thead><tbody>` +
+      <div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Items</th><th>Base</th><th>IVA</th><th>Total</th><th>Pago</th><th>Tipo</th><th>Acción</th></tr></thead><tbody>` +
       sales.map(s => {
         const client = data.clients.find(c => c.id === s.clientId);
         const items = s.items.map(i => `${i.qty}x ${i.name}`).join(', ');
         const isInvoice = !!s.invoiceNumber;
-        const invoiceNum = isInvoice ? (data.settings.invoicePrefix||'FACT-') + String(s.invoiceNumber).padStart(4,'0') : '';
-        return `<tr><td>${new Date(s.date).toLocaleString('es-ES')}</td><td>${esc(client?client.name:'Mostrador')}</td>
+        const isRectifyingInvoice = s.isRectifying && s.originalInvoiceNumber;
+        const invoiceNum = isRectifyingInvoice
+          ? 'FACT-REF-' + String(s.originalInvoiceNumber).padStart(4,'0')
+          : isInvoice ? (data.settings.invoicePrefix||'FACT-') + String(s.invoiceNumber).padStart(4,'0') : '';
+        const tipoBadge = isRectifyingInvoice ? '<span class="badge badge-danger">Factura Rectificativa</span>'
+          : isInvoice ? '<span class="badge badge-info">Factura</span>'
+          : s.isRectifying ? '<span class="badge badge-warning">Rectif.</span>'
+          : '<span class="badge badge-success">Ticket</span>';
+        return `<tr><td style="text-align:center;font-weight:600;">#${s.number||''}</td><td>${new Date(s.date).toLocaleString('es-ES')}</td><td>${esc(client?client.name:'Mostrador')}</td>
           <td>${esc(items)}</td><td>${cur(s.base||0)}</td><td>${cur(s.iva||0)}</td><td><strong>${cur(s.total)}</strong></td>
           <td>${s.paymentMethod === 'card' ? '💳 Tarjeta' : '💰 Contado'}</td>
-          <td>${isInvoice ? '<span class="badge badge-info">Factura</span>' : s.isRectifying ? '<span class="badge badge-warning">Rectif.</span>' : '<span class="badge badge-success">Ticket</span>'}${invoiceNum ? `<br><small style="font-size:10px;color:var(--text-light);">${esc(invoiceNum)}</small>` : ''}${s.isRectifying ? `<br><small style="font-size:10px;color:var(--text-light);">→ #${s.originalNumber||''}</small>` : ''}</td>
+          <td>${tipoBadge}${invoiceNum ? `<br><small style="font-size:10px;color:var(--text-light);">${esc(invoiceNum)}</small>` : ''}${s.isRectifying ? `<br><small style="font-size:10px;color:var(--text-light);">→ #${s.originalNumber||''}</small>` : ''}</td>
           <td><div class="btn-group">
-            ${isInvoice ? '' : `<button class="btn btn-primary btn-sm" onclick="editTicket('${s.id}')" title="Editar ticket">✏️</button>
-            <button class="btn btn-danger btn-sm" onclick="deleteTicket('${s.id}')" title="Eliminar ticket">🗑️</button>`}
+            <button class="btn btn-primary btn-sm" onclick="editTicket('${s.id}')" title="Editar">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteTicket('${s.id}')" title="Eliminar">🗑️</button>
             <button class="btn btn-secondary btn-sm" onclick="showSaleDetail('${s.id}')">Ver</button>
           </div></td></tr>`;
       }).join('') + '</tbody></table></div>';
   } else if (reportTab === 'clients') {
-    const list = data.clients.sort((a,b) => (b.totalSpent||0) - (a.totalSpent||0));
+    const list = data.clients.filter(c => !c._deleted).sort((a,b) => (b.totalSpent||0) - (a.totalSpent||0));
     if (!list.length) { div.innerHTML = '<div class="empty-state"><p>Sin clientes</p></div>'; return; }
     div.innerHTML = `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Nombre</th><th>NIF/CIF</th><th>Teléfono</th><th>Población</th><th>Visitas</th><th>Gasto Total</th></tr></thead><tbody>` +
       list.map((c,i) => `<tr><td>${i+1}</td><td><strong>${esc(c.name)}</strong></td><td>${esc(c.nif||'-')}</td><td>${esc(c.phone||'-')}</td>
         <td>${esc(c.city||'-')}</td><td>${c.visits||0}</td><td>${cur(c.totalSpent||0)}</td></tr>`).join('') + '</tbody></table></div>';
   } else if (reportTab === 'services') {
     const svcCount = {};
-    data.sales.forEach(s => s.items.forEach(i => {
+    data.sales.filter(s => !isSaleArchived(s)).forEach(s => s.items.forEach(i => {
       if (i.type === 'service') { svcCount[i.id] = svcCount[i.id]||{name:i.name,qty:0,total:0}; svcCount[i.id].qty+=i.qty; svcCount[i.id].total+=i.price*i.qty; }
     }));
     const list = Object.entries(svcCount).sort((a,b) => b[1].qty - a[1].qty);
@@ -2735,7 +3332,7 @@ function renderReports() {
       list.map(([id,o],i) => `<tr><td>${i+1}</td><td>${esc(o.name)}</td><td>${o.qty}</td><td>${cur(o.total)}</td></tr>`).join('') + '</tbody></table></div>';
   } else if (reportTab === 'products') {
     const prodCount = {};
-    data.sales.forEach(s => s.items.forEach(i => {
+    data.sales.filter(s => !isSaleArchived(s)).forEach(s => s.items.forEach(i => {
       if (i.type === 'product') { prodCount[i.id] = prodCount[i.id]||{name:i.name,qty:0,total:0}; prodCount[i.id].qty+=i.qty; prodCount[i.id].total+=i.price*i.qty; }
     }));
     const list = Object.entries(prodCount).sort((a,b) => b[1].qty - a[1].qty);
@@ -2752,8 +3349,13 @@ function showSaleDetail(id) {
   if (!s) return;
   const client = data.clients.find(c => c.id === s.clientId);
   const isRectifying = s.isRectifying;
-  let html = `<p><strong>${isRectifying ? 'Ticket Rectificativo' : 'Ticket'} #${s.number||''}</strong></p>`;
-  if (isRectifying) html += `<p><strong>Rectifica al ticket #${s.originalNumber||''}</strong></p>`;
+  const isRectifyingInvoice = isRectifying && s.originalInvoiceNumber;
+  const title = isRectifyingInvoice ? 'Factura Rectificativa'
+    : isRectifying ? 'Ticket Rectificativo'
+    : s.invoiceNumber ? 'Factura' : 'Ticket';
+  const numLabel = isRectifyingInvoice ? 'FACT-REF-'+String(s.originalInvoiceNumber).padStart(4,'0') : '#'+(s.number||'');
+  let html = `<p><strong>${title} ${numLabel}</strong></p>`;
+  if (isRectifying) html += `<p><strong>Rectifica al ${s.originalInvoiceNumber ? 'factura #'+s.originalInvoiceNumber : 'ticket #'+s.originalNumber||''}</strong></p>`;
   html += `<p><strong>Fecha:</strong> ${new Date(s.date).toLocaleString('es-ES')}</p>
     <p><strong>Cliente:</strong> ${client?esc(client.name):'Mostrador'}</p>`;
   if (client && client.nif) html += `<p><strong>NIF/CIF:</strong> ${esc(client.nif)}</p>`;
@@ -2823,24 +3425,25 @@ function printReport() {
 
 // ============ DASHBOARD ============
 function renderDashboard() {
+  const visibleSales = data.sales.filter(s => !isSaleArchived(s));
   const today = new Date().toISOString().split('T')[0];
-  const todaySales = data.sales.filter(s => s.date.startsWith(today));
+  const todaySales = visibleSales.filter(s => s.date.startsWith(today));
   const todayTotal = todaySales.reduce((sum, s) => sum + s.total, 0);
   const todayIva = todaySales.reduce((sum, s) => sum + (s.iva||0), 0);
-  const todayAppts = data.appointments.filter(a => a.date === today).length;
-  const totalSales = data.sales.reduce((sum, s) => sum + s.total, 0);
-  const lowStock = data.products.filter(p => (p.stock||0) <= (p.minStock||5)).length;
+  const todayAppts = data.appointments.filter(a => a.date === today && !a._deleted).length;
+  const totalSalesSum = visibleSales.reduce((sum, s) => sum + s.total, 0);
+  const lowStock = data.products.filter(p => !p._deleted && (p.stock||0) <= (p.minStock||5)).length;
   
   document.getElementById('dashboardStats').innerHTML = `
     <div class="stat-card"><div class="stat-number">${cur(todayTotal)}</div><div class="stat-label">Ventas Hoy</div></div>
     <div class="stat-card"><div class="stat-number">${todaySales.length}</div><div class="stat-label">Ventas Hoy</div></div>
     <div class="stat-card"><div class="stat-number">${cur(todayIva)}</div><div class="stat-label">IVA Hoy</div></div>
     <div class="stat-card"><div class="stat-number">${todayAppts}</div><div class="stat-label">Citas Hoy</div></div>
-    <div class="stat-card"><div class="stat-number">${data.clients.length}</div><div class="stat-label">Clientes</div></div>
-    <div class="stat-card"><div class="stat-number">${data.employees.length}</div><div class="stat-label">Empleados</div></div>`;
+    <div class="stat-card"><div class="stat-number">${data.clients.filter(c=>!c._deleted).length}</div><div class="stat-label">Clientes</div></div>
+    <div class="stat-card"><div class="stat-number">${data.employees.filter(e=>!e._deleted).length}</div><div class="stat-label">Empleados</div></div>`;
   
   // Recent sales
-  const recentSales = data.sales.sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,5);
+  const recentSales = visibleSales.sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,5);
   const salesDiv = document.getElementById('dashboardSales');
   if (!recentSales.length) { salesDiv.innerHTML = '<div class="empty-state"><p>Sin ventas registradas</p></div>'; }
   else {
@@ -2853,7 +3456,7 @@ function renderDashboard() {
   
   // Today's appointments
   const apptsDiv = document.getElementById('dashboardAppts');
-  const tAppts = data.appointments.filter(a => a.date === today).sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  const tAppts = data.appointments.filter(a => a.date === today && !a._deleted).sort((a,b) => (a.time||'').localeCompare(b.time||''));
   if (!tAppts.length) { apptsDiv.innerHTML = '<div class="empty-state"><p>Sin citas para hoy</p></div>'; }
   else {
     apptsDiv.innerHTML = tAppts.map(a => {
@@ -2873,6 +3476,28 @@ function escAttr(s) { return s.replace(/"/g,'&quot;'); }
 function addMinutes(time, mins) { const [h,m]=time.split(':').map(Number); return String(h+Math.floor((m+mins)/60)).padStart(2,'0')+':'+String((m+mins)%60).padStart(2,'0'); }
 function timeToMinutes(time) { const [h,m]=time.split(':').map(Number); return h*60+m; }
 
+// Filter sales hidden by counter backups (closed fiscal periods)
+function isSaleArchived(s) {
+  if (!s.invoiceNumber && Array.isArray(data.ticketBackups)) {
+    let num = s.number;
+    if (typeof num === 'string' && num.endsWith('REF')) {
+      const parsed = parseInt(num.replace('REF',''), 10);
+      if (!isNaN(parsed)) num = parsed;
+    }
+    for (const b of data.ticketBackups) {
+      if (typeof num === 'number' && num <= b.value && new Date(s.date) < new Date(b.date))
+        return true;
+    }
+  }
+  if (s.invoiceNumber && Array.isArray(data.invoiceBackups)) {
+    for (const b of data.invoiceBackups) {
+      if (s.invoiceNumber <= b.value && new Date(s.date) < new Date(b.date))
+        return true;
+    }
+  }
+  return false;
+}
+
 // ============ INIT ============
 function cleanOldAppointments() {
   const today = new Date().toISOString().split('T')[0];
@@ -2884,8 +3509,92 @@ function cleanOldAppointments() {
   }
 }
 
+let selectedProductLetter = 'TODOS';
+let selectedServiceLetter = 'TODOS';
+let selectedPosLetter = 'TODOS';
+
+function filterProductByLetter(letter) {
+  selectedProductLetter = letter;
+  const buttons = document.querySelectorAll('#productAlphabetFilter .alphabet-btn');
+  buttons.forEach(btn => btn.classList.remove('active'));
+  if (letter === 'TODOS') {
+    document.getElementById('btn-prod-all').classList.add('active');
+  } else {
+    document.getElementById(`btn-prod-${letter}`).classList.add('active');
+  }
+  renderProducts();
+}
+
+function filterServiceByLetter(letter) {
+  selectedServiceLetter = letter;
+  const buttons = document.querySelectorAll('#serviceAlphabetFilter .alphabet-btn');
+  buttons.forEach(btn => btn.classList.remove('active'));
+  if (letter === 'TODOS') {
+    document.getElementById('btn-svc-all').classList.add('active');
+  } else {
+    document.getElementById(`btn-svc-${letter}`).classList.add('active');
+  }
+  renderServices();
+}
+
+function filterPosByLetter(letter) {
+  selectedPosLetter = letter;
+  const buttons = document.querySelectorAll('#posAlphabetFilter .alphabet-btn');
+  buttons.forEach(btn => btn.classList.remove('active'));
+  if (letter === 'TODOS') {
+    document.getElementById('btn-pos-all').classList.add('active');
+  } else {
+    document.getElementById(`btn-pos-${letter}`).classList.add('active');
+  }
+  
+  // Find which active filter tab is currently highlighted in POS
+  const activeTabBtn = document.querySelector('#posTabs .btn-primary, #posSectionTabs .btn-primary');
+  let currentFilter = 'all';
+  if (activeTabBtn) {
+    if (activeTabBtn.getAttribute('data-section')) {
+      currentFilter = activeTabBtn.getAttribute('data-section');
+    } else {
+      const txt = activeTabBtn.textContent.trim().toLowerCase();
+      if (txt.includes('servicio')) currentFilter = 'services';
+      else if (txt.includes('producto')) currentFilter = 'products';
+      else if (txt.includes('oferta')) currentFilter = 'projects';
+    }
+  }
+  renderPosItems(currentFilter);
+}
+
+function initAlphabetFilters() {
+  const letters = 'ABCDEFGHIJKLMNÑOPQRSTUVWXYZ'.split('');
+  
+  const prodContainer = document.getElementById('productAlphabetFilter');
+  if (prodContainer) {
+    prodContainer.innerHTML = `
+      <span class="alphabet-label">Filtrar A-Z:</span>
+      <button class="alphabet-btn active" id="btn-prod-all" onclick="filterProductByLetter('TODOS')">TODOS</button>
+      ${letters.map(l => `<button class="alphabet-btn" id="btn-prod-${l}" onclick="filterProductByLetter('${l}')">${l}</button>`).join('')}
+    `;
+  }
+  
+  const svcContainer = document.getElementById('serviceAlphabetFilter');
+  if (svcContainer) {
+    svcContainer.innerHTML = `
+      <span class="alphabet-label">Filtrar A-Z:</span>
+      <button class="alphabet-btn active" id="btn-svc-all" onclick="filterServiceByLetter('TODOS')">TODOS</button>
+      ${letters.map(l => `<button class="alphabet-btn" id="btn-svc-${l}" onclick="filterServiceByLetter('${l}')">${l}</button>`).join('')}
+    `;
+  }
+
+  const posContainer = document.getElementById('posAlphabetFilter');
+  if (posContainer) {
+    posContainer.innerHTML = `
+      <span class="alphabet-label">Filtrar A-Z:</span>
+      <button class="alphabet-btn active" id="btn-pos-all" onclick="filterPosByLetter('TODOS')">TODOS</button>
+      ${letters.map(l => `<button class="alphabet-btn" id="btn-pos-${l}" onclick="filterPosByLetter('${l}')">${l}</button>`).join('')}
+    `;
+  }
+}
+
 function init() {
-  // Set today's date for appointment form
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('apptDate').value = today;
   document.getElementById('reportTo').value = today;
@@ -2893,9 +3602,21 @@ function init() {
   document.getElementById('reportFrom').value = monthAgo.toISOString().split('T')[0];
   
   cleanOldAppointments();
+  cleanOldWaReminders();
   renderDashboard();
   updateAppHeader();
+  initAlphabetFilters();
   if (getSyncCfg().enabled) syncPush();
+}
+
+function cleanOldWaReminders() {
+  const now = new Date();
+  data.appointments.forEach(a => {
+    if (a.waReminder === 'sent' && a.date && a.time) {
+      const apptTime = new Date(a.date + 'T' + a.time + ':00');
+      if (apptTime < now) { delete a.waReminder; a._modified = Date.now(); }
+    }
+  });
 }
 
 init();
