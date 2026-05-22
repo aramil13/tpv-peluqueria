@@ -575,7 +575,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Nombre *</label><input type="text" id="employeeName" placeholder="Nombre completo"></div>
       <div class="form-group"><label>Teléfono</label><input type="text" id="employeePhone" placeholder="Teléfono"></div>
       <div class="form-group"><label>Email</label><input type="email" id="employeeEmail" placeholder="email@ejemplo.com"></div>
-      <div class="form-group"><label>Rol</label><select id="employeeRole"><option value="Peluquero">Peluquero</option><option value="Barbero">Barbero</option><option value="Esteticista">Esteticista</option><option value="Recepcionista">Recepcionista</option><option value="Otro">Otro</option></select></div>
+      <div class="form-group"><label>Rol</label><select id="employeeRole"><option value="Peluquera">Peluquera</option><option value="Esteticista">Esteticista</option><option value="Otro">Otro</option></select></div>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('employeeModal')">Cancelar</button><button class="btn btn-primary" onclick="saveEmployee()">Guardar</button></div>
     <input type="hidden" id="employeeEditId">
@@ -1610,7 +1610,7 @@ function editEmployee(id) {
   document.getElementById('employeeName').value = e.name;
   document.getElementById('employeePhone').value = e.phone||'';
   document.getElementById('employeeEmail').value = e.email||'';
-  document.getElementById('employeeRole').value = e.role||'Peluquero';
+  document.getElementById('employeeRole').value = e.role||'Peluquera';
   document.getElementById('employeeModalTitle').textContent = 'Editar Empleado';
   openModal('employeeModal');
 }
@@ -1627,7 +1627,7 @@ function clearEmployeeForm() {
   document.getElementById('employeeName').value = '';
   document.getElementById('employeePhone').value = '';
   document.getElementById('employeeEmail').value = '';
-  document.getElementById('employeeRole').value = 'Peluquero';
+  document.getElementById('employeeRole').value = 'Peluquera';
   document.getElementById('employeeModalTitle').textContent = 'Nuevo Empleado';
 }
 
