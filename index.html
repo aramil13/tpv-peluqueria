@@ -294,7 +294,12 @@ tr:hover td { background: #f8f9fa; }
     <div class="section" id="sec-services">
       <div class="card">
         <div class="card-header"><h3>Gestión de Servicios</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('services')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('services')">📤 Exportar</button><button class="btn btn-danger btn-sm" onclick="clearAllData('services')">🗑️ Vaciar</button><button class="btn btn-primary" onclick="openServiceModal()">+ Nuevo Servicio</button></div></div>
-        <div class="search-bar"><input type="text" id="searchService" placeholder="Buscar servicio..." oninput="renderServices()"></div>
+        <div class="search-bar" style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="searchService" placeholder="Buscar servicio..." oninput="renderServices()" style="flex:1;">
+          <select id="filterServiceSection" onchange="renderServices()" style="width:auto;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;max-width:180px;">
+            <option value="">Todas las secciones</option>
+          </select>
+        </div>
         <div class="alphabet-filter" id="serviceAlphabetFilter"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Sección</th><th>Duración</th><th>Precio</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="servicesTable"></tbody></table></div>
       </div>
@@ -1722,7 +1727,13 @@ function openServiceModal() {
 
 function renderServices() {
   const q = (document.getElementById('searchService').value||'').toLowerCase();
+  const sectionFilter = document.getElementById('filterServiceSection').value;
   const tbody = document.getElementById('servicesTable');
+  // Populate section filter dropdown
+  const sel = document.getElementById('filterServiceSection');
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Todas las secciones</option>'+data.sections.filter(s => !s._deleted).sort((a,b) => a.name.localeCompare(b.name)).map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  sel.value = currentVal;
   const list = data.services.filter(s => {
     if (!s || s._deleted) return false;
     const nameMatch = (s.name || '').toLowerCase().includes(q);
@@ -1731,6 +1742,7 @@ function renderServices() {
       const firstLetter = (s.name || '').trim().charAt(0).toUpperCase();
       return firstLetter === selectedServiceLetter;
     }
+    if (sectionFilter && s.sectionId !== sectionFilter) return false;
     return true;
   }).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No hay servicios</td></tr>'; return; }
