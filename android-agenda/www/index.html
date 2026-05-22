@@ -1091,11 +1091,7 @@ function sendWaReminder(apptId) {
   const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
   const msg = encodeURIComponent('Hola ' + cl.name + '.\nTe recordamos que tienes cita en Nymara Estilistas el ' + dia + ' a las ' + hora + '.\nEn caso de no poder asistir, por avísanos con antelación para poder ceder tu plaza.\nTe esperamos!');
   const waUrl = 'https://wa.me/' + phone + '?text=' + msg;
-  if (typeof AndroidBridge !== 'undefined') {
-    AndroidBridge.openUrl(waUrl);
-  } else {
-    window.open(waUrl, '_blank');
-  }
+  window.open(waUrl, '_blank');
   a.waReminder = 'sent';
   a._modified = Date.now();
   saveKey('appointments');
