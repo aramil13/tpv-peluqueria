@@ -223,7 +223,9 @@ function seedInitialData() {
   if (fs.existsSync(SYNC_FILE)) {
     try {
       const existing = JSON.parse(fs.readFileSync(SYNC_FILE, 'utf8'));
-      if (existing.services && existing.services.length > 0) return;
+      // Only seed if file is truly empty: no services, products, projects, appointments, clients
+      const hasData = ['services','products','projects','appointments','clients','employees'].some(k => Array.isArray(existing[k]) && existing[k].length > 0);
+      if (hasData) return;
     } catch (_) { /* recreate */ }
   }
   ensureDir(SYNC_FILE);
@@ -294,6 +296,30 @@ const server = http.createServer((req, res) => {
           });
     merged.settings = remote.settings || current.settings || {};
     writeData(merged);
+    console.log('POST /sync: stored', 
+      (remote.products||[]).length, 'products,',
+      (remote.projects||[]).length, 'projects,',
+      (remote.services||[]).length, 'services,',
+      (remote.appointments||[]).length, 'appointments,',
+      (remote.clients||[]).length, 'clients');
+    // Forward all received data to SYNC_FORWARD_URL if configured
+    if (SYNC_FORWARD_URL) {
+      const fwdUrl = SYNC_FORWARD_URL.replace(/\/+$/, '') + '/sync';
+      const fwdHeaders = { 'Content-Type': 'application/json' };
+      if (SYNC_FORWARD_KEY) fwdHeaders['Authorization'] = 'Bearer ' + SYNC_FORWARD_KEY;
+      const fwdMod = fwdUrl.startsWith('https') ? https : http;
+      const fwdReq = fwdMod.request(fwdUrl, { method: 'POST', headers: fwdHeaders }, (fwdRes) => {
+        let fwdData = '';
+        fwdRes.on('data', c => fwdData += c);
+        fwdRes.on('end', () => {
+          if (fwdRes.statusCode === 200) console.log('Forward /sync: OK');
+          else console.warn('Forward /sync: HTTP ' + fwdRes.statusCode + ' - ' + fwdData);
+        });
+      });
+      fwdReq.on('error', e => console.error('Forward /sync error:', e.message));
+      fwdReq.write(body);
+      fwdReq.end();
+    }
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       ok: true,
@@ -315,6 +341,10 @@ const server = http.createServer((req, res) => {
 
   if (url === '/health') {
     const data = readData();
+    const totalProducts = (data.products||[]).length;
+    const webProducts = (data.products||[]).filter(p => p.showOnWeb && !p._deleted).length;
+    const totalProjects = (data.projects||[]).length;
+    const webProjects = (data.projects||[]).filter(p => p.showOnWeb && !p._deleted).length;
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       status: 'ok', file: SYNC_FILE,
@@ -322,6 +352,10 @@ const server = http.createServer((req, res) => {
       clients: (data.clients || []).length,
       services: (data.services || []).length,
       employees: (data.employees || []).length,
+      products: totalProducts,
+      webProducts: webProducts,
+      projects: totalProjects,
+      webProjects: webProjects,
       forwardUrl: SYNC_FORWARD_URL || '(none)',
       lastModified: data.lastModified
     }));
@@ -513,7 +547,9 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       return;
     }
     const d = readData();
-    const webProducts = (d.products||[]).filter(p => p.showOnWeb && !p._deleted);
+    const allProducts = d.products||[];
+    const webProducts = allProducts.filter(p => p.showOnWeb && !p._deleted);
+    console.log('/api/web-products:', webProducts.length, 'of', allProducts.length, 'total products');
     const body = JSON.stringify(webProducts.map(p => ({
       name: p.name || '',
       price: p.price,
@@ -538,7 +574,9 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       return;
     }
     const d = readData();
-    const webOffers = (d.projects||[]).filter(p => p.showOnWeb && !p._deleted);
+    const allProjects = d.projects||[];
+    const webOffers = allProjects.filter(p => p.showOnWeb && !p._deleted);
+    console.log('/api/web-offers:', webOffers.length, 'of', allProjects.length, 'total projects');
     const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
     const prodMap = {}; (d.products||[]).forEach(p => prodMap[p.id] = p);
     const payload = webOffers.map(p => {
@@ -547,7 +585,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       const subtotal = serviceTotal + productTotal;
       const discount = p.discount || 0;
       const totalPrice = subtotal * (1 - discount / 100);
-      return { services: p.services||[], products: p.products||[], discount: p.discount||0, description: p.description||'', photo: sanitizeUrl(p.photo), totalPrice: Math.round(totalPrice * 100) / 100 };
+      return { name: p.name||'', services: p.services||[], products: p.products||[], discount: p.discount||0, description: p.description||'', photo: sanitizeUrl(p.photo), totalPrice: Math.round(totalPrice * 100) / 100 };
     });
     const body = JSON.stringify(payload);
     const etag = computeETag(body);
@@ -870,6 +908,8 @@ if (SYNC_FORWARD_URL) {
   pullFromSync();
   setInterval(pullFromSync, 30000);
   console.log('Sync pull: polling', SYNC_FORWARD_URL, 'every 30s');
+} else {
+  console.log('Sync pull: disabled (no SYNC_FORWARD_URL set)');
 }
 
 server.listen(PORT, HOST, () => {
@@ -883,7 +923,5 @@ server.listen(PORT, HOST, () => {
   console.log(`Booking: http://localhost:${PORT}/`);
   console.log(`Booking (alt): http://localhost:${PORT}/booking`);
   console.log(`CORS origin: ${CORS_ORIGIN}`);
-  console.log(`Self-sync enabled: pulling every 30s`);
+  console.log(`Self-sync: ${SYNC_FORWARD_URL ? 'enabled (pulling every 30s from ' + SYNC_FORWARD_URL + ')' : 'disabled (no SYNC_FORWARD_URL)'}`);
 });
-
-setInterval(pullFromSync, 30000);

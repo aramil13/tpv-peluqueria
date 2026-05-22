@@ -218,7 +218,7 @@ fetchJSON('/api/web-products').then(products => {
       <div class="product-info">
         <h3>${esc(p.name)}</h3>
         ${p.description ? `<p>${esc(p.description)}</p>` : ''}
-        <span class="product-price">${parseFloat(p.price).toFixed(2)}€</span>
+        <span class="product-price">${p.price != null ? parseFloat(p.price).toFixed(2) : '0.00'}€</span>
       </div>
     </div>
   `).join('');
@@ -233,6 +233,7 @@ fetchJSON('/api/web-offers').then(offers => {
     return `<div class="offer-card">
       ${o.photo ? `<div class="offer-photo"><img src="${o.photo}" alt="Oferta" loading="lazy"></div>` : '<div class="offer-photo"><div class="offer-photo-placeholder">🏷️</div></div>'}
       <div class="offer-info">
+        <h3>${esc(o.name)}</h3>
         ${o.description ? `<p>${esc(o.description)}</p>` : '<p style="color:var(--text-light);">Sin descripción</p>'}
         <div>
           ${o.discount > 0 ? `<span class="offer-discount">-${o.discount}%</span>` : ''}
