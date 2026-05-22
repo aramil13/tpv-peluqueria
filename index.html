@@ -660,12 +660,23 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Tipo de IVA (%)</label><input type="number" id="ivaRate" step="0.01" min="0" max="100"></div>
     </div>
 <div id="settingsSync" style="display:none;">
-      <div class="form-group" style="margin-bottom:6px;"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="syncEnabled" style="width:auto;"> Activar sincronización automática</label></div>
-      <div class="form-group"><label>URL del servidor Sync</label><input type="text" id="syncUrl" placeholder="http://192.168.1.100:3456"></div>
-      <div style="font-size:12px;color:var(--text-light);margin-top:6px;line-height:1.5;">
-        📖 Usa una URL local (<code>http://192.168.1.100:3456</code>) para sync en red local,<br>
-        o una URL cloud (<code>https://tuservidor.onrender.com</code>) para sync desde cualquier lugar.<br>
-        Compatible con app Android AgendaTPV.
+      <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">📡 Sync entre dispositivos</div>
+        <div class="form-group" style="margin-bottom:6px;"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="syncEnabled" style="width:auto;"> Activar sincronización automática</label></div>
+        <div class="form-group"><label>URL del servidor Sync</label><input type="text" id="syncUrl" placeholder="http://192.168.1.100:3456"></div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:6px;line-height:1.5;">
+          📖 Usa una URL local (<code>http://192.168.1.100:3456</code>) para sync en red local,<br>
+          o una URL cloud (<code>https://tuservidor.onrender.com</code>) para sync desde cualquier lugar.<br>
+          Compatible con app Android AgendaTPV.
+        </div>
+      </div>
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">🌐 Sync Web automático</div>
+        <div class="form-group" style="margin-bottom:6px;"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="webSyncEnabled" style="width:auto;"> Sincronizar productos y ofertas con la web automáticamente</label></div>
+        <div class="form-group"><label>Intervalo (minutos)</label><input type="number" id="webSyncInterval" min="1" max="1440" value="10"></div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:6px;line-height:1.5;">
+          Envía automáticamente los productos y ofertas con <code>showOnWeb=true</code> al servidor cada X minutos.
+        </div>
       </div>
     </div>
     <div id="settingsWhatsApp" style="display:none;">
@@ -735,6 +746,7 @@ let data = {
     invoiceFooter: '¡Gracias por su visita!',
     invoicePrefix: 'FACT-',
     sync: { enabled: false, url: 'http://localhost:3456' },
+    webSync: { enabled: false, interval: 10 },
     onlineOpening: {}
   })
 }
@@ -1094,6 +1106,9 @@ function openSettings() {
   const sync = s.sync || {};
   document.getElementById('syncEnabled').checked = sync.enabled || false;
   document.getElementById('syncUrl').value = sync.url || 'http://localhost:3456';
+  const webSync = s.webSync || {};
+  document.getElementById('webSyncEnabled').checked = webSync.enabled || false;
+  document.getElementById('webSyncInterval').value = webSync.interval || 10;
   document.getElementById('currentTicketNum').textContent = lastTicketNum();
   document.getElementById('currentInvoiceNum').textContent = lastInvoiceNum();
   switchSettingsTab('business', document.querySelector('#settingsModal .tab'));
@@ -1120,12 +1135,18 @@ function saveSettings() {
       enabled: document.getElementById('syncEnabled').checked,
       url: document.getElementById('syncUrl').value.trim() || 'http://localhost:3456'
     },
+    webSync: {
+      enabled: document.getElementById('webSyncEnabled').checked,
+      interval: parseInt(document.getElementById('webSyncInterval').value) || 10
+    },
     onlineOpening: data.settings.onlineOpening || {}
   };
   saveKey('ivaRate'); saveKey('settings');
   updateAppHeader();
   if (data.settings.sync.enabled) { syncPush(); startSyncPoller(); }
   else stopSyncPoller();
+  if (data.settings.webSync.enabled) { syncWebNow(); startWebSyncPoller(); }
+  else stopWebSyncPoller();
   closeModal('settingsModal');
   updateTicket();
 }
@@ -1420,12 +1441,23 @@ function syncPull() {
 }
 
 let syncTimer = null;
+let webSyncTimer = null;
 function startSyncPoller() { stopSyncPoller(); if (getSyncCfg().enabled) syncTimer = setInterval(syncPull, 30000) }
 function stopSyncPoller() { if (syncTimer) { clearInterval(syncTimer); syncTimer = null } }
+function startWebSyncPoller() {
+  stopWebSyncPoller();
+  const ws = (data.settings.webSync || {});
+  if (ws.enabled) {
+    const ms = (ws.interval || 10) * 60 * 1000;
+    webSyncTimer = setInterval(syncWebNow, ms);
+  }
+}
+function stopWebSyncPoller() { if (webSyncTimer) { clearInterval(webSyncTimer); webSyncTimer = null } }
 
 // Start sync on load
 startSyncPoller();
 if (getSyncCfg().enabled) syncPush();
+startWebSyncPoller();
 
 // Manual web sync — pushes data and shows clear feedback
 function syncWebNow() {
