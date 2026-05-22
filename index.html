@@ -222,7 +222,7 @@ tr:hover td { background: #f8f9fa; }
     <div class="section" id="sec-pos">
       <div class="pos-container">
         <div class="card">
-          <div class="pos-search"><input type="text" id="posSearch" placeholder="Buscar servicios o productos..." oninput="filterPosItems()"></div>
+          <div class="pos-search"><input type="text" id="posSearch" placeholder="Buscar servicios o productos..." oninput="filterPosItems()" onkeydown="handlePosSearchKeydown(event)"></div>
           <div class="alphabet-filter" id="posAlphabetFilter" style="margin: 0 15px 15px 15px;"></div>
           <div class="pos-items-header" id="posTabs">
             <button class="btn btn-primary" onclick="filterPosItems('services')">Servicios</button>
@@ -2704,7 +2704,7 @@ function renderPosItems(filter) {
   }
   if (q) {
     const bc = q.toUpperCase().replace(/\s+/g,'');
-    const bcMatch = bc.length >= 3 ? data.products.find(p => (p.barcode||'').toUpperCase().replace(/\s+/g,'') === bc) : null;
+    const bcMatch = bc.length >= 3 ? data.products.find(p => !p._deleted && p.showInPos !== false && (p.barcode||'').toUpperCase().replace(/\s+/g,'') === bc) : null;
     if (bcMatch) { addToTicket('product', bcMatch.id, bcMatch.name, bcMatch.price); document.getElementById('posSearch').value=''; renderPosItems(filter); return; }
     items = items.filter(i => i.name.toLowerCase().includes(q));
   }
@@ -2726,6 +2726,17 @@ function renderPosItems(filter) {
       <div class="item-stock">${esc(i.extra)}</div>
     </div>`;
   }).join('');
+}
+
+function handlePosSearchKeydown(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    const val = e.target.value.trim();
+    if (val.length < 3) return;
+    const bc = val.toUpperCase().replace(/\s+/g,'');
+    const match = data.products.find(p => !p._deleted && p.showInPos !== false && (p.barcode||'').toUpperCase().replace(/\s+/g,'') === bc);
+    if (match) { addToTicket('product', match.id, match.name, match.price); e.target.value = ''; filterPosItems(); }
+  }
 }
 
 function filterPosItems(filter) {
