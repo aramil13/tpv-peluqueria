@@ -736,7 +736,7 @@ function deleteApptFromModal() {
 
 function sendWaReminderFromModal() {
   const id = document.getElementById('apptEditId').value;
-  if (id) sendWaReminder(id);
+  if (id) { sendWaReminder(id); closeModal('appointmentModal'); }
 }
 
 // ============ CLIENTS ============
@@ -1090,11 +1090,11 @@ function sendWaReminder(apptId) {
   const dia = dt.toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'});
   const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
   const msg = encodeURIComponent('Hola ' + cl.name + '.\nTe recordamos que tienes cita en Nymara Estilistas el ' + dia + ' a las ' + hora + '.\nEn caso de no poder asistir, por favor avísanos con antelación para poder ceder tu plaza.\nTe esperamos!');
-  const waUrl = 'whatsapp://send?phone=' + phone + '&text=' + msg;
+  const waUrl = 'https://wa.me/' + phone + '?text=' + msg;
   if (typeof Capacitor !== 'undefined' && Capacitor.Plugins && Capacitor.Plugins.App) {
-    Capacitor.Plugins.App.openUrl({ url: waUrl });
+    Capacitor.Plugins.App.openUrl({ url: waUrl }).catch(function() { window.location.href = waUrl; });
   } else {
-    window.open(waUrl, '_system');
+    window.location.href = waUrl;
   }
   a.waReminder = 'sent';
   a._modified = Date.now();
