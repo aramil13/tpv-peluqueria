@@ -236,6 +236,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
     <div class="form-group"><label>Notas</label><textarea id="apptNotes" placeholder="Notas..."></textarea></div>
     <div class="modal-footer">
       <button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button>
+      <button class="btn btn-success" id="whatsappApptBtn" style="display:none;" onclick="sendWaReminderFromModal()">📱 WhatsApp</button>
       <button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button>
       <button class="btn btn-primary" onclick="saveAppointment()">Guardar</button>
     </div>
@@ -533,6 +534,11 @@ function editAppt(id) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
+  const btnWa = document.getElementById('whatsappApptBtn');
+  if (btnWa) {
+    const cl = data.clients.find(c => c.id === a.clientId);
+    btnWa.style.display = (cl && cl.phone) ? '' : 'none';
+  }
   document.getElementById('appointmentModal').classList.add('show');
 }
 
@@ -550,6 +556,7 @@ function quickAppt(dateStr, time, employeeId) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = 'none';
+  document.getElementById('whatsappApptBtn').style.display = 'none';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
   document.getElementById('appointmentModal').classList.add('show');
 }
@@ -725,6 +732,11 @@ function deleteApptFromModal() {
   if (!id) return;
   deleteAppt(id);
   closeModal('appointmentModal');
+}
+
+function sendWaReminderFromModal() {
+  const id = document.getElementById('apptEditId').value;
+  if (id) sendWaReminder(id);
 }
 
 // ============ CLIENTS ============
