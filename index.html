@@ -205,6 +205,7 @@ tr:hover td { background: #f8f9fa; }
     <div style="display:flex;align-items:center;gap:10px;font-size:13px;">
       <span id="syncStatus" style="font-size:11px;color:var(--text-light);"></span>
       <span id="clock" style="color:var(--text-light);"></span>
+      <button class="btn btn-secondary btn-sm" onclick="syncWebNow()" title="Sincronizar productos y ofertas con la web" style="font-size:12px;">🌐 Sync Web</button>
       <button class="btn btn-secondary btn-sm" onclick="openSettings()" title="Configuración">⚙️</button>
     </div>
   </div>
@@ -312,15 +313,16 @@ tr:hover td { background: #f8f9fa; }
     <div class="section" id="sec-projects">
       <div class="card">
         <div class="card-header"><h3>Gestión de Ofertas</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('projects')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('projects')">📤 Exportar</button><button class="btn btn-primary" onclick="openProjectForm()">+ Nueva Oferta</button></div></div>
+        <div id="webOffersStatus" style="display:flex;align-items:center;gap:12px;padding:8px 12px;margin-bottom:8px;background:#f0f9f4;border:1px solid #a9dfbf;border-radius:8px;font-size:13px;"></div>
         <div class="search-bar"><input type="text" id="searchProject" placeholder="Buscar oferta..." oninput="renderProjects()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Servicios/Productos</th><th>Duración</th><th>Precio</th><th>Dto.</th><th>Total</th><th>Web</th><th>Acciones</th></tr></thead><tbody id="projectsTable"></tbody></table></div>
       </div>
     </div>
 
-    <!-- PRODUCTS -->
     <div class="section" id="sec-products">
       <div class="card">
         <div class="card-header"><h3>Gestión de Productos</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('products')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('products')">📤 Exportar</button><button class="btn btn-danger btn-sm" onclick="clearAllData('products')">🗑️ Vaciar</button><button class="btn btn-primary" onclick="openProductModal()">+ Nuevo Producto</button></div></div>
+        <div id="webProductsStatus" style="display:flex;align-items:center;gap:12px;padding:8px 12px;margin-bottom:8px;background:#f0f9f4;border:1px solid #a9dfbf;border-radius:8px;font-size:13px;"></div>
         <div class="search-bar"><input type="text" id="searchProduct" placeholder="Buscar producto..." oninput="renderProducts()"></div>
         <div class="alphabet-filter" id="productAlphabetFilter"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Proveedor</th><th>Precio Venta</th><th>Stock</th><th>Stock Mín.</th><th>Estado</th><th>Web</th><th>Acciones</th></tr></thead><tbody id="productsTable"></tbody></table></div>
@@ -1336,14 +1338,14 @@ function syncPush() {
   fetch(c.url.replace(/\/+$/,'') + '/sync', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      appointments: Array.isArray(data.appointments) ? data.appointments.filter(a => !a._deleted) : [],
-      clients: Array.isArray(data.clients) ? data.clients.filter(c => !c._deleted) : [],
-      services: Array.isArray(data.services) ? data.services.filter(s => !s._deleted) : [],
-      sections: Array.isArray(data.sections) ? data.sections.filter(s => !s._deleted) : [],
-      employees: Array.isArray(data.employees) ? data.employees.filter(e => !e._deleted) : [],
-      products: Array.isArray(data.products) ? data.products.filter(p => !p._deleted) : [],
-      projects: Array.isArray(data.projects) ? data.projects.filter(p => !p._deleted) : [],
-      providers: Array.isArray(data.providers) ? data.providers.filter(p => !p._deleted) : [],
+      appointments: Array.isArray(data.appointments) ? data.appointments : [],
+      clients: Array.isArray(data.clients) ? data.clients : [],
+      services: Array.isArray(data.services) ? data.services : [],
+      sections: Array.isArray(data.sections) ? data.sections : [],
+      employees: Array.isArray(data.employees) ? data.employees : [],
+      products: Array.isArray(data.products) ? data.products : [],
+      projects: Array.isArray(data.projects) ? data.projects : [],
+      providers: Array.isArray(data.providers) ? data.providers : [],
       settings: data.settings || {}
     })
   }).then(async r => {
@@ -1424,6 +1426,46 @@ function stopSyncPoller() { if (syncTimer) { clearInterval(syncTimer); syncTimer
 // Start sync on load
 startSyncPoller();
 if (getSyncCfg().enabled) syncPush();
+
+// Manual web sync — pushes data and shows clear feedback
+function syncWebNow() {
+  const c = getSyncCfg();
+  const status = document.getElementById('syncStatus');
+  if (!c.enabled || !c.url) {
+    if (status) { status.textContent = '⚠️ Sync no configurado'; setTimeout(() => { status.textContent = ''; }, 4000); }
+    alert('Activa la sincronización en ⚙️ Configuración → Sync e introduce la URL del servidor.');
+    return;
+  }
+  if (status) status.textContent = '🔄 Sincronizando con web...';
+  const webProducts = data.products.filter(p => !p._deleted && p.showOnWeb).length;
+  const webOffers = data.projects.filter(p => !p._deleted && p.showOnWeb).length;
+  fetch(c.url.replace(/\/+$/, '') + '/sync', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      appointments: Array.isArray(data.appointments) ? data.appointments : [],
+      clients: Array.isArray(data.clients) ? data.clients : [],
+      services: Array.isArray(data.services) ? data.services : [],
+      sections: Array.isArray(data.sections) ? data.sections : [],
+      employees: Array.isArray(data.employees) ? data.employees : [],
+      products: Array.isArray(data.products) ? data.products : [],
+      projects: Array.isArray(data.projects) ? data.projects : [],
+      providers: Array.isArray(data.providers) ? data.providers : [],
+      settings: data.settings || {}
+    })
+  }).then(async r => {
+    if (r.ok) {
+      if (status) { status.textContent = `✅ Web actualizada · ${webProducts} prod · ${webOffers} ofertas`; }
+    } else {
+      const err = await r.json().catch(() => ({}));
+      if (status) { status.textContent = '❌ Error sync: ' + (err.error || r.status); }
+    }
+    setTimeout(() => { if (status) status.textContent = ''; }, 5000);
+  }).catch(e => {
+    if (status) { status.textContent = '❌ ' + e.message; }
+    setTimeout(() => { if (status) status.textContent = ''; }, 5000);
+  });
+}
 
 // ============ NAVIGATION ============
 document.querySelectorAll('.nav-item').forEach(el => {
@@ -1785,7 +1827,7 @@ function clearSectionForm() {
 function renderProjects() {
   const q = (document.getElementById('searchProject').value||'').toLowerCase();
   const tbody = document.getElementById('projectsTable');
-  const list = data.projects.filter(p => !p._deleted && p.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
+  const list = data.projects.filter(p => (!p._deleted || p.showOnWeb) && p.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay ofertas</td></tr>'; return; }
   tbody.innerHTML = list.map(p => {
     const svcs = (p.services||[]).map(sid => { const s = data.services.find(x => x.id===sid); return s ? s.name : '?'}).join(', ');
@@ -1794,14 +1836,19 @@ function renderProjects() {
     const total = calcProjectPrice(p);
     const disc = p.discount||0;
     const final = total * (1 - disc/100);
-    return `<tr>
-      <td><strong>${esc(p.name)}</strong></td>
+    const webStyle = p.showOnWeb
+      ? 'background:#d5f5e3;color:#1a6e3a;border:1px solid #a9dfbf;'
+      : 'background:#f5f5f5;color:#999;border:1px solid #ddd;';
+    const webLabel = p.showOnWeb ? '🌐 En Web' : '🔒 Oculta';
+    const isArchived = p._deleted;
+    return `<tr style="${isArchived ? 'opacity:0.6;' : ''}">
+      <td><strong>${esc(p.name)}${isArchived ? ' <span style="color:#999;font-weight:400;font-size:11px;">(archivado)</span>' : ''}</strong></td>
       <td style="font-size:12px;color:var(--text-light);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${esc(items)}">${esc(items)}</td>
       <td>${calcProjectDuration(p)} min</td>
       <td>${cur(total)}</td>
       <td>${disc > 0 ? `<span style="color:var(--danger);font-weight:600;">-${disc}%</span>` : '-'}</td>
       <td><strong style="color:var(--primary);">${cur(final)}</strong></td>
-      <td><input type="checkbox" ${p.showOnWeb?'checked':''} onchange="toggleProjectWeb('${p.id}',this.checked)" style="cursor:pointer;"></td>
+      <td><button onclick="toggleProjectWeb('${p.id}',${!p.showOnWeb})" style="${webStyle}padding:4px 10px;border-radius:20px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;" title="Clic para cambiar">${webLabel}</button></td>
       <td><div class="btn-group">
         <button class="btn btn-primary btn-sm" onclick="editProject('${p.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProject('${p.id}')">🗑️</button>
@@ -1984,7 +2031,10 @@ function toggleProjectWeb(id, val) {
   p.showOnWeb = val;
   p._modified = Date.now();
   saveKey('projects');
+  renderProjects();
   syncPush();
+  const status = document.getElementById('syncStatus');
+  if (status) { status.textContent = val ? '🌐 Oferta publicada en web' : '🔒 Oferta ocultada de web'; setTimeout(() => { status.textContent = ''; }, 3000); }
 }
 
 // ============ PRODUCTS ============
@@ -2003,7 +2053,8 @@ function renderProducts() {
   const q = (document.getElementById('searchProduct').value||'').toLowerCase();
   const tbody = document.getElementById('productsTable');
   const list = data.products.filter(p => {
-    if (!p || p._deleted) return false;
+    if (!p) return false;
+    if (p._deleted && !p.showOnWeb) return false;
     const nameMatch = (p.name || '').toLowerCase().includes(q);
     if (!nameMatch) return false;
     if (selectedProductLetter !== 'TODOS') {
@@ -2014,20 +2065,25 @@ function renderProducts() {
   }).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay productos</td></tr>'; return; }
   tbody.innerHTML = list.map(p => {
+    const isArchived = p._deleted;
     const stock = p.stock||0;
     const min = p.minStock||5;
     const low = stock <= min;
     const prov = data.providers.find(x => x.id === p.providerId);
     const pc = prov && prov.color ? prov.color : null;
     const bg = pc ? hexToRgba(pc, 0.06) : '';
-    return `<tr style="${bg ? 'background:'+bg+';' : ''}">
-      <td><strong>${esc(p.name)}</strong></td>
+    const webStyle = p.showOnWeb
+      ? 'background:#d5f5e3;color:#1a6e3a;border:1px solid #a9dfbf;'
+      : 'background:#f5f5f5;color:#999;border:1px solid #ddd;';
+    const webLabel = p.showOnWeb ? '🌐 En Web' : '🔒 Oculto';
+    return `<tr style="${bg ? 'background:'+bg+';' : ''}${isArchived ? 'opacity:0.6;' : ''}">
+      <td><strong>${esc(p.name)}${isArchived ? ' <span style="color:#999;font-weight:400;font-size:11px;">(archivado)</span>' : ''}</strong></td>
       <td>${pc ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${pc};margin-right:6px;vertical-align:middle;"></span><span style="color:${pc};font-weight:500;">${esc(prov.name)}</span>` : '-'}</td>
       <td><strong>${cur(p.price)}</strong></td>
       <td class="${low?'stock-low':''}">${stock}</td>
       <td>${min}</td>
       <td>${low ? '<span class="badge badge-danger">Stock Bajo</span>' : '<span class="badge badge-success">Ok</span>'}</td>
-      <td><input type="checkbox" ${p.showOnWeb?'checked':''} onchange="toggleProductWeb('${p.id}',this.checked)" style="cursor:pointer;"></td>
+      <td><button onclick="toggleProductWeb('${p.id}',${!p.showOnWeb})" style="${webStyle}padding:4px 10px;border-radius:20px;cursor:pointer;font-size:12px;font-weight:600;white-space:nowrap;" title="Clic para publicar/ocultar en web">${webLabel}</button></td>
       <td><div class="btn-group">
         <button class="btn btn-primary btn-sm" onclick="editProduct('${p.id}')">✏️</button>
         <button class="btn btn-danger btn-sm" onclick="deleteProduct('${p.id}')">🗑️</button>
@@ -2094,7 +2150,10 @@ function toggleProductWeb(id, val) {
   p.showOnWeb = val;
   p._modified = Date.now();
   saveKey('products');
+  renderProducts();
   syncPush();
+  const status = document.getElementById('syncStatus');
+  if (status) { status.textContent = val ? '🌐 Publicado en web' : '🔒 Ocultado de web'; setTimeout(() => { status.textContent = ''; }, 3000); }
 }
 
 function clearProductForm() {

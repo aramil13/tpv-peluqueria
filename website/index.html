@@ -186,71 +186,131 @@
 const API_KEY = window.__WEB_API_KEY__ || '';
 const AUTH_HEADERS = API_KEY ? { 'Authorization': 'Bearer ' + API_KEY } : {};
 
-async function fetchJSON(url) {
-  const cacheKey = 'webcache_' + url;
-  const cached = localStorage.getItem(cacheKey);
-  let etag = '';
-  if (cached) {
-    try { const p = JSON.parse(cached); if (p.etag) etag = p.etag; } catch(e) {}
-  }
-  const headers = { ...AUTH_HEADERS };
-  if (etag) headers['If-None-Match'] = etag;
-  const res = await fetch(url, { headers });
-  if (res.status === 304 && cached) {
-    try { return JSON.parse(cached).data; } catch(e) {}
-  }
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  const data = await res.json();
-  const newEtag = res.headers.get('ETag') || '';
-  if (newEtag) localStorage.setItem(cacheKey, JSON.stringify({ etag: newEtag, data }));
-  return data;
-}
-
-fetch('/api/sync-pull', { method: 'POST' }).then(r => r.json()).then(d => console.log('sync-pull:', d)).catch(e => console.log('sync-pull error:', e));
-
-fetchJSON('/api/web-products').then(products => {
-  console.log('products:', products);
-  const grid = document.getElementById('webProductsGrid');
-  if (!products.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
-  grid.innerHTML = products.map(p => `
-    <div class="product-card">
-      ${p.photo ? `<div class="product-photo"><img src="${p.photo}" alt="Producto" loading="lazy"></div>` : '<div class="product-photo"><div class="product-photo-placeholder">🧴</div></div>'}
-      <div class="product-info">
-        <h3>${esc(p.name)}</h3>
-        ${p.description ? `<p>${esc(p.description)}</p>` : ''}
-        <span class="product-price">${p.price != null ? parseFloat(p.price).toFixed(2) : '0.00'}€</span>
-      </div>
-    </div>
-  `).join('');
-  document.getElementById('productsCount').textContent = 'Total: ' + products.length + ' producto' + (products.length !== 1 ? 's' : '');
-}).catch(e => { console.log('products error:', e); document.getElementById('webProductsGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Error: '+e.message+'</p>'; });
-
-fetchJSON('/api/web-offers').then(offers => {
-  console.log('offers:', offers);
-  const grid = document.getElementById('webOffersGrid');
-  if (!offers.length) { grid.innerHTML = '<p style="color:var(--text-light);text-align:center;">Próximamente...</p>'; return; }
-  grid.innerHTML = offers.map(o => {
-    return `<div class="offer-card">
-      ${o.photo ? `<div class="offer-photo"><img src="${o.photo}" alt="Oferta" loading="lazy"></div>` : '<div class="offer-photo"><div class="offer-photo-placeholder">🏷️</div></div>'}
-      <div class="offer-info">
-        <h3>${esc(o.name)}</h3>
-        ${o.description ? `<p>${esc(o.description)}</p>` : '<p style="color:var(--text-light);">Sin descripción</p>'}
-        <div>
-          ${o.discount > 0 ? `<span class="offer-discount">-${o.discount}%</span>` : ''}
-          <span class="offer-price">${o.totalPrice !== undefined ? o.totalPrice.toFixed(2) + '€' : 'Precio no disponible'}</span>
-    </div>
-  </div>
-    </div>`;
-  }).join('');
-  document.getElementById('offersCount').textContent = 'Total: ' + offers.length + ' oferta' + (offers.length !== 1 ? 's' : '');
-}).catch(e => { console.log('offers error:', e); document.getElementById('webOffersGrid').innerHTML = '<p style="color:var(--text-light);text-align:center;">Error: '+e.message+'</p>'; });
-
 function esc(s) {
   if (!s) return '';
   const d = document.createElement('div');
   d.appendChild(document.createTextNode(s));
   return d.innerHTML;
 }
+
+async function fetchJSON(url, bustCache) {
+  const cacheKey = 'webcache_' + url;
+  const headers = { ...AUTH_HEADERS };
+  if (!bustCache) {
+    const cached = localStorage.getItem(cacheKey);
+    let etag = '';
+    if (cached) {
+      try { const p = JSON.parse(cached); if (p.etag) etag = p.etag; } catch(e) {}
+    }
+    if (etag) headers['If-None-Match'] = etag;
+    const res = await fetch(url, { headers });
+    if (res.status === 304 && cached) {
+      try { return JSON.parse(cached).data; } catch(e) {}
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const newEtag = res.headers.get('ETag') || '';
+    if (newEtag) localStorage.setItem(cacheKey, JSON.stringify({ etag: newEtag, data }));
+    return data;
+  } else {
+    // Bust cache: force fresh request
+    const res = await fetch(url + '?_=' + Date.now(), { headers });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const newEtag = res.headers.get('ETag') || '';
+    if (newEtag) localStorage.setItem(cacheKey, JSON.stringify({ etag: newEtag, data }));
+    else localStorage.removeItem(cacheKey);
+    return data;
+  }
+}
+
+function renderProductCard(p) {
+  const photoHtml = p.photo
+    ? `<div class="product-photo"><img src="${p.photo}" alt="${esc(p.name)}" loading="lazy"></div>`
+    : `<div class="product-photo"><div class="product-photo-placeholder">🧴</div></div>`;
+  return `<div class="product-card">
+    ${photoHtml}
+    <div class="product-info">
+      <h3>${esc(p.name)}</h3>
+      ${p.description ? `<p>${esc(p.description)}</p>` : ''}
+      <span class="product-price">${p.price != null ? parseFloat(p.price).toFixed(2) : '0.00'}€</span>
+    </div>
+  </div>`;
+}
+
+function renderOfferCard(o) {
+  const photoHtml = o.photo
+    ? `<div class="offer-photo"><img src="${o.photo}" alt="${esc(o.name)}" loading="lazy"></div>`
+    : `<div class="offer-photo"><div class="offer-photo-placeholder">🏷️</div></div>`;
+  const includesList = [...(o.services||[]), ...(o.products||[])];
+  const includesHtml = includesList.length
+    ? `<p style="font-size:13px;color:var(--text-light);margin-bottom:10px;">✔ ${includesList.map(n => esc(n)).join(' &bull; ')}</p>`
+    : '';
+  return `<div class="offer-card">
+    ${photoHtml}
+    <div class="offer-info">
+      <h3>${esc(o.name)}</h3>
+      ${o.description ? `<p>${esc(o.description)}</p>` : ''}
+      ${includesHtml}
+      <div>
+        ${o.discount > 0 ? `<span class="offer-discount">-${o.discount}%</span>` : ''}
+        <span class="offer-price">${o.totalPrice !== undefined ? parseFloat(o.totalPrice).toFixed(2) + '€' : 'Consultar'}</span>
+      </div>
+    </div>
+  </div>`;
+}
+
+async function loadProducts(bustCache) {
+  const grid = document.getElementById('webProductsGrid');
+  const count = document.getElementById('productsCount');
+  try {
+    const products = await fetchJSON('/api/web-products', bustCache);
+    console.log('[Web] products recibidos:', products.length, products);
+    if (!products.length) {
+      grid.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:40px 0;">Próximamente...</p>';
+      count.textContent = '';
+    } else {
+      grid.innerHTML = products.map(renderProductCard).join('');
+      count.textContent = products.length + ' producto' + (products.length !== 1 ? 's' : '');
+    }
+  } catch(e) {
+    console.error('[Web] Error cargando productos:', e);
+    grid.innerHTML = `<p style="color:var(--text-light);text-align:center;padding:40px 0;">⚠️ Error al cargar productos: ${esc(e.message)}</p>`;
+  }
+}
+
+async function loadOffers(bustCache) {
+  const grid = document.getElementById('webOffersGrid');
+  const count = document.getElementById('offersCount');
+  try {
+    const offers = await fetchJSON('/api/web-offers', bustCache);
+    console.log('[Web] ofertas recibidas:', offers.length, offers);
+    if (!offers.length) {
+      grid.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:40px 0;">Próximamente...</p>';
+      count.textContent = '';
+    } else {
+      grid.innerHTML = offers.map(renderOfferCard).join('');
+      count.textContent = offers.length + ' oferta' + (offers.length !== 1 ? 's' : '');
+    }
+  } catch(e) {
+    console.error('[Web] Error cargando ofertas:', e);
+    grid.innerHTML = `<p style="color:var(--text-light);text-align:center;padding:40px 0;">⚠️ Error al cargar ofertas: ${esc(e.message)}</p>`;
+  }
+}
+
+// Trigger sync-pull then reload fresh data
+fetch('/api/sync-pull', { method: 'POST' })
+  .then(r => r.json())
+  .then(() => {
+    console.log('[Web] sync-pull OK — recargando datos...');
+    loadProducts(true);
+    loadOffers(true);
+  })
+  .catch(() => {
+    // If sync-pull fails, still try to load (may use cache)
+    loadProducts(false);
+    loadOffers(false);
+  });
 </script>
 </body>
 </html>

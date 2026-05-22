@@ -208,7 +208,7 @@ function computeETag(data) {
 function sanitizeUrl(url) {
   if (!url || typeof url !== 'string') return '';
   const s = url.trim();
-  if (s.startsWith('http://') || s.startsWith('https://')) return s;
+  if (s.startsWith('http://') || s.startsWith('https://') || s.startsWith('data:image/')) return s;
   return '';
 }
 
@@ -342,9 +342,9 @@ const server = http.createServer((req, res) => {
   if (url === '/health') {
     const data = readData();
     const totalProducts = (data.products||[]).length;
-    const webProducts = (data.products||[]).filter(p => p.showOnWeb && !p._deleted).length;
+    const webProducts = (data.products||[]).filter(p => p.showOnWeb).length;
     const totalProjects = (data.projects||[]).length;
-    const webProjects = (data.projects||[]).filter(p => p.showOnWeb && !p._deleted).length;
+    const webProjects = (data.projects||[]).filter(p => p.showOnWeb).length;
     res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
     res.end(JSON.stringify({
       status: 'ok', file: SYNC_FILE,
@@ -548,9 +548,10 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     }
     const d = readData();
     const allProducts = d.products||[];
-    const webProducts = allProducts.filter(p => p.showOnWeb && !p._deleted);
-    console.log('/api/web-products:', webProducts.length, 'of', allProducts.length, 'total products');
+    const webProducts = allProducts.filter(p => (p.showOnWeb || p.showWeb));
+    console.log('/api/web-products:', webProducts.length, 'of', allProducts.length, 'total products (incl. archived)');
     const body = JSON.stringify(webProducts.map(p => ({
+      id: p.id,
       name: p.name || '',
       price: p.price,
       description: p.description||'',
@@ -575,8 +576,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     }
     const d = readData();
     const allProjects = d.projects||[];
-    const webOffers = allProjects.filter(p => p.showOnWeb && !p._deleted);
-    console.log('/api/web-offers:', webOffers.length, 'of', allProjects.length, 'total projects');
+    const webOffers = allProjects.filter(p => (p.showOnWeb || p.showWeb));
+    console.log('/api/web-offers:', webOffers.length, 'of', allProjects.length, 'total projects (incl. archived)');
     const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
     const prodMap = {}; (d.products||[]).forEach(p => prodMap[p.id] = p);
     const payload = webOffers.map(p => {
@@ -585,7 +586,16 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       const subtotal = serviceTotal + productTotal;
       const discount = p.discount || 0;
       const totalPrice = subtotal * (1 - discount / 100);
-      return { name: p.name||'', services: p.services||[], products: p.products||[], discount: p.discount||0, description: p.description||'', photo: sanitizeUrl(p.photo), totalPrice: Math.round(totalPrice * 100) / 100 };
+      return { 
+        id: p.id,
+        name: p.name||'', 
+        services: (p.services||[]).map(sid => svcMap[sid] ? svcMap[sid].name : null).filter(Boolean), 
+        products: (p.products||[]).map(pid => prodMap[pid] ? prodMap[pid].name : null).filter(Boolean), 
+        discount: p.discount||0, 
+        description: p.description||'', 
+        photo: sanitizeUrl(p.photo), 
+        totalPrice: Math.round(totalPrice * 100) / 100 
+      };
     });
     const body = JSON.stringify(payload);
     const etag = computeETag(body);
