@@ -5,6 +5,6 @@
   "server": {
     "androidScheme": "http",
     "cleartext": true,
-    "allowNavigation": ["*"]
+    "allowNavigation": []
   }
 }
