@@ -1091,10 +1091,12 @@ function sendWaReminder(apptId) {
   const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
   const msg = encodeURIComponent('Hola ' + cl.name + '.\nTe recordamos que tienes cita en Nymara Estilistas el ' + dia + ' a las ' + hora + '.\nEn caso de no poder asistir, por favor avísanos con antelación para poder ceder tu plaza.\nTe esperamos!');
   const waUrl = 'https://wa.me/' + phone + '?text=' + msg;
-  if (typeof Capacitor !== 'undefined' && Capacitor.Plugins && Capacitor.Plugins.App) {
-    Capacitor.Plugins.App.openUrl({ url: waUrl }).catch(function() { window.location.href = waUrl; });
+  if (typeof Capacitor !== 'undefined' && Capacitor.getPlatform() === 'android') {
+    const a = document.createElement('a');
+    a.href = 'intent://wa.me/' + phone + '?text=' + msg + '#Intent;scheme=https;package=com.whatsapp;end';
+    a.click();
   } else {
-    window.location.href = waUrl;
+    window.open(waUrl, '_blank');
   }
   a.waReminder = 'sent';
   a._modified = Date.now();
