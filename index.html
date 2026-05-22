@@ -223,7 +223,11 @@ tr:hover td { background: #f8f9fa; }
       <div class="pos-container">
         <div class="card">
           <div class="pos-search"><input type="text" id="posSearch" placeholder="Buscar servicios o productos..." oninput="filterPosItems()" onkeydown="handlePosSearchKeydown(event)"></div>
-          <div class="alphabet-filter" id="posAlphabetFilter" style="margin: 0 15px 15px 15px;"></div>
+          <div style="display:flex;align-items:center;gap:8px;margin:0 15px 8px 15px;">
+            <div class="alphabet-filter" id="posAlphabetFilter" style="margin:0;flex:1;"></div>
+            <button class="btn btn-secondary" onclick="toggleBarcodeEmulator()" title="Emulador de escáner" style="font-size:13px;padding:4px 10px;">📷 Escáner</button>
+          </div>
+          <div id="barcodeEmulator" style="display:none;margin:0 15px 10px 15px;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:8px;max-height:200px;overflow-y:auto;font-size:13px;"></div>
           <div class="pos-items-header" id="posTabs">
             <button class="btn btn-primary" onclick="filterPosItems('services')">Servicios</button>
             <button class="btn btn-secondary" onclick="filterPosItems('products')">Productos</button>
@@ -2726,6 +2730,23 @@ function renderPosItems(filter) {
       <div class="item-stock">${esc(i.extra)}</div>
     </div>`;
   }).join('');
+}
+
+function toggleBarcodeEmulator() {
+  const div = document.getElementById('barcodeEmulator');
+  if (div.style.display !== 'none') { div.style.display = 'none'; return; }
+  const products = data.products.filter(p => !p._deleted && p.showInPos !== false && p.barcode);
+  if (!products.length) { div.innerHTML = '<p style="color:var(--text-light);">No hay productos con código de barras</p>'; div.style.display = 'block'; return; }
+  div.innerHTML = products.map(p => `<button onclick="scanBarcode('${escAttr(p.barcode)}')" style="display:inline-block;margin:3px;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:13px;">${esc(p.barcode)}<br><small>${esc(p.name)}</small></button>`).join('');
+  div.style.display = 'block';
+}
+
+function scanBarcode(bc) {
+  const input = document.getElementById('posSearch');
+  input.value = bc;
+  const match = data.products.find(p => !p._deleted && p.showInPos !== false && (p.barcode||'').toUpperCase().replace(/\s+/g,'') === bc.toUpperCase().replace(/\s+/g,''));
+  if (match) { addToTicket('product', match.id, match.name, match.price); input.value = ''; filterPosItems(); }
+  else { /* trigger oninput so user sees the barcode in search */ filterPosItems(); }
 }
 
 function handlePosSearchKeydown(e) {
