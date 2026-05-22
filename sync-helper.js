@@ -820,7 +820,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
 });
 
 function sendStaticFile(res, baseDir, filePath) {
-  const fullPath = path.join(baseDir, filePath);
+  const fullPath = path.join(baseDir, decodeURIComponent(filePath));
   if (!fullPath.startsWith(baseDir)) {
     res.writeHead(403, CORS_HEADERS); res.end('Forbidden');
     return;
