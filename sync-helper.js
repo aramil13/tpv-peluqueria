@@ -786,6 +786,14 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     sendStaticFile(res, WEBSITE_DIR, url);
     return;
   }
+  // Website assets (images, etc.)
+  if (url.startsWith('/') && !url.startsWith('/booking') && !url.startsWith('/api/') && url !== '/health' && url !== '/debug') {
+    const ext = path.extname(url).toLowerCase();
+    if (['.webp','.png','.jpg','.jpeg','.svg','.ico','.gif'].includes(ext)) {
+      sendStaticFile(res, WEBSITE_DIR, url);
+      return;
+    }
+  }
 
   // === BOOKING STATIC FILES ===
   const BOOKING_DIR = path.join(__dirname, 'booking');
@@ -823,7 +831,7 @@ function sendStaticFile(res, baseDir, filePath) {
       return;
     }
     const ext = path.extname(fullPath);
-    const mimes = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
+    const mimes = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript', '.png': 'image/png', '.jpg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webp': 'image/webp', '.gif': 'image/gif' };
     let data = content;
     if (ext === '.html' && WEB_API_KEY) {
       const inject = `<script>window.__WEB_API_KEY__=${JSON.stringify(WEB_API_KEY)};</script>`;
