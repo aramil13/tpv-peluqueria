@@ -47,6 +47,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .agenda-day.today { background: #fdebd0; }
 .agenda-day .day-num { font-weight: 600; font-size: 11px; margin-bottom: 1px; color: var(--text); }
 .agenda-day .appt { font-size: 7px; padding: 1px 2px; border-radius: 2px; margin-bottom: 1px; background: #d6eaf8; color: #1a5276; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.agenda-day .appt-online { background: #d5f5e3; color: #0d4a2a; }
+.agenda-day.has-online { background: #e8f8f5; }
 .empty-state { text-align: center; padding: 25px 16px; color: var(--text-light); }
 .empty-state p { font-size: 13px; margin-bottom: 6px; }
 .appt-list { padding: 10px 14px; }
@@ -63,7 +65,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; padding-bottom: 10px; border-bottom: 2px solid var(--bg); }
 .modal-header h3 { font-size: 16px; font-weight: 600; }
 .modal-close { background: none; border: none; font-size: 26px; cursor: pointer; color: var(--text-light); padding: 0 5px; line-height: 1; }
-.modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
+.modal-footer { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); }
 .form-group { margin-bottom: 12px; }
 .form-group label { display: block; font-size: 12px; font-weight: 500; margin-bottom: 4px; color: var(--text); }
 .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--border); border-radius: 8px; font-size: 13px; background: #fff; -webkit-appearance: none; }
@@ -98,6 +100,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .appt-grid-del { position: absolute; top: 1px; right: 1px; width: 14px; height: 14px; background: rgba(0,0,0,.3); color: #fff; border-radius: 50%; font-size: 8px; line-height: 14px; text-align: center; cursor: pointer; text-shadow: none; }
 .appt-grid-sq { width: 28px; height: 28px; border-radius: 8px; display: inline-block; cursor: pointer; border: 2px solid transparent; }
 .appt-grid-free { background: #fff; border: 2px dashed #ccc; }
+.appt-online-grid::after { content: '🌐'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 24px; opacity: .2; pointer-events: none; }
 .section-tabs { display:flex; gap:0; margin-bottom:12px; }
 .section-tab { flex:1; padding:8px; text-align:center; font-size:12px; cursor:pointer; border-bottom:2px solid var(--border); color:var(--text-light); -webkit-tap-highlight-color:transparent; }
 .section-tab.active { border-bottom-color:var(--primary); color:var(--primary); font-weight:600; }
@@ -117,6 +120,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 <div class="header">
   <h1><div id="syncDot" class="sync-indicator"></div> <span id="appBusinessName">Agenda</span></h1>
   <div class="header-actions">
+    <span id="headerSyncStatus" style="font-size:9px;color:rgba(255,255,255,0.8);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
+    <button class="btn btn-sm btn-secondary" onclick="syncWebNow()" style="font-size:10px;background:rgba(255,255,255,0.2);color:#fff;">🌐 Sync</button>
     <button class="btn btn-sm btn-warning" onclick="exportToIcs()" style="font-size:10px;">📤 ICS</button>
     <input type="file" id="importIcsInput" accept=".ics" onchange="importIcs(event)">
   </div>
@@ -423,12 +428,13 @@ function renderAgenda() {
     const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted);
-    html += `<div class="agenda-day ${isToday?'today':''}" onclick="showDayAppts('${dateStr}')">
+    const hasOnline = appts.some(a => a.source === 'online');
+    html += `<div class="agenda-day ${isToday?'today':''}${hasOnline?' has-online':''}" onclick="showDayAppts('${dateStr}')">
       <div class="day-num">${d}</div>
       ${appts.slice(0,2).map(a => {
         const client = data.clients.find(c => c.id === a.clientId);
         const employee = data.employees.find(e => e.id === a.employeeId);
-        return `<div class="appt">${esc(a.time||'')}${a.endTime ? '-'+esc(a.endTime) : ''} ${esc(client?client.name:'?')}${employee ? ' 👤'+esc(employee.name).slice(0,3) : ''}</div>`;
+        return `<div class="appt${a.source==='online'?' appt-online':''}">${esc(a.time||'')}${a.endTime ? '-'+esc(a.endTime) : ''} ${esc(client?client.name:'?')}${employee ? ' 👤'+esc(employee.name).slice(0,3) : ''}</div>`;
       }).join('')}
       ${appts.length>2?`<div style="font-size:7px;color:var(--primary);">+${appts.length-2}</div>`:''}
     </div>`;
@@ -504,7 +510,7 @@ function showDayAppts(dateStr) {
         const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
         const color = colorMap[appt.id];
         const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}`;
-        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ" style="background:${color};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')">${esc(appt.time)}${appt.endTime?'-'+esc(appt.endTime):''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}" style="background:${color};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')">${esc(appt.time)}${appt.endTime?'-'+esc(appt.endTime):''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       } else {
         const empId = e ? e.id : '';
         html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
@@ -1091,7 +1097,13 @@ function sendWaReminder(apptId) {
   const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
   const msg = encodeURIComponent('Hola ' + cl.name + '.\nTe recordamos que tienes cita en Nymara Estilistas el ' + dia + ' a las ' + hora + '.\nEn caso de no poder asistir, por avísanos con antelación para poder ceder tu plaza.\nTe esperamos!');
   const waUrl = 'https://wa.me/' + phone + '?text=' + msg;
-  window.location.href = waUrl;
+  if (typeof AndroidBridge !== 'undefined') {
+    AndroidBridge.openUrl(waUrl);
+  } else if (typeof Capacitor !== 'undefined' && Capacitor.Plugins && Capacitor.Plugins.WhatsApp) {
+    Capacitor.Plugins.WhatsApp.open({ url: waUrl });
+  } else {
+    window.open(waUrl, '_blank');
+  }
   a.waReminder = 'sent';
   a._modified = Date.now();
   saveKey('appointments');
@@ -1106,12 +1118,18 @@ function updateSyncStatus(msg, isErr) {
     if (isErr) { dot.className = 'sync-indicator err'; }
     else if (msg && msg.includes('✅')) { dot.className = 'sync-indicator ok'; }
   }
+  const hdr = document.getElementById('headerSyncStatus');
+  if (hdr) {
+    if (msg) { hdr.textContent = msg; setTimeout(() => { if (hdr.textContent === msg) hdr.textContent = ''; }, 6000); }
+    else { hdr.textContent = ''; }
+  }
   const el = document.getElementById('syncStatus');
-  if (!el) return;
-  if (msg) { el.innerHTML = msg; return; }
-  const c = getSyncCfg();
-  if (!c.enabled) { el.innerHTML = '⏸️ Sync desactivado'; return; }
-  el.innerHTML = '🔄 Conectando a ' + syncBase() + '...';
+  if (el) {
+    if (msg) { el.innerHTML = msg; return; }
+    const c = getSyncCfg();
+    if (!c.enabled) { el.innerHTML = '⏸️ Sync desactivado'; return; }
+    el.innerHTML = '🔄 Conectando a ' + syncBase() + '...';
+  }
 }
 
 function fetchWithTimeout(url, opts, ms) {
@@ -1155,6 +1173,41 @@ function syncPush() {
       providers: Array.isArray(data.providers) ? data.providers : []
     })
   }).then(() => updateSyncStatus('✅ Sincronizado ✓')).catch(e => updateSyncStatus('❌ Error sync', true));
+}
+
+function syncWebNow() {
+  const c = getSyncCfg();
+  if (!c.enabled || !c.url) {
+    alert('Activa la sincronización en Conf. → Sincronización e introduce la URL del servidor.');
+    updateSyncStatus('⚠️ Sync no configurado', true);
+    return;
+  }
+  updateSyncStatus('🔄 Sincronizando con web...');
+  const webProducts = Array.isArray(data.products) ? data.products.filter(p => !p._deleted && p.showOnWeb).length : 0;
+  const webOffers = Array.isArray(data.projects) ? data.projects.filter(p => !p._deleted && p.showOnWeb).length : 0;
+  fetchWithTimeout(syncBase()+'/sync', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      appointments: Array.isArray(data.appointments) ? data.appointments : [],
+      clients: Array.isArray(data.clients) ? data.clients : [],
+      services: Array.isArray(data.services) ? data.services : [],
+      sections: Array.isArray(data.sections) ? data.sections : [],
+      employees: Array.isArray(data.employees) ? data.employees : [],
+      products: Array.isArray(data.products) ? data.products : [],
+      projects: Array.isArray(data.projects) ? data.projects : [],
+      providers: Array.isArray(data.providers) ? data.providers : [],
+      settings: data.settings || {}
+    })
+  }).then(async r => {
+    if (r.ok) {
+      updateSyncStatus(`✅ Web actualizada · ${webProducts} prod · ${webOffers} ofertas`);
+    } else {
+      const err = await r.json().catch(() => ({}));
+      updateSyncStatus('❌ Error sync: ' + (err.error || r.status), true);
+    }
+  }).catch(e => {
+    updateSyncStatus('❌ ' + e.message, true);
+  });
 }
 
 function mergeRemote(type, remote) {
