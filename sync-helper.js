@@ -507,7 +507,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           clientId: client.id, serviceId: b.serviceId,
           employeeId: empId, date: b.date, time: b.time, endTime: endTime,
           notes: b.notes || 'Reserva online',
-          source: 'online', status: 'pending', _modified: Date.now(), _deleted: false
+          source: 'online', status: 'pending', _modified: Date.now(), _deleted: false, modificationCount: 0
         };
         data.appointments.push(appt);
         writeData(data);
@@ -758,6 +758,11 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           res.writeHead(409, CORS_HEADERS); res.end(JSON.stringify({ error: 'El nuevo horario no está disponible' }));
           return;
         }
+        if ((appt.modificationCount || 0) >= 1) {
+          res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Ya has modificado esta cita anteriormente. Solo puedes modificarla una vez.' }));
+          return;
+        }
+        appt.modificationCount = (appt.modificationCount || 0) + 1;
         appt.date = newDate;
         appt.time = b.newTime;
         appt.employeeId = newEmpId;
