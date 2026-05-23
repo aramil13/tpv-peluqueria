@@ -89,7 +89,8 @@ async function handleClientLogin(phone, res) {
     res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado. ¿El teléfono está registrado?' }));
     return;
   }
-  const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && !a._deleted).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  const today = new Date().toISOString().split('T')[0];
+  const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || a.cancelledBy)).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
   const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
   res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
@@ -101,7 +102,11 @@ async function handleClientLogin(phone, res) {
       employeeId: a.employeeId || '',
       employeeName: a.employeeId && empMap[a.employeeId] ? empMap[a.employeeId].name : '',
       serviceName: svcMap[a.serviceId] ? svcMap[a.serviceId].name : '',
-      serviceId: a.serviceId, notes: a.notes || ''
+      serviceId: a.serviceId, notes: a.notes || '',
+      _deleted: !!a._deleted,
+      cancelledBy: a.cancelledBy || '',
+      salonModified: !!a.salonModified,
+      modificationCount: a.modificationCount || 0
     }))
   }));
 }
@@ -507,7 +512,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           clientId: client.id, serviceId: b.serviceId,
           employeeId: empId, date: b.date, time: b.time, endTime: endTime,
           notes: b.notes || 'Reserva online',
-          source: 'online', status: 'pending', _modified: Date.now(), _deleted: false, modificationCount: 0, salonModified: false
+          source: 'online', status: 'pending', _modified: Date.now(), _deleted: false, modificationCount: 0, salonModified: false, cancelledBy: ''
         };
         data.appointments.push(appt);
         writeData(data);
@@ -704,6 +709,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         }
         appt._deleted = true;
         appt._modified = Date.now();
+        appt.cancelledBy = 'client';
         appt.notes = (appt.notes||'') + ' [Cancelada por cliente]';
         writeData(d);
         forwardAppointment(appt, client);

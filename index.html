@@ -2729,7 +2729,7 @@ function saveAppointment() {
 function deleteAppt(id) {
   if (!confirm('¿Cancelar esta cita?')) return;
   const a = data.appointments.find(x => x.id === id);
-  if (a) { a._deleted = true; a._modified = Date.now(); }
+  if (a) { a._deleted = true; a._modified = Date.now(); if (a.source === 'online') a.cancelledBy = 'salon'; }
   saveKey('appointments'); renderAgenda(); syncPush();
 }
 

@@ -160,6 +160,7 @@ async function registerClient() {
 }
 
 // === MY APPOINTMENTS ===
+const SALON_PHONE = '624 14 36 58';
 function renderMyAppts() {
   document.getElementById('clientInfo').innerHTML = '<strong>Cliente:</strong> '+esc(currentClient.name)+' &middot; 📞 '+esc(currentClient.phone);
   goStep(1);
@@ -174,7 +175,10 @@ function renderMyAppts() {
   const today = new Date().toISOString().split('T')[0];
   div.innerHTML = currentAppointments.map(a => {
     const isPast = a.date < today;
-    return '<div class="appt-card'+(isPast?' appt-past':'')+'">'+
+    const isCancelled = a._deleted;
+    const cancelledBySalon = isCancelled && a.cancelledBy === 'salon';
+    const cancelledByClient = isCancelled && a.cancelledBy === 'client';
+    return '<div class="appt-card'+(isPast?' appt-past':'')+(isCancelled?' appt-cancelled':'')+'"'+(isCancelled?' style="opacity:0.7;"':'')+'>'+
       '<div class="appt-card-date">'+
         '<span class="appt-card-day">'+esc(fmtDate(a.date))+'</span>'+
         '<span class="appt-card-time">'+esc(a.time)+(a.endTime ? ' - '+esc(a.endTime) : '')+'</span>'+
@@ -184,10 +188,11 @@ function renderMyAppts() {
         '<div class="appt-card-service">'+esc(a.serviceName)+'</div>'+
         (a.employeeName ? '<div class="appt-card-notes">👤 '+esc(a.employeeName)+'</div>' : '')+
         (a.notes?'<div class="appt-card-notes">'+esc(a.notes)+'</div>':'')+
-        (a.status==='cancelled'?'<div style="color:#e74c3c;font-weight:600;">Cancelada</div>':'')+
-        (a.salonModified ? '<div style="color:#e67e22;font-weight:600;font-size:12px;margin-top:4px;">Modificada por el Salón</div>' : '')+
+        (cancelledByClient ? '<div style="color:#e74c3c;font-weight:600;">Cancelada</div>' : '')+
+        (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 CITA CANCELADA POR EL SALÓN<br><span style="font-weight:400;font-size:12px;">Póngase en contacto en el: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+
+        (a.salonModified ? '<div style="color:#e74c3c;font-weight:700;font-size:12px;margin-top:4px;">Modificada por el Salón</div>' : '')+
       '</div>'+
-      (!isPast && a.status!=='cancelled' && a.source==='online' ? '<div class="appt-card-actions">'+
+      (!isPast && a.source==='online' && !cancelledByClient ? '<div class="appt-card-actions"'+(isCancelled?' style="opacity:0.4;pointer-events:none;"':'')+'>'+
         '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>'+
         '<button class="btn btn-sm btn-danger" onclick="cancelAppt(\''+a.id+'\')">Cancelar</button>'+
       '</div>' : '')+
