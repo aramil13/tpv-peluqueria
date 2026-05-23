@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://nymaraestilistas.es/sitemap.xml

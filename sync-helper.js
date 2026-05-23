@@ -789,7 +789,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
   // Website assets (images, etc.)
   if (url.startsWith('/') && !url.startsWith('/booking') && !url.startsWith('/api/') && url !== '/health' && url !== '/debug') {
     const ext = path.extname(url).toLowerCase();
-    if (['.webp','.png','.jpg','.jpeg','.svg','.ico','.gif'].includes(ext)) {
+    if (['.webp','.png','.jpg','.jpeg','.svg','.ico','.gif','.txt','.xml'].includes(ext)) {
       sendStaticFile(res, WEBSITE_DIR, url);
       return;
     }
