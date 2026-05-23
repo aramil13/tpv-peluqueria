@@ -710,10 +710,20 @@ function saveAppointment() {
     msg += '¿Guardar de todos modos?';
     if (!confirm(msg)) return;
   }
+  let notes = document.getElementById('apptNotes').value.trim();
+  if (id_) {
+    const existing = data.appointments.find(x => x.id === id_);
+    if (existing && existing.source === 'online' && notes.indexOf('Reserva online modificada por salon') === -1) {
+      notes = notes ? notes + ' | Reserva online modificada por salon' : 'Reserva online modificada por salon';
+    }
+    if (existing && existing.source === 'online' && !existing.salonModified) {
+      obj.salonModified = true;
+    }
+  }
   const obj = {
     clientId, serviceId, serviceIds,
     employeeId,
-    date, time, endTime, notes: document.getElementById('apptNotes').value.trim(),
+    date, time, endTime, notes: notes,
     status: 'pending',
     _modified: Date.now(),
     _deleted: false

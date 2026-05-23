@@ -185,10 +185,10 @@ function renderMyAppts() {
         (a.employeeName ? '<div class="appt-card-notes">👤 '+esc(a.employeeName)+'</div>' : '')+
         (a.notes?'<div class="appt-card-notes">'+esc(a.notes)+'</div>':'')+
         (a.status==='cancelled'?'<div style="color:#e74c3c;font-weight:600;">Cancelada</div>':'')+
-        ((a.modificationCount||0) >= 1 ? '<div style="color:#8e44ad;font-weight:600;font-size:12px;margin-top:4px;">Ya modificada (máx. 1 vez)</div>' : '')+
+        (a.salonModified ? '<div style="color:#e67e22;font-weight:600;font-size:12px;margin-top:4px;">Modificada por el Salón</div>' : '')+
       '</div>'+
       (!isPast && a.status!=='cancelled' && a.source==='online' ? '<div class="appt-card-actions">'+
-        ((a.modificationCount||0) < 1 ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+
+        '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>'+
         '<button class="btn btn-sm btn-danger" onclick="cancelAppt(\''+a.id+'\')">Cancelar</button>'+
       '</div>' : '')+
     '</div>';
@@ -275,6 +275,16 @@ async function modifyAppt(id) {
   modifyingApptId = id;
   const appt = currentAppointments.find(a => a.id === id);
   if (!appt) return;
+  if (appt.salonModified) {
+    alert('Cita modificada por el Salón, ya no puede modificarla, si no le conviene puede cancelarla.');
+    modifyingApptId = null;
+    return;
+  }
+  if ((appt.modificationCount||0) >= 1) {
+    alert('Ya has modificado esta cita anteriormente. Solo puedes modificarla una vez.');
+    modifyingApptId = null;
+    return;
+  }
   document.getElementById('modifyTitle').textContent = 'Modificar cita: '+fmtDate(appt.date)+' '+appt.time;
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const dateInput = document.getElementById('modifyDate');

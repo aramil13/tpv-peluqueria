@@ -2701,6 +2701,9 @@ function saveAppointment() {
     if (existing && existing.source === 'online' && notes.indexOf('Reserva online modificada por salon') === -1) {
       notes = notes ? notes + ' | Reserva online modificada por salon' : 'Reserva online modificada por salon';
     }
+    if (existing && existing.source === 'online' && !existing.salonModified) {
+      obj.salonModified = true;
+    }
   }
   const obj = {
     clientId, serviceId, serviceIds,
