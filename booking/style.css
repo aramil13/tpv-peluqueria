@@ -103,13 +103,13 @@ hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 .appt-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
 /* Salon-cancelled watermark */
-.appt-card.appt-cancelled-by-salon { position: relative; overflow: hidden; }
+.appt-card.appt-cancelled-by-salon { position: relative; overflow: hidden; border-color: #e74c3c !important; }
 .appt-card.appt-cancelled-by-salon::before {
   content: "ANULADA POR EL SALÓN";
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%) rotate(-25deg);
-  background: rgba(231, 76, 60, 0.9);
+  background: rgba(231, 76, 60, 0.88);
   color: #fff;
   font-weight: 700;
   font-size: 13px;
@@ -134,6 +134,13 @@ hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
   z-index: 0;
   pointer-events: none;
 }
+
+/* Salon-modified card */
+.appt-card.appt-modified-by-salon {
+  border-left: 4px solid #e74c3c !important;
+  background: #fff8f8;
+}
+
 
 /* Modal */
 .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }

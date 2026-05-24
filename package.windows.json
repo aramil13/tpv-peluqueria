@@ -13,7 +13,7 @@
   },
   "appId": "com.peluqueria.tpv",
   "files": [
-    "index.html",
+    "electron-app.html",
     "main.js",
     "sync-helper.js",
     "package.json",

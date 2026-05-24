@@ -761,24 +761,22 @@ let data = {
 const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','movements'];
 ARRAY_KEYS.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
-// One-time cleanup: old salon-cancelled appointments with past dates -> restore to deleted
+// One-time cleanup: old salon-cancelled appointments with PAST dates -> restore to deleted
+// Future salon-cancelled appointments are kept intact so the client can see the cancellation notice
 const today = new Date().toISOString().split('T')[0];
 let cleaned = 0;
 (data.appointments||[]).forEach(a => {
-  if (a.cancelledBy === 'salon' && a.date < today) {
-    a._deleted = true;
-    delete a.cancelledBy;
-    a._modified = Date.now();
-    cleaned++;
-  }
   if (a.cancelledBy === 'salon' && a.source !== 'online') {
+    // Non-online appointments should never have cancelledBy='salon' — clean up
     a._deleted = true;
     delete a.cancelledBy;
     a._modified = Date.now();
     cleaned++;
   }
+  // NOTE: do NOT clean up future online appointments with cancelledBy='salon'
+  // The client needs to see the cancellation notice in their booking page
 });
-if (cleaned) { DB.set('appointments', data.appointments); console.log('Cleaned old salon-cancelled:', cleaned); }
+if (cleaned) { DB.set('appointments', data.appointments); console.log('Cleaned non-online salon-cancelled:', cleaned); }
 
 // Clean up any corrupted entries in main entities (caused by importing binary files as CSV)
 ['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'].forEach(k => {
@@ -2720,9 +2718,6 @@ function saveAppointment() {
     if (existing && existing.source === 'online' && notes.indexOf('Reserva online modificada por salon') === -1) {
       notes = notes ? notes + ' | Reserva online modificada por salon' : 'Reserva online modificada por salon';
     }
-    if (existing && existing.source === 'online' && !existing.salonModified) {
-      obj.salonModified = true;
-    }
   }
   const obj = {
     clientId, serviceId, serviceIds,
@@ -2737,6 +2732,9 @@ function saveAppointment() {
     if (a) {
       const wasModified = a._modified && a._modified < Date.now() - 5000;
       delete a.waReminder;
+      if (a.source === 'online' && !a.salonModified) {
+        obj.salonModified = true;
+      }
       Object.assign(a, obj);
       if (wasModified) delete a.waReminder;
     }

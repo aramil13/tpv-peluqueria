@@ -61,14 +61,6 @@ async function handleClientLogin(phone, res) {
     return;
   }
   const today = new Date().toISOString().split('T')[0];
-  // Auto-clean old salon-cancelled appointments (past dates, no longer relevant)
-  let cleaned = false;
-  (d.appointments||[]).forEach(a => {
-    if (a.cancelledBy === 'salon' && (a.date < today || a.source !== 'online')) {
-      a._deleted = true; delete a.cancelledBy; a._modified = Date.now(); cleaned = true;
-    }
-  });
-  if (cleaned) await writeData(d);
   const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || a.cancelledBy === 'client' || a.cancelledBy === 'salon')).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
   const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
