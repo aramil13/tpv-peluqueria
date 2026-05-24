@@ -558,6 +558,7 @@ tr:hover td { background: #f8f9fa; }
     <div class="modal-header"><h3 id="appointmentModalTitle">Nueva Cita</h3><button class="modal-close" onclick="closeModal('appointmentModal')">&times;</button></div>
     <div class="grid-2">
       <div class="form-group"><label>Cliente *</label><select id="apptClient"></select></div>
+      <div class="form-group"><label>Sección *</label><select id="apptSection" onchange="onApptSectionChange()"><option value="">Seleccionar sección...</option></select></div>
       <div class="form-group"><label>Servicios</label>
         <div id="apptServicesList" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
         <div style="display:flex;gap:6px;align-items:center;">
@@ -2533,6 +2534,11 @@ function editAppt(id) {
   document.getElementById('apptClient').value = a.clientId;
   apptSelectedServices = (a.serviceIds||(a.serviceId?[a.serviceId]:[])).map(sid => data.services.find(s=>s.id===sid)).filter(Boolean);
   renderApptServices();
+  const secSel = document.getElementById('apptSection');
+  if (secSel && apptSelectedServices.length) {
+    const firstSvc = apptSelectedServices[0];
+    if (firstSvc && firstSvc.sectionId) secSel.value = firstSvc.sectionId;
+  }
   document.getElementById('apptServiceSearch').value = '';
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
@@ -2556,10 +2562,11 @@ function quickAppt(dateStr, time, employeeId) {
   document.getElementById('apptNotes').value = '';
   apptSelectedServices = [];
   renderApptServices();
+  const secSel = document.getElementById('apptSection');
+  if (secSel) secSel.value = '';
   document.getElementById('apptServiceSearch').value = '';
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
-  document.getElementById('cancelApptBtn').style.display = 'none';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
   openModal('appointmentModal');
 }
@@ -2567,6 +2574,10 @@ function quickAppt(dateStr, time, employeeId) {
 function toggleServiceSelect(show) {
   const dd = document.getElementById('apptServiceDropdown');
   if (show) {
+    if (!document.getElementById('apptSection').value) {
+      dd.style.display = 'none';
+      return;
+    }
     filterServiceDropdown();
     dd.style.display = 'block';
   } else {
@@ -2577,7 +2588,8 @@ function toggleServiceSelect(show) {
 function filterServiceDropdown() {
   const q = document.getElementById('apptServiceSearch').value.toLowerCase().trim();
   const dd = document.getElementById('apptServiceDropdown');
-  const services = data.services.filter(s => !s._deleted && (!q || s.name.toLowerCase().includes(q)));
+  const secId = document.getElementById('apptSection').value;
+  const services = data.services.filter(s => !s._deleted && (!secId || s.sectionId === secId) && (!q || s.name.toLowerCase().includes(q)));
   dd.innerHTML = services.map(s =>
     `<div class="service-dd-item" data-id="${s.id}" onmousedown="selectServiceFromDropdown('${s.id}')">${esc(s.name)}</div>`
   ).join('');
@@ -2646,6 +2658,17 @@ function fillAppointmentSelects() {
   const empSel = document.getElementById('apptEmployee');
   empSel.innerHTML = '<option value="">Sin asignar</option>' + 
     data.employees.filter(e => !e._deleted).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
+  const secSel = document.getElementById('apptSection');
+  if (secSel) {
+    secSel.innerHTML = '<option value="">Seleccionar sección...</option>' +
+      data.sections.filter(s => !s._deleted).map(s => `<option value="${s.id}"${s.color?` style="border-left:3px solid ${s.color};"`:''}>${esc(s.name)}</option>`).join('');
+  }
+}
+
+function onApptSectionChange() {
+  document.getElementById('apptServiceSearch').value = '';
+  document.getElementById('apptServiceSearch').dataset.selectedId = '';
+  document.getElementById('apptServiceDropdown').style.display = 'none';
 }
 
 function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
@@ -2702,6 +2725,8 @@ function saveAppointment() {
   const serviceIds = apptSelectedServices.map(s => s.id);
   const employeeId = document.getElementById('apptEmployee').value||'';
   if (!clientId || !date) { alert('Cliente y fecha son obligatorios'); return; }
+  if (!document.getElementById('apptSection').value) { alert('Selecciona una sección'); return; }
+  if (!apptSelectedServices.length) { alert('Añade al menos un servicio'); return; }
   const overlap = checkApptOverlap(date, time, endTime, employeeId, id_);
   let msg = '';
   if (overlap) {
