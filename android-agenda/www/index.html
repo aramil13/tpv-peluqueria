@@ -363,6 +363,16 @@ let data = {
 };
 ['appointments','clients','services','employees','products'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
+// One-time cleanup: old salon-cancelled appointments with past dates -> restore to deleted
+const todayC = new Date().toISOString().split('T')[0];
+let cleanedC = 0;
+(data.appointments||[]).forEach(a => {
+  if (a.cancelledBy === 'salon' && (a.date < todayC || a.source !== 'online')) {
+    a._deleted = true; delete a.cancelledBy; a._modified = Date.now(); cleanedC++;
+  }
+});
+if (cleanedC) { DB.set('appointments', data.appointments); }
+
 // Clean up any corrupted entries in main entities (caused by sync of binary-imported files on Windows)
 ['clients', 'employees', 'services', 'products'].forEach(k => {
   if (Array.isArray(data[k])) {
@@ -739,7 +749,7 @@ function saveAppointment() {
 function deleteAppt(id) {
   if (!confirm('¿Cancelar esta cita?')) return;
   const a = data.appointments.find(x => x.id === id);
-  if (a) { a._deleted = true; a._modified = Date.now(); if (a.source === 'online') a.cancelledBy = 'salon'; }
+  if (a) { a._modified = Date.now(); if (a.source === 'online') { a.cancelledBy = 'salon'; delete a._deleted; } else { a._deleted = true; } }
   saveKey('appointments'); renderAgenda(); syncPush();
 }
 
@@ -1031,7 +1041,7 @@ function deleteProduct(id) {
 // ============ SYNC ============
 function normalizeUrl(url) {
   url = url.trim();
-  if (!url) return 'http://localhost:3456';
+  if (!url) return 'https://tpv-peluqueria.vercel.app';
   if (!/^https?:\/\//i.test(url)) url = 'http://' + url;
   return url.replace(/\/+$/,'');
 }
@@ -1045,9 +1055,9 @@ function getSyncCfg() {
     if (url && port && !/^https?:\/\//i.test(url) && !url.includes('://')) {
       url = 'http://' + url + ':' + (parseInt(port) || 3456);
     }
-    return { enabled, url: normalizeUrl(url) || 'http://localhost:3456' } 
+    return { enabled, url: normalizeUrl(url) || 'https://tpv-peluqueria.vercel.app' } 
   }
-  catch(e) { return { enabled: true, url: 'http://localhost:3456' } }
+  catch(e) { return { enabled: true, url: 'https://tpv-peluqueria.vercel.app' } }
 }
 function setSyncCfg(c) { localStorage.setItem('agenda_syncEnabled', c.enabled); localStorage.setItem('agenda_syncUrl', c.url) }
 function syncBase() { return getSyncCfg().url }

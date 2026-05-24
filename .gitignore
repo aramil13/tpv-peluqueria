@@ -15,3 +15,6 @@ android-agenda/AgendaTPV.apk
 # Sync data (persiste en Render Disk, no en git)
 sync/appointments.json
 /data/
+
+.vercel
+.env*

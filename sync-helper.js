@@ -90,7 +90,7 @@ async function handleClientLogin(phone, res) {
     return;
   }
   const today = new Date().toISOString().split('T')[0];
-  const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || a.cancelledBy)).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || a.cancelledBy === 'client' || a.cancelledBy === 'salon')).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
   const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
   res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
@@ -193,8 +193,15 @@ function mergeArray(local, remote) {
   if (Array.isArray(remote)) remote.forEach(item => {
     if (map.has(item.id)) {
       const existing = map.get(item.id);
-      if (existing._deleted && !item._deleted) return;
-      if (item._deleted) { map.set(item.id, item); return; }
+      if (item.cancelledBy) {
+        if (item.cancelledBy !== 'client') delete item._deleted;
+        map.set(item.id, item); return;
+      }
+      if (item._deleted) {
+        if ((existing.cancelledBy) && !item.cancelledBy) return;
+        map.set(item.id, item); return;
+      }
+      if (existing._deleted) return;
       if ((item._modified || 0) > (existing._modified || 0)) map.set(item.id, item);
     } else {
       map.set(item.id, item);
@@ -694,7 +701,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado' }));
           return;
         }
-        const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && !a._deleted);
+        const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && (!a._deleted || a.cancelledBy === 'salon'));
         if (!appt) {
           res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cita no encontrada' }));
           return;
@@ -707,10 +714,15 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'No puedes cancelar una cita pasada' }));
           return;
         }
-        appt._deleted = true;
-        appt._modified = Date.now();
-        appt.cancelledBy = 'client';
-        appt.notes = (appt.notes||'') + ' [Cancelada por cliente]';
+        if (appt.cancelledBy === 'salon') {
+          appt._deleted = true;
+          appt.cancelledBy = '';
+        } else {
+          appt._deleted = true;
+          appt._modified = Date.now();
+          appt.cancelledBy = 'client';
+          appt.notes = (appt.notes||'') + ' [Cancelada por cliente]';
+        }
         writeData(d);
         forwardAppointment(appt, client);
         res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });

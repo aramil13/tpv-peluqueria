@@ -1,8 +1,0 @@
-node_modules
-dist/
-android-agenda/
-.git/
-*.apk
-*.exe
-sync/appointments.json
-/data/

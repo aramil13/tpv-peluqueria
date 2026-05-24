@@ -16,7 +16,7 @@ function createWindow() {
     }
   });
 
-  mainWindow.loadFile('index.html');
+  mainWindow.loadFile('electron-app.html');
   // mainWindow.webContents.openDevTools();
 
   mainWindow.on('closed', function () {

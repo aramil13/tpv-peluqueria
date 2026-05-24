@@ -1,0 +1,21 @@
+{
+  "buildCommand": "echo 'no build needed'",
+  "installCommand": "npm install --omit=dev",
+  "outputDirectory": ".",
+  "functions": {
+    "api/[...slug].js": {
+      "maxDuration": 30
+    }
+  },
+  "rewrites": [
+    { "source": "/health", "destination": "/api/[...slug]" },
+    { "source": "/sync", "destination": "/api/[...slug]" },
+    { "source": "/sync/", "destination": "/api/[...slug]" },
+    { "source": "/debug", "destination": "/api/[...slug]" },
+    { "source": "/robots.txt", "destination": "/website/robots.txt" },
+    { "source": "/sitemap.xml", "destination": "/website/sitemap.xml" },
+    { "source": "/style.css", "destination": "/website/style.css" },
+    { "source": "/(.*)\\.(webp|png|jpg|jpeg|svg|ico|gif|txt|xml)", "destination": "/website/$1.$2" },
+    { "source": "/", "destination": "/website/index.html" }
+  ]
+}

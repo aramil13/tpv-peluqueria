@@ -102,6 +102,39 @@ hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 .appt-card-notes { font-size: 12px; color: var(--text-light); margin-top: 2px; }
 .appt-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
 
+/* Salon-cancelled watermark */
+.appt-card.appt-cancelled-by-salon { position: relative; overflow: hidden; }
+.appt-card.appt-cancelled-by-salon::before {
+  content: "ANULADA POR EL SALÓN";
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%) rotate(-25deg);
+  background: rgba(231, 76, 60, 0.9);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 4px 14px;
+  z-index: 1;
+  pointer-events: none;
+  white-space: nowrap;
+  border-radius: 4px;
+}
+.appt-card.appt-cancelled-by-salon::after {
+  content: "";
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: repeating-linear-gradient(
+    -45deg,
+    transparent,
+    transparent 8px,
+    rgba(231, 76, 60, 0.08) 8px,
+    rgba(231, 76, 60, 0.08) 16px
+  );
+  z-index: 0;
+  pointer-events: none;
+}
+
 /* Modal */
 .modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
 .modal-content { background: var(--card); border-radius: 16px; padding: 25px; max-width: 450px; width: 90%; max-height: 80vh; overflow-y: auto; position: relative; }

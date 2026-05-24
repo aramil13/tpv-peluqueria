@@ -1,0 +1,9 @@
+node_modules
+android-agenda
+.git
+sync
+dist
+fly.toml
+Dockerfile
+.dockerignore
+temp

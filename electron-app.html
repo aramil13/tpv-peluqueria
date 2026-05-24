@@ -751,7 +751,7 @@ let data = {
     ticketFooter: '¡Gracias por su visita!',
     invoiceFooter: '¡Gracias por su visita!',
     invoicePrefix: 'FACT-',
-    sync: { enabled: false, url: 'http://localhost:3456' },
+    sync: { enabled: true, url: 'https://tpv-peluqueria.vercel.app' },
     webSync: { enabled: false, interval: 10 },
     onlineOpening: {}
   })
@@ -760,6 +760,25 @@ let data = {
 // Ensure all list fields are arrays (fix localStorage corruption)
 const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','movements'];
 ARRAY_KEYS.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
+
+// One-time cleanup: old salon-cancelled appointments with past dates -> restore to deleted
+const today = new Date().toISOString().split('T')[0];
+let cleaned = 0;
+(data.appointments||[]).forEach(a => {
+  if (a.cancelledBy === 'salon' && a.date < today) {
+    a._deleted = true;
+    delete a.cancelledBy;
+    a._modified = Date.now();
+    cleaned++;
+  }
+  if (a.cancelledBy === 'salon' && a.source !== 'online') {
+    a._deleted = true;
+    delete a.cancelledBy;
+    a._modified = Date.now();
+    cleaned++;
+  }
+});
+if (cleaned) { DB.set('appointments', data.appointments); console.log('Cleaned old salon-cancelled:', cleaned); }
 
 // Clean up any corrupted entries in main entities (caused by importing binary files as CSV)
 ['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'].forEach(k => {
@@ -1111,7 +1130,7 @@ function openSettings() {
   document.getElementById('ivaRate').value = getIvaRate();
   const sync = s.sync || {};
   document.getElementById('syncEnabled').checked = sync.enabled || false;
-  document.getElementById('syncUrl').value = sync.url || 'http://localhost:3456';
+  document.getElementById('syncUrl').value = sync.url || 'https://tpv-peluqueria.vercel.app';
   const webSync = s.webSync || {};
   document.getElementById('webSyncEnabled').checked = webSync.enabled || false;
   document.getElementById('webSyncInterval').value = webSync.interval || 10;
@@ -1141,7 +1160,7 @@ function saveSettings() {
     invoiceFooter: document.getElementById('setInvoiceFooter').value.trim(),
     sync: {
       enabled: document.getElementById('syncEnabled').checked,
-      url: document.getElementById('syncUrl').value.trim() || 'http://localhost:3456'
+      url: document.getElementById('syncUrl').value.trim() || 'https://tpv-peluqueria.vercel.app'
     },
     webSync: {
       enabled: document.getElementById('webSyncEnabled').checked,
@@ -1356,7 +1375,7 @@ function loadOnlineOpeningForDay(dateStr) {
 }
 
 // ============ SYNC ============
-function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: false, url: 'http://localhost:3456' } }
+function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: true, url: 'https://tpv-peluqueria.vercel.app' } }
 
 function syncPush() {
   const c = getSyncCfg();
@@ -2729,7 +2748,7 @@ function saveAppointment() {
 function deleteAppt(id) {
   if (!confirm('¿Cancelar esta cita?')) return;
   const a = data.appointments.find(x => x.id === id);
-  if (a) { a._deleted = true; a._modified = Date.now(); if (a.source === 'online') a.cancelledBy = 'salon'; }
+  if (a) { a._modified = Date.now(); if (a.source === 'online') { a.cancelledBy = 'salon'; delete a._deleted; } else { a._deleted = true; } }
   saveKey('appointments'); renderAgenda(); syncPush();
 }
 

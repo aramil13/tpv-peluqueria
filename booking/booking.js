@@ -175,10 +175,10 @@ function renderMyAppts() {
   const today = new Date().toISOString().split('T')[0];
   div.innerHTML = currentAppointments.map(a => {
     const isPast = a.date < today;
-    const isCancelled = a._deleted;
-    const cancelledBySalon = isCancelled && a.cancelledBy === 'salon';
-    const cancelledByClient = isCancelled && a.cancelledBy === 'client';
-    return '<div class="appt-card'+(isPast?' appt-past':'')+(isCancelled?' appt-cancelled':'')+'"'+(isCancelled?' style="opacity:0.7;"':'')+'>'+
+    const cancelledByClient = a._deleted && a.cancelledBy === 'client';
+    const cancelledBySalon = a.cancelledBy === 'salon';
+    const isDefinitivelyCancelled = cancelledByClient;
+    return '<div class="appt-card'+(isPast?' appt-past':'')+(isDefinitivelyCancelled?' appt-cancelled':'')+(cancelledBySalon?' appt-cancelled-by-salon':'')+'"'+(isDefinitivelyCancelled?' style="opacity:0.7;"':'')+'>'+
       '<div class="appt-card-date">'+
         '<span class="appt-card-day">'+esc(fmtDate(a.date))+'</span>'+
         '<span class="appt-card-time">'+esc(a.time)+(a.endTime ? ' - '+esc(a.endTime) : '')+'</span>'+
@@ -189,19 +189,21 @@ function renderMyAppts() {
         (a.employeeName ? '<div class="appt-card-notes">👤 '+esc(a.employeeName)+'</div>' : '')+
         (a.notes?'<div class="appt-card-notes">'+esc(a.notes)+'</div>':'')+
         (cancelledByClient ? '<div style="color:#e74c3c;font-weight:600;">Cancelada</div>' : '')+
-        (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 CITA CANCELADA POR EL SALÓN<br><span style="font-weight:400;font-size:12px;">Póngase en contacto en el: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+
+        (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 Anulada por el Salón. Puede cancelarla definitivamente.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+
         (a.salonModified ? '<div style="color:#e74c3c;font-weight:700;font-size:12px;margin-top:4px;">Modificada por el Salón</div>' : '')+
       '</div>'+
-      (!isPast && a.source==='online' && !cancelledByClient ? '<div class="appt-card-actions"'+(isCancelled?' style="opacity:0.4;pointer-events:none;"':'')+'>'+
-        '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>'+
-        '<button class="btn btn-sm btn-danger" onclick="cancelAppt(\''+a.id+'\')">Cancelar</button>'+
+      (!isPast && a.source==='online' && !cancelledByClient ? '<div class="appt-card-actions">'+
+        (!cancelledBySalon ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+
+        '<button class="btn btn-sm btn-danger" onclick="cancelAppt(\''+a.id+'\')">'+(cancelledBySalon?'Eliminar definitivamente':'Cancelar')+'</button>'+
       '</div>' : '')+
     '</div>';
   }).join('');
 }
 
 async function cancelAppt(id) {
-  if (!confirm('¿Estás seguro de cancelar esta cita?')) return;
+  const appt = currentAppointments.find(a => a.id === id);
+  const isSalonCancelled = appt && appt.cancelledBy === 'salon';
+  if (!confirm(isSalonCancelled ? '¿Confirmas la anulación del salón? La cita se eliminará definitivamente.' : '¿Estás seguro de cancelar esta cita?')) return;
   showLoading(true);
   try {
     const r = await fetch(API+'/api/cancel', {
@@ -212,7 +214,7 @@ async function cancelAppt(id) {
     const d = await r.json();
     if (!d.ok) { alert(d.error||'Error al cancelar'); showLoading(false); return; }
     showLoading(false);
-    alert('Cita cancelada correctamente');
+    alert(isSalonCancelled ? 'Cita eliminada definitivamente' : 'Cita cancelada correctamente');
     refreshMyAppts();
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
