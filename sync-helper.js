@@ -178,6 +178,8 @@ function readData() {
 function writeData(data) {
   try {
     ensureDir(SYNC_FILE);
+    const today = new Date().toISOString().split('T')[0];
+    (data.appointments||[]).forEach(a => { if (a.date < today) { a._deleted = true; a._modified = Date.now(); } });
     data.lastModified = Date.now();
     fs.writeFileSync(SYNC_FILE, JSON.stringify(data, null, 2), 'utf8');
     return true;

@@ -762,22 +762,22 @@ let data = {
 const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','movements'];
 ARRAY_KEYS.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
-// One-time cleanup: old salon-cancelled appointments with PAST dates -> restore to deleted
-// Future salon-cancelled appointments are kept intact so the client can see the cancellation notice
+// Auto-clean: hard-delete past appointments + repair non-online cancelledBy='salon'
 const today = new Date().toISOString().split('T')[0];
 let cleaned = 0;
 (data.appointments||[]).forEach(a => {
-  if (a.cancelledBy === 'salon' && a.source !== 'online') {
-    // Non-online appointments should never have cancelledBy='salon' — clean up
+  if (a.date < today) {
+    a._deleted = true;
+    a._modified = Date.now();
+    cleaned++;
+  } else if (a.cancelledBy === 'salon' && a.source !== 'online') {
     a._deleted = true;
     delete a.cancelledBy;
     a._modified = Date.now();
     cleaned++;
   }
-  // NOTE: do NOT clean up future online appointments with cancelledBy='salon'
-  // The client needs to see the cancellation notice in their booking page
 });
-if (cleaned) { DB.set('appointments', data.appointments); console.log('Cleaned non-online salon-cancelled:', cleaned); }
+if (cleaned) { DB.set('appointments', data.appointments); console.log('Auto-cleaned', cleaned, 'appointments'); }
 
 // Clean up any corrupted entries in main entities (caused by importing binary files as CSV)
 ['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'].forEach(k => {
