@@ -107,7 +107,9 @@ async function handleClientLogin(phone, res) {
       cancelledBy: a.cancelledBy || '',
       salonModified: !!a.salonModified,
       modificationCount: a.modificationCount || 0,
-      clientModified: !!a.clientModified, pendingTime: a.pendingTime || '', pendingDate: a.pendingDate || ''
+      clientModified: !!a.clientModified, pendingTime: a.pendingTime || '', pendingDate: a.pendingDate || '',
+      pendingEmployeeId: a.pendingEmployeeId || '',
+      pendingEmployeeName: a.pendingEmployeeId && empMap[a.pendingEmployeeId] ? empMap[a.pendingEmployeeId].name : ''
     }))
   }));
 }
