@@ -77,6 +77,8 @@ h2 { font-size: 18px; margin-bottom: 15px; color: var(--text); }
 .btn-secondary:hover { background: #6c757d; }
 .btn-danger { background: var(--danger); color: #fff; }
 .btn-danger:hover { background: #c0392b; }
+.btn-success { background: #27ae60; color: #fff; }
+.btn-success:hover { background: #219653; }
 .btn-sm { padding: 6px 14px; font-size: 12px; }
 hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 

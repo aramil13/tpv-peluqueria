@@ -200,7 +200,8 @@ function renderMyAppts() {
         (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 Esta cita ha sido anulada por el salón.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+ 
       '</div>'+ 
       (!isPast && a.source==='online' && !cancelledByClient ? '<div class="appt-card-actions">'+ 
-        (!cancelledBySalon && !modifiedBySalon ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')" >Modificar</button>' : '')+ 
+        (!cancelledBySalon && !modifiedBySalon ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+ 
+        (modifiedBySalon ? '<button class="btn btn-sm btn-success" onclick="acceptModification(\''+a.id+'\')">✔ Aceptar modificación</button>' : '')+
         '<button class="btn btn-sm '+(cancelledBySalon?'btn-success':'btn-danger')+'" onclick="cancelAppt(\''+a.id+'\')">'+
           (cancelledBySalon ? 'VISTO' : 'Cancelar')+'</button>'+ 
       '</div>' : '')+ 
@@ -233,6 +234,25 @@ async function cancelAppt(id) {
       alert('Cita cancelada correctamente');
       refreshMyAppts();
     }
+  } catch(e) { alert('Error: '+e.message); showLoading(false); }
+}
+
+async function acceptModification(id) {
+  const appt = currentAppointments.find(a => a.id === id);
+  if (!appt) return;
+  if (!confirm('¿Aceptas la modificación realizada por el salón?')) return;
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/accept-modification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointmentId: id, phone: currentClient.phone })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error||'Error al aceptar'); showLoading(false); return; }
+    showLoading(false);
+    appt.salonModified = false;
+    renderMyAppts();
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
 

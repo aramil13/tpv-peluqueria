@@ -148,6 +148,7 @@ tr:hover td { background: #f8f9fa; }
 .appt-grid-free { background: #fff; border: 2px dashed #ccc; }
 .appt-grid-free:hover { background: #e8f5e9; border-color: #27ae60; }
 .appt-online-grid::after { content: '🌐'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 28px; opacity: .2; pointer-events: none; }
+.appt-pending-mod { opacity: .6; }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
 .stat-card { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 20px; text-align: center; }
 .stat-card .stat-number { font-size: 28px; font-weight: 700; color: var(--primary); }
@@ -2506,9 +2507,9 @@ function showDayAppts(dateStr) {
         const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
         const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
         const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
-        const color = colorMap[appt.id];
-        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}`;
-        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}" style="background:${color};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')">${esc(appt.time)}${appt.endTime?'-'+esc(appt.endTime):''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+        const cellColor = (appt.salonModified && appt.source === 'online') ? '#bdc3c7' : colorMap[appt.id];
+        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${appt.salonModified?' | ⏳ Pendiente de confirmación':''}`;
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${appt.salonModified?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')">${esc(appt.time)}${appt.endTime?'-'+esc(appt.endTime):''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       } else {
         const empId = e ? e.id : '';
         html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;

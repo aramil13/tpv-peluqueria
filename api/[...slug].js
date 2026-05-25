@@ -422,6 +422,43 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
+  // === API: ACCEPT MODIFICATION ===
+  if (url === '/api/accept-modification' && req.method === 'POST') {
+    try {
+      const b = await getBody(req);
+      if (!b.appointmentId || !b.phone) {
+        res.status(400).json({ error: 'appointmentId and phone required' });
+        return;
+      }
+      const d = await readData();
+      const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
+      if (!client) {
+        res.status(403).json({ error: 'Cliente no encontrado' });
+        return;
+      }
+      const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && !a._deleted);
+      if (!appt) {
+        res.status(404).json({ error: 'Cita no encontrada' });
+        return;
+      }
+      if (appt.source !== 'online') {
+        res.status(403).json({ error: 'Solo puedes aceptar modificaciones de citas online' });
+        return;
+      }
+      if (!appt.salonModified) {
+        res.status(400).json({ error: 'La cita no tiene modificaciones pendientes' });
+        return;
+      }
+      appt.salonModified = false;
+      appt._modified = Date.now();
+      await writeData(d);
+      res.json({ ok: true });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+    return;
+  }
+
   // === API: MODIFY ===
   if (url === '/api/modify' && req.method === 'POST') {
     try {

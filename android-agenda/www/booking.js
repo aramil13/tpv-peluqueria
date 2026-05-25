@@ -200,11 +200,31 @@ function renderMyAppts() {
       '</div>'+
       (!isPast && a.source==='online' && !cancelledByClient ? '<div class="appt-card-actions">'+
         (!cancelledBySalon && !modifiedBySalon ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+
-        '<button class="btn btn-sm btn-danger" onclick="cancelAppt(\''+a.id+'\')">'+
-          (cancelledBySalon ? 'Confirmar anulación' : 'Cancelar')+'</button>'+
+        (modifiedBySalon ? '<button class="btn btn-sm btn-success" onclick="acceptModification(\''+a.id+'\')">✔ Aceptar modificación</button>' : '')+
+        '<button class="btn btn-sm '+(cancelledBySalon?'btn-success':'btn-danger')+'" onclick="cancelAppt(\''+a.id+'\')">'+
+          (cancelledBySalon ? 'VISTO' : 'Cancelar')+'</button>'+
       '</div>' : '')+
     '</div>';
   }).join('');
+}
+
+async function acceptModification(id) {
+  const appt = currentAppointments.find(a => a.id === id);
+  if (!appt) return;
+  if (!confirm('¿Aceptas la modificación realizada por el salón?')) return;
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/accept-modification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointmentId: id, phone: currentClient.phone })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error||'Error al aceptar'); showLoading(false); return; }
+    showLoading(false);
+    appt.salonModified = false;
+    renderMyAppts();
+  } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
 
 async function cancelAppt(id) {

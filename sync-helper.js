@@ -738,6 +738,48 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
+  if (url === '/api/accept-modification' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(body);
+        if (!b.appointmentId || !b.phone) {
+          res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'appointmentId and phone required' }));
+          return;
+        }
+        const d = readData();
+        const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
+        if (!client) {
+          res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado' }));
+          return;
+        }
+        const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && !a._deleted);
+        if (!appt) {
+          res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cita no encontrada' }));
+          return;
+        }
+        if (appt.source !== 'online') {
+          res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Solo puedes aceptar modificaciones de citas online' }));
+          return;
+        }
+        if (!appt.salonModified) {
+          res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'La cita no tiene modificaciones pendientes' }));
+          return;
+        }
+        appt.salonModified = false;
+        appt._modified = Date.now();
+        writeData(d);
+        forwardAppointment(appt, client);
+        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
   if (url === '/api/modify' && req.method === 'POST') {
     let body = '';
     req.on('data', c => body += c);
