@@ -106,7 +106,8 @@ async function handleClientLogin(phone, res) {
       _deleted: !!a._deleted,
       cancelledBy: a.cancelledBy || '',
       salonModified: !!a.salonModified,
-      modificationCount: a.modificationCount || 0
+      modificationCount: a.modificationCount || 0,
+      clientModified: !!a.clientModified, pendingTime: a.pendingTime || '', pendingDate: a.pendingDate || ''
     }))
   }));
 }
@@ -827,15 +828,68 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           return;
         }
         appt.modificationCount = (appt.modificationCount || 0) + 1;
-        appt.date = newDate;
-        appt.time = b.newTime;
-        const newEndH = Math.floor(reqEnd);
-        const newEndM = Math.round((reqEnd - newEndH) * 60);
-        appt.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
-        appt.employeeId = newEmpId;
-        appt.serviceId = newSvcId;
+        appt.clientModified = true;
+        appt.pendingDate = newDate;
+        appt.pendingTime = b.newTime;
+        appt.pendingEmployeeId = newEmpId;
         appt._modified = Date.now();
-        appt.notes = (appt.notes||'') + ' [Modificada por cliente]';
+        appt.notes = (appt.notes||'') + ' [Modificada por cliente - pendiente]';
+        writeData(d);
+        forwardAppointment(appt, client);
+        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, appointment: { id: appt.id, pendingDate: appt.pendingDate, pendingTime: appt.pendingTime } }));
+      } catch(e) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (url === '/api/accept-client-modification' && req.method === 'POST') {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(body);
+        if (!b.appointmentId || !b.phone) {
+          res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'appointmentId and phone required' }));
+          return;
+        }
+        const d = readData();
+        const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
+        if (!client) {
+          res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado' }));
+          return;
+        }
+        const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && !a._deleted);
+        if (!appt) {
+          res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cita no encontrada' }));
+          return;
+        }
+        if (!appt.clientModified) {
+          res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'La cita no tiene modificaciones pendientes del cliente' }));
+          return;
+        }
+        if (b.action === 'accept') {
+          appt.date = appt.pendingDate || appt.date;
+          appt.time = appt.pendingTime || appt.time;
+          const srv = (d.services||[]).find(s => s.id === appt.serviceId);
+          const dur = srv ? srv.duration : 30;
+          const reqStart = parseTime(appt.time);
+          const reqEnd = reqStart + dur / 60;
+          const newEndH = Math.floor(reqEnd);
+          const newEndM = Math.round((reqEnd - newEndH) * 60);
+          appt.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
+          appt.employeeId = appt.pendingEmployeeId || appt.employeeId;
+          appt.notes = (appt.notes||'') + ' [Modificación aceptada por el salón]';
+        } else {
+          appt.notes = (appt.notes||'') + ' [Modificación rechazada por el salón]';
+        }
+        appt.clientModified = false;
+        delete appt.pendingDate;
+        delete appt.pendingTime;
+        delete appt.pendingEmployeeId;
+        appt._modified = Date.now();
         writeData(d);
         forwardAppointment(appt, client);
         res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });

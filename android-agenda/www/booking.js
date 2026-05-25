@@ -178,6 +178,7 @@ function renderMyAppts() {
     const cancelledByClient = a._deleted && a.cancelledBy === 'client';
     const cancelledBySalon = a.cancelledBy === 'salon';
     const modifiedBySalon = !!a.salonModified && !cancelledBySalon && !cancelledByClient;
+    const pendingClientMod = !!a.clientModified && !cancelledBySalon && !cancelledByClient;
     let cardClass = 'appt-card';
     if (isPast) cardClass += ' appt-past';
     if (cancelledByClient) cardClass += ' appt-cancelled';
@@ -196,10 +197,11 @@ function renderMyAppts() {
         (a.notes?'<div class="appt-card-notes">'+esc(a.notes)+'</div>':'')+
         (cancelledByClient ? '<div style="color:#e74c3c;font-weight:600;margin-top:4px;">Cancelada por ti</div>' : '')+
         (modifiedBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;">⚠️ Cita modificada por el salón</div>' : '')+
+        (pendingClientMod ? '<div style="color:#f39c12;font-weight:600;font-size:13px;margin-top:6px;">⏳ Pendiente de aprobación del salón</div>' : '')+
         (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 Esta cita ha sido anulada por el salón.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+
       '</div>'+
       (!isPast && a.source==='online' && !cancelledByClient ? '<div class="appt-card-actions">'+
-        (!cancelledBySalon && !modifiedBySalon ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+
+        (!cancelledBySalon && !modifiedBySalon && !pendingClientMod ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+
         (modifiedBySalon ? '<button class="btn btn-sm btn-success" onclick="acceptModification(\''+a.id+'\')">✔ Aceptar modificación</button>' : '')+
         '<button class="btn btn-sm '+(cancelledBySalon?'btn-success':'btn-danger')+'" onclick="cancelAppt(\''+a.id+'\')">'+
           (cancelledBySalon ? 'VISTO' : 'Cancelar')+'</button>'+
@@ -314,6 +316,11 @@ async function modifyAppt(id) {
     modifyingApptId = null;
     return;
   }
+  if (appt.clientModified) {
+    alert('Ya has solicitado una modificación que está pendiente de aprobación. Espera a que el salón la acepte o rechace.');
+    modifyingApptId = null;
+    return;
+  }
   if ((appt.modificationCount||0) >= 1) {
     alert('Ya has modificado esta cita anteriormente. Solo puedes modificarla una vez.');
     modifyingApptId = null;
@@ -387,7 +394,7 @@ async function confirmModify() {
     if (!d.ok) { alert(d.error||'Error al modificar'); showLoading(false); return; }
     closeModify();
     showLoading(false);
-    alert('Cita modificada correctamente');
+    alert('Solicitud de modificación enviada. El salón debe aprobarla para que el cambio sea efectivo.');
     refreshMyAppts();
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }

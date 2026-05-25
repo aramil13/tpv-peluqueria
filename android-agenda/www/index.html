@@ -531,9 +531,12 @@ function showDayAppts(dateStr) {
         const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
         const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
         const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
-        const cellColor = (appt.salonModified && appt.source === 'online') ? '#bdc3c7' : colorMap[appt.id];
-        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${appt.salonModified?' | ⏳ Pendiente de confirmación':''}`;
-        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${appt.salonModified?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="editAppt('${appt.id}')">${esc(appt.time)}${appt.endTime?'-'+esc(appt.endTime):''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+        const isPending = appt.salonModified || appt.clientModified;
+        const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : colorMap[appt.id];
+        const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '');
+        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${pendingNote}`;
+        const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : `editAppt('${appt.id}')`;
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${isPending?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${esc(appt.time)}${appt.endTime?'-'+esc(appt.endTime):''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       } else {
         const empId = e ? e.id : '';
         html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
@@ -545,9 +548,40 @@ function showDayAppts(dateStr) {
   div.innerHTML = html;
 }
 
+function acceptClientMod(id) {
+  const a = data.appointments.find(x => x.id === id);
+  if (!a) return;
+  const client = data.clients.find(c => c.id === a.clientId);
+  const msg = `El cliente ${client?client.name:'?'} solicita modificar esta cita:\n\n`+
+    `Original: ${a.date} ${a.time}\n`+
+    `Solicitado: ${a.pendingDate||a.date} ${a.pendingTime||a.time}\n\n`+
+    `¿Aceptar la modificación?`;
+  if (!confirm(msg)) return;
+  a.date = a.pendingDate || a.date;
+  a.time = a.pendingTime || a.time;
+  const srv = (data.services||[]).find(s => s.id === a.serviceId);
+  const dur = srv ? srv.duration : 30;
+  const reqStart = timeToMinutes(a.time);
+  const reqEnd = reqStart + dur;
+  const newEndH = Math.floor(reqEnd/60);
+  const newEndM = reqEnd % 60;
+  a.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
+  a.employeeId = a.pendingEmployeeId || a.employeeId;
+  a.notes = (a.notes||'') + ' [Modificación aceptada por el salón]';
+  a.clientModified = false;
+  delete a.pendingDate;
+  delete a.pendingTime;
+  delete a.pendingEmployeeId;
+  a._modified = Date.now();
+  saveAll();
+  syncWebNow();
+  renderAgenda();
+}
+
 function editAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
+  if (a.clientModified) { acceptClientMod(id); return; }
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = id;
   document.getElementById('apptDate').value = a.date;
