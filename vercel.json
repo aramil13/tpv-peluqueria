@@ -5,6 +5,9 @@
   "functions": {
     "api/[...slug].js": {
       "maxDuration": 30
+    },
+    "api/phone-webhook.js": {
+      "maxDuration": 30
     }
   },
   "rewrites": [

@@ -662,6 +662,105 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
+  // === API: WHATSAPP WEBHOOK (Meta verification) ===
+  if (url === '/api/whatsapp-webhook' && req.method === 'GET') {
+    const qs = new URL(req.url, 'http://x').searchParams;
+    const mode = qs.get('hub.mode');
+    const token = qs.get('hub.verify_token');
+    const challenge = qs.get('hub.challenge');
+    const expectedToken = process.env.WHATSAPP_VERIFY_TOKEN || '';
+    if (mode === 'subscribe' && token === expectedToken && challenge) {
+      res.setHeader('Content-Type', 'text/plain');
+      res.status(200).send(challenge);
+    } else {
+      res.status(403).send('Verification failed');
+    }
+    return;
+  }
+
+  // === API: WHATSAPP WEBHOOK (incoming messages) ===
+  if (url === '/api/whatsapp-webhook' && req.method === 'POST') {
+    try {
+      const b = await getBody(req);
+      const entry = b.entry?.[0];
+      const change = entry?.changes?.[0];
+      const value = change?.value;
+      if (!value) { res.status(200).json({ ok: true }); return; }
+
+      const messages = value.messages || [];
+      for (const msg of messages) {
+        const from = msg.from; // phone number
+        if (!from) continue;
+
+        if (msg.type === 'text') {
+          const text = msg.text?.body || '';
+          const { processWhatsAppMessage } = require('../lib/ai-assistant');
+          processWhatsAppMessage(from, text);
+        } else if (msg.type === 'audio') {
+          const { sendMessage } = require('../lib/whatsapp');
+          sendMessage(from, 'Prefiero que me escribas el texto. 😊 ¿Qué necesitas?');
+        } else if (msg.type === 'interactive') {
+          const text = msg.interactive?.button_reply?.title || msg.interactive?.list_reply?.title || '';
+          if (text) {
+            const { processWhatsAppMessage } = require('../lib/ai-assistant');
+            processWhatsAppMessage(from, text);
+          }
+        }
+      }
+      res.status(200).json({ ok: true });
+    } catch (e) {
+      console.error('[WHATSAPP WEBHOOK ERROR]', e.message);
+      res.status(200).json({ ok: true });
+    }
+    return;
+  }
+
+  // === API: PHONE AI PROCESS (Twilio speech result) ===
+  if (url === '/api/phone-process' && req.method === 'POST') {
+    try {
+      let raw = '';
+      for await (const chunk of req) raw += chunk;
+      const params = new URLSearchParams(raw);
+      const speechResult = params.get('SpeechResult') || '';
+      const caller = params.get('From') || '';
+      const callSid = params.get('CallSid') || '';
+
+      if (!speechResult) {
+        res.setHeader('Content-Type', 'text/xml');
+        res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="/api/phone-process" method="POST" language="es-ES" speechTimeout="auto">
+    <Say voice="alice" language="es-ES">No te he entendido. ¿Puedes repetirlo?</Say>
+  </Gather>
+  <Say voice="alice" language="es-ES">Lo siento, no logro entenderte. Llámanos al ${BUSINESS_PHONE}. Adiós.</Say>
+</Response>`);
+        return;
+      }
+
+      const { processPhoneMessage } = require('../lib/ai-assistant');
+      const responseText = await processPhoneMessage(caller, speechResult);
+
+      res.setHeader('Content-Type', 'text/xml');
+      res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="/api/phone-process" method="POST" language="es-ES" speechTimeout="auto">
+    <Say voice="alice" language="es-ES">${escapeXml(responseText)}</Say>
+  </Gather>
+  <Say voice="alice" language="es-ES">Gracias por tu llamada. ${escapeXml(responseText)} Adiós.</Say>
+</Response>`);
+    } catch (e) {
+      console.error('[PHONE PROCESS ERROR]', e.message);
+      res.setHeader('Content-Type', 'text/xml');
+      res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response><Say voice="alice" language="es-ES">Lo siento, hubo un error. Llámanos más tarde. Adiós.</Say></Response>`);
+    }
+    return;
+  }
+
   // 404 for everything else
   res.status(404).json({ error: 'Not found' });
 };
+
+function escapeXml(s) {
+  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+}
