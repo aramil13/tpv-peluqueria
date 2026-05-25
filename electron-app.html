@@ -2549,9 +2549,9 @@ function acceptClientMod(id) {
   delete a.pendingTime;
   delete a.pendingEmployeeId;
   a._modified = Date.now();
-  saveData();
+  saveAll();
   syncWebNow();
-  renderGrid();
+  renderAgenda();
 }
 
 function editAppt(id) {
