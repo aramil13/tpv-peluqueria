@@ -73,7 +73,7 @@
       </div>
       <div class="service-combo">
         <div class="search-box" style="margin-bottom:0;">
-          <input type="text" id="searchService" placeholder="Buscar servicio..." oninput="onSearchServiceInput()" autocomplete="off">
+          <input type="text" id="searchService" placeholder="Buscar servicio..." oninput="onSearchServiceInput()" onfocus="onSearchServiceFocus()" autocomplete="off">
         </div>
         <div id="serviceDropdown" class="service-dropdown" style="display:none;"></div>
         <button class="btn btn-primary btn-sm" onclick="addSelectedService()" id="addServiceBtn" disabled style="margin-top:6px;width:100%;">Añadir servicio</button>

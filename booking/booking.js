@@ -48,7 +48,6 @@ async function loadData() {
     allClients = (d.clients||[]).filter(c => !c._deleted);
     const settings = d.settings || {};
     document.getElementById('footerInfo').textContent = settings.businessName || 'Nymara Estilistas';
-    renderServices();
     const today = new Date().toISOString().split('T')[0];
     const dayCfg = (settings.onlineOpening || {})[today] || {};
     const openingTime = dayCfg.time || '18:00';
@@ -409,15 +408,14 @@ function getFilteredServices() {
 
 function onSectionChange() {
   document.getElementById('searchService').value = '';
-  document.getElementById('serviceDropdown').style.display = 'none';
-  document.getElementById('addServiceBtn').disabled = true;
+  renderServiceDropdown('');
 }
 
-function onSearchServiceInput() {
-  const q = document.getElementById('searchService').value;
+function renderServiceDropdown(q) {
   const dd = document.getElementById('serviceDropdown');
-  if (!q) { dd.style.display = 'none'; document.getElementById('addServiceBtn').disabled = true; return; }
-  const list = getFilteredServices().filter(s => !selectedServices.find(x => x.id === s.id));
+  let list = getFilteredServices();
+  if (q) list = list.filter(s => s.name.toLowerCase().includes(q));
+  list = list.filter(s => !selectedServices.find(x => x.id === s.id));
   if (!list.length) { dd.style.display = 'none'; document.getElementById('addServiceBtn').disabled = true; return; }
   dd.innerHTML = list.map(s => {
     const sec = sections.find(x => x.id === s.sectionId);
@@ -433,7 +431,16 @@ function onSearchServiceInput() {
   dd.dataset.selectedId = '';
 }
 
+function onSearchServiceInput() {
+  renderServiceDropdown(document.getElementById('searchService').value);
+}
+
+function onSearchServiceFocus() {
+  renderServiceDropdown(document.getElementById('searchService').value);
+}
+
 function selectDropdownService(id) {
+  if (event) event.stopPropagation();
   const dd = document.getElementById('serviceDropdown');
   dd.querySelectorAll('.service-dropdown-item').forEach(el => el.classList.remove('selected'));
   const el = dd.querySelector('.service-dropdown-item[data-id="'+id+'"]');
@@ -486,29 +493,14 @@ function goToDateStep() {
   goStep(3);
 }
 
-function renderServices(q) {
-  const div = document.getElementById('servicesList');
-  let list = services;
-  if (q) list = list.filter(s => s.name.toLowerCase().includes(q));
-  if (!list.length) { div.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No hay servicios disponibles</div>'; return; }
-  div.innerHTML = list.map(s => {
-    const sec = sections.find(x => x.id === s.sectionId);
-    const sc = sec && sec.color ? sec.color : '#999';
-    return '<div class="service-card" data-id="'+s.id+'" onclick="selectService(\''+s.id+'\')">'+
-      '<span class="s-color" style="background:'+sc+';"></span>'+
-      '<div class="s-info">'+
-        '<div class="s-name">'+esc(s.name)+'</div>'+
-        '<div class="s-meta">'+(sec ? esc(sec.name) : '')+(s.duration ? ' &middot; '+s.duration+' min' : '')+'</div>'+
-      '</div>'+
-      '<div class="s-price">'+cur(s.price)+'</div>'+
-    '</div>';
-  }).join('');
-}
-
-function filterServices() {
-  const q = document.getElementById('searchService').value.toLowerCase();
-  renderServices(q);
-}
+// Close dropdown on click outside
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('serviceDropdown');
+  const sb = document.getElementById('searchService');
+  if (dd && sb && !sb.contains(e.target) && !dd.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
 
 function onDateChange() {
   selectedDate = document.getElementById('bookingDate').value;
