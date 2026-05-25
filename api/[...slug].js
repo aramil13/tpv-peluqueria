@@ -407,6 +407,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       if (appt.cancelledBy === 'salon') {
         appt._deleted = true;
         appt.cancelledBy = '';
+        appt._modified = Date.now();
       } else {
         appt._deleted = true;
         appt._modified = Date.now();

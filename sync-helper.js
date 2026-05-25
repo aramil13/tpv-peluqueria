@@ -197,6 +197,7 @@ function mergeArray(local, remote) {
       const existing = map.get(item.id);
       if (item.cancelledBy) {
         if (item.cancelledBy !== 'client') delete item._deleted;
+        if (existing._deleted && !existing.cancelledBy) return;
         map.set(item.id, item); return;
       }
       if (item._deleted) {
@@ -719,6 +720,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         if (appt.cancelledBy === 'salon') {
           appt._deleted = true;
           appt.cancelledBy = '';
+          appt._modified = Date.now();
         } else {
           appt._deleted = true;
           appt._modified = Date.now();
