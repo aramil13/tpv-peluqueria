@@ -364,15 +364,26 @@ let data = {
 };
 ['appointments','clients','services','employees','products'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
-// One-time cleanup: old salon-cancelled appointments with past dates -> restore to deleted
+// Auto-clean: hard-delete past appointments + repair non-online cancelledBy='salon'
 const todayC = new Date().toISOString().split('T')[0];
 let cleanedC = 0;
 (data.appointments||[]).forEach(a => {
-  if (a.cancelledBy === 'salon' && (a.date < todayC || a.source !== 'online')) {
+  if (a.date < todayC) {
+    a._deleted = true; a._modified = Date.now(); cleanedC++;
+  } else if (a.cancelledBy === 'salon' && a.source !== 'online') {
     a._deleted = true; delete a.cancelledBy; a._modified = Date.now(); cleanedC++;
   }
 });
 if (cleanedC) { DB.set('appointments', data.appointments); }
+
+// Also remove corrupted appointments (no date, no clientId, or no serviceIds)
+let removedBad = 0;
+(data.appointments||[]).forEach(a => {
+  if (!a.date || !a.clientId) {
+    a._deleted = true; a._modified = Date.now(); removedBad++;
+  }
+});
+if (removedBad) { DB.set('appointments', data.appointments); }
 
 // Clean up any corrupted entries in main entities (caused by sync of binary-imported files on Windows)
 ['clients', 'employees', 'services', 'products'].forEach(k => {
@@ -438,7 +449,7 @@ function renderAgenda() {
   for (let d = 1; d <= daysInMonth; d++) {
     const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted);
+    const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted && a.cancelledBy !== 'salon');
     const hasOnline = appts.some(a => a.source === 'online');
     html += `<div class="agenda-day ${isToday?'today':''}${hasOnline?' has-online':''}" onclick="showDayAppts('${dateStr}')">
       <div class="day-num">${d}</div>
@@ -465,7 +476,7 @@ function goToday() { agendaDate = new Date(); selectedDateStr = null; renderAgen
 function showDayAppts(dateStr) {
   selectedDateStr = dateStr;
   const div = document.getElementById('dayAppointments');
-  const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted).sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted && a.cancelledBy !== 'salon').sort((a,b) => (a.time||'').localeCompare(b.time||''));
   const d = new Date(dateStr + 'T12:00:00');
   const title = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   document.getElementById('dayTitle').textContent = title;

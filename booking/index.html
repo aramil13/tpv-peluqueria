@@ -65,9 +65,24 @@
     <!-- STEP 2: Service -->
     <div class="step-content" id="step2">
       <h2>Elige un servicio</h2>
-      <div class="search-box"><input type="text" id="searchService" placeholder="Buscar servicio..." oninput="filterServices()"></div>
-      <div id="servicesList" class="services-grid"></div>
-      <button class="btn btn-secondary btn-block" onclick="goStep(1)" style="margin-top:15px;">Volver a mis citas</button>
+      <div class="form-group">
+        <label>Sección</label>
+        <select id="apptSection" class="form-select" onchange="onSectionChange()">
+          <option value="">Todas las secciones</option>
+        </select>
+      </div>
+      <div class="service-combo">
+        <div class="search-box" style="margin-bottom:0;">
+          <input type="text" id="searchService" placeholder="Buscar servicio..." oninput="onSearchServiceInput()" autocomplete="off">
+        </div>
+        <div id="serviceDropdown" class="service-dropdown" style="display:none;"></div>
+        <button class="btn btn-primary btn-sm" onclick="addSelectedService()" id="addServiceBtn" disabled style="margin-top:6px;width:100%;">Añadir servicio</button>
+      </div>
+      <div id="selectedServicesList" class="selected-services-list" style="margin-top:12px;"></div>
+      <div class="btn-group" style="margin-top:15px;display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-block" onclick="goStep(1)" style="flex:1;">Volver a mis citas</button>
+        <button class="btn btn-primary btn-block" id="continueToDateBtn" onclick="goToDateStep()" disabled style="flex:2;">Continuar</button>
+      </div>
     </div>
 
     <!-- STEP 3: Date & Time -->
@@ -78,7 +93,7 @@
       <div id="slotsContainer" class="slots-grid" style="margin-top:15px;"></div>
       <p id="noSlots" class="no-slots" style="display:none;">No hay horarios disponibles para esta fecha</p>
       <p id="selectedSlot" class="selected-info"></p>
-      <button class="btn btn-secondary btn-block" style="margin-top:15px;" onclick="goStep(2)">Volver</button>
+      <button class="btn btn-secondary btn-block" style="margin-top:15px;" onclick="goStep(2)">Volver a servicios</button>
     </div>
 
     <!-- STEP 4: Confirm -->

@@ -67,16 +67,21 @@ async function handleClientLogin(phone, res) {
   appointments.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   res.json({
     client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '' },
-    appointments: appointments.map(a => ({
-      id: a.id, date: a.date, time: a.time, endTime: a.endTime || '',
-      status: a.status, source: a.source || '',
-      employeeId: a.employeeId || '',
-      employeeName: a.employeeId && empMap[a.employeeId] ? empMap[a.employeeId].name : '',
-      serviceName: svcMap[a.serviceId] ? svcMap[a.serviceId].name : '',
-      serviceId: a.serviceId, notes: a.notes || '',
-      _deleted: !!a._deleted, cancelledBy: a.cancelledBy || '',
-      salonModified: !!a.salonModified, modificationCount: a.modificationCount || 0
-    }))
+    appointments: appointments.map(a => {
+      const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+      const svcNames = svcIds.map(id => svcMap[id] ? svcMap[id].name : null).filter(Boolean);
+      return {
+        id: a.id, date: a.date, time: a.time, endTime: a.endTime || '',
+        serviceIds: svcIds, serviceId: a.serviceId || svcIds[0] || '',
+        serviceName: svcNames.join(', '),
+        status: a.status, source: a.source || '',
+        employeeId: a.employeeId || '',
+        employeeName: a.employeeId && empMap[a.employeeId] ? empMap[a.employeeId].name : '',
+        notes: a.notes || '',
+        _deleted: !!a._deleted, cancelledBy: a.cancelledBy || '',
+        salonModified: !!a.salonModified, modificationCount: a.modificationCount || 0
+      };
+    })
   });
 }
 
@@ -213,17 +218,19 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const data = await readData();
     const q = new URLSearchParams(req.url.split('?')[1]||'');
     const date = q.get('date');
-    const serviceId = q.get('serviceId');
-    if (!date || !serviceId) {
-      res.status(400).json({ error: 'date and serviceId required' });
+    const serviceIdsParam = q.get('serviceIds');
+    const durationParam = q.get('duration');
+    if (!date || !serviceIdsParam || !durationParam) {
+      res.status(400).json({ error: 'date, serviceIds and duration required' });
       return;
     }
-    const service = (data.services||[]).find(s => s.id === serviceId && !s._deleted);
-    if (!service) {
-      res.status(404).json({ error: 'Service not found' });
+    const serviceIds = serviceIdsParam.split(',').filter(Boolean);
+    const servicesList = (data.services||[]).filter(s => serviceIds.includes(s.id) && !s._deleted);
+    if (!servicesList.length) {
+      res.status(404).json({ error: 'Services not found' });
       return;
     }
-    const duration = service.duration || 30;
+    const duration = parseInt(durationParam) || (servicesList.reduce((sum, s) => sum + (s.duration || 30), 0));
     const employeesList = (data.employees||[]).filter(e => !e._deleted);
     const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted);
     const now = new Date();
@@ -272,7 +279,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     try {
       const b = await getBody(req);
       const data = await readData();
-      if (!b.serviceId || !b.date || !b.time || !b.clientName || !b.clientPhone) {
+      const serviceIds = b.serviceIds || (b.serviceId ? [b.serviceId] : []);
+      if (!serviceIds.length || !b.date || !b.time || !b.clientName || !b.clientPhone) {
         res.status(400).json({ error: 'Faltan campos obligatorios' });
         return;
       }
@@ -289,10 +297,10 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       }
       const empId = b.employeeId || '';
       const empAppts = (data.appointments||[]).filter(a => a.date === b.date && !a._deleted && (!empId || a.employeeId === empId || !a.employeeId));
-      const srv = (data.services||[]).find(s => s.id === b.serviceId);
-      const srvDuration = srv ? srv.duration : 30;
+      const svcs = (data.services||[]).filter(s => serviceIds.includes(s.id));
+      const totalDuration = svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
       const reqStart = parseTime(b.time);
-      const reqEnd = reqStart + srvDuration / 60;
+      const reqEnd = reqStart + totalDuration / 60;
       const conflict = empAppts.find(a => {
         const as = (data.services||[]).find(s => s.id === a.serviceId);
         const aStart = parseTime(a.time);
@@ -309,7 +317,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       const endTime = String(reqEndH).padStart(2,'0')+':'+String(reqEndM).padStart(2,'0');
       const appt = {
         id: 'a'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
-        clientId: client.id, serviceId: b.serviceId,
+        clientId: client.id, serviceIds: serviceIds, serviceId: serviceIds[0],
         employeeId: empId, date: b.date, time: b.time, endTime: endTime,
         notes: b.notes || 'Reserva online',
         source: 'online', status: 'pending', _modified: Date.now(), _deleted: false,
@@ -317,9 +325,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       };
       data.appointments.push(appt);
       await writeData(data);
-      const service = (data.services||[]).find(s => s.id === b.serviceId);
       const emp = (data.employees||[]).find(e => e.id === b.employeeId);
-      sendConfirmationEmail(b.clientEmail, b.clientName, b.date, b.time, service ? service.name : 'Servicio', emp ? emp.name : '', b.notes);
+      sendConfirmationEmail(b.clientEmail, b.clientName, b.date, b.time, svcs.map(s=>s.name).join(', '), emp ? emp.name : '', b.notes);
       res.json({ ok: true, appointmentId: appt.id, emailSent: !!(transporter && b.clientEmail) });
     } catch (e) {
       res.status(400).json({ error: e.message });
