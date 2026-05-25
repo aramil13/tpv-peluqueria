@@ -2539,6 +2539,7 @@ function editAppt(id) {
     const firstSvc = apptSelectedServices[0];
     if (firstSvc && firstSvc.sectionId) secSel.value = firstSvc.sectionId;
   }
+  updateApptEndFromServices();
   document.getElementById('apptServiceSearch').value = '';
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
