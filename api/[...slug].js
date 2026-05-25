@@ -218,19 +218,15 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const data = await readData();
     const q = new URLSearchParams(req.url.split('?')[1]||'');
     const date = q.get('date');
-    const serviceIdsParam = q.get('serviceIds');
+    const serviceIdsParam = q.get('serviceIds') || q.get('serviceId') || '';
     const durationParam = q.get('duration');
-    if (!date || !serviceIdsParam || !durationParam) {
-      res.status(400).json({ error: 'date, serviceIds and duration required' });
+    if (!date || !serviceIdsParam) {
+      res.status(400).json({ error: 'date and serviceId(s) required' });
       return;
     }
     const serviceIds = serviceIdsParam.split(',').filter(Boolean);
     const servicesList = (data.services||[]).filter(s => serviceIds.includes(s.id) && !s._deleted);
-    if (!servicesList.length) {
-      res.status(404).json({ error: 'Services not found' });
-      return;
-    }
-    const duration = parseInt(durationParam) || (servicesList.reduce((sum, s) => sum + (s.duration || 30), 0));
+    const duration = parseInt(durationParam) || (servicesList.length ? servicesList.reduce((sum, s) => sum + (s.duration || 30), 0) : 30);
     const employeesList = (data.employees||[]).filter(e => !e._deleted);
     const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted);
     const now = new Date();
@@ -270,7 +266,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       });
     });
     slots.sort((a,b) => a.time.localeCompare(b.time) || a.employeeName.localeCompare(b.employeeName));
-    res.json({ slots, date, serviceId, duration });
+    res.json({ slots, date, serviceIds: serviceIds, duration });
     return;
   }
 

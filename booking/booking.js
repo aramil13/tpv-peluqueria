@@ -516,8 +516,12 @@ async function fetchSlots() {
   showLoading(true);
   try {
     const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
-    const params = '?date='+selectedDate+'&serviceIds='+selectedServices.map(s=>s.id).join(',')+'&duration='+totalDuration;
+    const params = '?date='+encodeURIComponent(selectedDate)+'&serviceIds='+selectedServices.map(s=>encodeURIComponent(s.id)).join(',')+'&duration='+totalDuration;
     const r = await fetch(API+'/api/slots'+params);
+    if (!r.ok) {
+      const errData = await r.json().catch(() => ({}));
+      throw new Error(errData.error || 'HTTP ' + r.status);
+    }
     const d = await r.json();
     renderSlots(d.slots || []);
   } catch(e) { document.getElementById('slotsContainer').innerHTML = ''; document.getElementById('noSlots').style.display = 'block'; }
