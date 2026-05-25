@@ -133,7 +133,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
   position: absolute;
   top: 50%; left: 50%;
   transform: translate(-50%, -50%) rotate(-25deg);
-  background: rgba(231, 76, 60, 0.88);
+  background: rgba(231, 76, 60, 0.35);
   color: #fff;
   font-weight: 700;
   font-size: 13px;
@@ -142,6 +142,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
   pointer-events: none;
   white-space: nowrap;
   border-radius: 4px;
+  text-shadow: 1px 1px 3px rgba(0,0,0,0.5);
 }
 .appt-card.appt-cancelled-by-salon::after {
   content: "";
@@ -152,8 +153,8 @@ hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
     -45deg,
     transparent,
     transparent 8px,
-    rgba(231, 76, 60, 0.08) 8px,
-    rgba(231, 76, 60, 0.08) 16px
+    rgba(231, 76, 60, 0.04) 8px,
+    rgba(231, 76, 60, 0.04) 16px
   );
   z-index: 0;
   pointer-events: none;

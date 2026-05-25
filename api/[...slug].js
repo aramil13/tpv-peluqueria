@@ -320,10 +320,17 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         modificationCount: 0, salonModified: false, cancelledBy: ''
       };
       data.appointments.push(appt);
+      const beforeClean = (data.appointments||[]).filter(a => a.cancelledBy === 'salon' && a.clientId === client.id).length;
+      (data.appointments||[]).forEach(a => {
+        if (a.cancelledBy === 'salon' && a.clientId === client.id) {
+          a._deleted = true; delete a.cancelledBy; a._modified = Date.now();
+        }
+      });
+      const cleanedCount = beforeClean;
       await writeData(data);
       const emp = (data.employees||[]).find(e => e.id === b.employeeId);
       sendConfirmationEmail(b.clientEmail, b.clientName, b.date, b.time, svcs.map(s=>s.name).join(', '), emp ? emp.name : '', b.notes);
-      res.json({ ok: true, appointmentId: appt.id, emailSent: !!(transporter && b.clientEmail) });
+      res.json({ ok: true, appointmentId: appt.id, emailSent: !!(transporter && b.clientEmail), cleanedCount });
     } catch (e) {
       res.status(400).json({ error: e.message });
     }

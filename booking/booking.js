@@ -201,8 +201,8 @@ function renderMyAppts() {
       '</div>'+ 
       (!isPast && a.source==='online' && !cancelledByClient ? '<div class="appt-card-actions">'+ 
         (!cancelledBySalon && !modifiedBySalon ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')" >Modificar</button>' : '')+ 
-        '<button class="btn btn-sm btn-danger" onclick="cancelAppt(\''+a.id+'\')">'+
-          (cancelledBySalon ? 'Confirmar anulación' : 'Cancelar')+'</button>'+ 
+        '<button class="btn btn-sm '+(cancelledBySalon?'btn-success':'btn-danger')+'" onclick="cancelAppt(\''+a.id+'\')">'+
+          (cancelledBySalon ? 'VISTO' : 'Cancelar')+'</button>'+ 
       '</div>' : '')+ 
     '</div>';
   }).join('');
@@ -211,7 +211,11 @@ function renderMyAppts() {
 async function cancelAppt(id) {
   const appt = currentAppointments.find(a => a.id === id);
   const isSalonCancelled = appt && appt.cancelledBy === 'salon';
-  if (!confirm(isSalonCancelled ? '¿Confirmas la anulación del salón? La cita se eliminará definitivamente.' : '¿Estás seguro de cancelar esta cita?')) return;
+  if (isSalonCancelled) {
+    if (!confirm('¿Has leído el aviso?')) return;
+  } else {
+    if (!confirm('¿Estás seguro de cancelar esta cita?')) return;
+  }
   showLoading(true);
   try {
     const r = await fetch(API+'/api/cancel', {
@@ -222,8 +226,13 @@ async function cancelAppt(id) {
     const d = await r.json();
     if (!d.ok) { alert(d.error||'Error al cancelar'); showLoading(false); return; }
     showLoading(false);
-    alert(isSalonCancelled ? 'Cita eliminada definitivamente' : 'Cita cancelada correctamente');
-    refreshMyAppts();
+    if (isSalonCancelled) {
+      currentAppointments = currentAppointments.filter(a => a.id !== id);
+      renderMyAppts();
+    } else {
+      alert('Cita cancelada correctamente');
+      refreshMyAppts();
+    }
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
 
@@ -606,6 +615,9 @@ async function confirmBooking() {
     });
     const d = await r.json();
     if (d.ok) {
+      if (d.cleanedCount) {
+        currentAppointments = currentAppointments.filter(a => a.cancelledBy !== 'salon');
+      }
       goStep(5);
       const svcNames = selectedServices.map(s => s.name).join(', ');
       const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20confirmada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(selectedSlot.time) + '.';
