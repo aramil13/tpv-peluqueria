@@ -5,6 +5,7 @@ process.env.TZ = 'Europe/Madrid';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const WEB_API_KEY = process.env.WEB_API_KEY || '';
 const BUSINESS_NAME = process.env.BUSINESS_NAME || 'Nymara Estilistas';
+const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': CORS_ORIGIN,
@@ -662,56 +663,42 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
-  // === API: WHATSAPP WEBHOOK (Meta verification) ===
-  if (url === '/api/whatsapp-webhook' && req.method === 'GET') {
-    const qs = new URL(req.url, 'http://x').searchParams;
-    const mode = qs.get('hub.mode');
-    const token = qs.get('hub.verify_token');
-    const challenge = qs.get('hub.challenge');
-    const expectedToken = process.env.WHATSAPP_VERIFY_TOKEN || '';
-    if (mode === 'subscribe' && token === expectedToken && challenge) {
-      res.setHeader('Content-Type', 'text/plain');
-      res.status(200).send(challenge);
-    } else {
-      res.status(403).send('Verification failed');
+  // === API: WHATSAPP WEBHOOK (Twilio) ===
+  if (url === '/api/whatsapp-webhook' && req.method === 'POST') {
+    try {
+      let raw = '';
+      for await (const chunk of req) raw += chunk;
+      const params = new URLSearchParams(raw);
+      const from = params.get('From') || '';
+      const body = params.get('Body') || '';
+      const phone = from.replace('whatsapp:', '').trim();
+
+      let replyText = '';
+      if (phone && body) {
+        const { processWhatsAppMessage } = require('../lib/ai-assistant');
+        replyText = await processWhatsAppMessage(phone, body) || '';
+      }
+
+      res.setHeader('Content-Type', 'text/xml');
+      res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?><Response><Message>${escapeXml(replyText)}</Message></Response>`);
+    } catch (e) {
+      console.error('[TWILIO WHATSAPP ERROR]', e.message);
+      res.setHeader('Content-Type', 'text/xml');
+      res.status(200).send('<Response></Response>');
     }
     return;
   }
 
-  // === API: WHATSAPP WEBHOOK (incoming messages) ===
-  if (url === '/api/whatsapp-webhook' && req.method === 'POST') {
-    try {
-      const b = await getBody(req);
-      const entry = b.entry?.[0];
-      const change = entry?.changes?.[0];
-      const value = change?.value;
-      if (!value) { res.status(200).json({ ok: true }); return; }
-
-      const messages = value.messages || [];
-      for (const msg of messages) {
-        const from = msg.from; // phone number
-        if (!from) continue;
-
-        if (msg.type === 'text') {
-          const text = msg.text?.body || '';
-          const { processWhatsAppMessage } = require('../lib/ai-assistant');
-          processWhatsAppMessage(from, text);
-        } else if (msg.type === 'audio') {
-          const { sendMessage } = require('../lib/whatsapp');
-          sendMessage(from, 'Prefiero que me escribas el texto. 😊 ¿Qué necesitas?');
-        } else if (msg.type === 'interactive') {
-          const text = msg.interactive?.button_reply?.title || msg.interactive?.list_reply?.title || '';
-          if (text) {
-            const { processWhatsAppMessage } = require('../lib/ai-assistant');
-            processWhatsAppMessage(from, text);
-          }
-        }
-      }
-      res.status(200).json({ ok: true });
-    } catch (e) {
-      console.error('[WHATSAPP WEBHOOK ERROR]', e.message);
-      res.status(200).json({ ok: true });
-    }
+  // === API: PHONE INCOMING (Twilio call start) ===
+  if (url === '/api/phone-incoming' && req.method === 'POST') {
+    res.setHeader('Content-Type', 'text/xml');
+    res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+  <Gather input="speech" action="/api/phone-process" method="POST" language="es-ES" speechTimeout="auto">
+    <Say voice="alice" language="es-ES">Hola, bienvenido a ${BUSINESS_NAME}. Soy Sara, tu asistente virtual. ¿En qué puedo ayudarte hoy?</Say>
+  </Gather>
+  <Say voice="alice" language="es-ES">Parece que no me has dicho nada. Si necesitas ayuda, vuelve a llamarnos. ¡Adiós!</Say>
+</Response>`);
     return;
   }
 
@@ -723,16 +710,16 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       const params = new URLSearchParams(raw);
       const speechResult = params.get('SpeechResult') || '';
       const caller = params.get('From') || '';
-      const callSid = params.get('CallSid') || '';
+      console.log(`[VOICE 2 IN] ${caller}: ${speechResult}`);
 
       if (!speechResult) {
         res.setHeader('Content-Type', 'text/xml');
         res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
   <Gather input="speech" action="/api/phone-process" method="POST" language="es-ES" speechTimeout="auto">
-    <Say voice="alice" language="es-ES">No te he entendido. ¿Puedes repetirlo?</Say>
+    <Say voice="alice" language="es-ES">No te he entendido bien. ¿Podrías repetirlo, por favor?</Say>
   </Gather>
-  <Say voice="alice" language="es-ES">Lo siento, no logro entenderte. Llámanos al ${BUSINESS_PHONE}. Adiós.</Say>
+  <Say voice="alice" language="es-ES">Lo siento, tengo problemas para escucharte. Puedes intentar llamarnos más tarde o escribirnos por WhatsApp. ¡Hasta pronto!</Say>
 </Response>`);
         return;
       }
@@ -746,13 +733,13 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
   <Gather input="speech" action="/api/phone-process" method="POST" language="es-ES" speechTimeout="auto">
     <Say voice="alice" language="es-ES">${escapeXml(responseText)}</Say>
   </Gather>
-  <Say voice="alice" language="es-ES">Gracias por tu llamada. ${escapeXml(responseText)} Adiós.</Say>
+  <Say voice="alice" language="es-ES">Si no tienes más dudas, gracias por llamar a ${BUSINESS_NAME}. ¡Que tengas un buen día!</Say>
 </Response>`);
     } catch (e) {
       console.error('[PHONE PROCESS ERROR]', e.message);
       res.setHeader('Content-Type', 'text/xml');
       res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
-<Response><Say voice="alice" language="es-ES">Lo siento, hubo un error. Llámanos más tarde. Adiós.</Say></Response>`);
+<Response><Say voice="Google.es-ES-Standard-A" language="es-ES">Lo siento, ha surgido un problema técnico inesperado. Por favor, llámanos directamente al ${BUSINESS_PHONE}.</Say></Response>`);
     }
     return;
   }
