@@ -141,6 +141,20 @@ module.exports = async (req, res) => {
 
   const url = req.url.split('?')[0].split('#')[0];
 
+  // === DEBUG: check env ===
+  if (url === '/api/debug' && req.method === 'GET') {
+    const wa = process.env.TWILIO_WHATSAPP_NUMBER || '';
+    const ph = process.env.TWILIO_PHONE_NUMBER || '';
+    const sid = process.env.TWILIO_ACCOUNT_SID || '';
+    res.json({
+      whatsappNumber: wa ? wa.slice(0,6)+'...'+wa.slice(-4) : '(empty)',
+      phoneNumber: ph ? ph.slice(0,6)+'...'+ph.slice(-4) : '(empty)',
+      accountSid: sid ? sid.slice(0,6)+'...' : '(empty)',
+      businessPhone: process.env.BUSINESS_PHONE || ''
+    });
+    return;
+  }
+
   // === SYNC ===
   if (url === '/sync' || url === '/sync/') {
     if (req.method === 'GET') {
