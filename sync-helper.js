@@ -491,6 +491,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
             id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
             name: (b.clientName||'')+' (Online)', phone: b.clientPhone, email: b.clientEmail||'',
             address: '', city: '', province: '', zip: '', nif: '', notes: '',
+            historialTecnico: '', punctuality: '',
             visits: 0, totalSpent: 0, created: new Date().toISOString(),
             _modified: Date.now(), _deleted: false
           };
@@ -677,6 +678,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
           name: (b.name||'')+' (Online)', phone: b.phone, email: b.email||'',
           address: '', city: '', province: '', zip: '', nif: '', notes: '',
+          historialTecnico: '', punctuality: '',
           visits: 0, totalSpent: 0, created: new Date().toISOString(),
           _modified: Date.now(), _deleted: false
         };

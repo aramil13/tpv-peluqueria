@@ -67,7 +67,7 @@ async function handleClientLogin(phone, res) {
   const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
   appointments.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   res.json({
-    client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '' },
+    client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '', historialTecnico: client.historialTecnico || '', punctuality: client.punctuality || '' },
     appointments: appointments.map(a => {
       const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
       const svcNames = svcIds.map(id => svcMap[id] ? svcMap[id].name : null).filter(Boolean);
@@ -141,17 +141,58 @@ module.exports = async (req, res) => {
 
   const url = req.url.split('?')[0].split('#')[0];
 
-  // === DEBUG: check env ===
+  // === DEBUG: check env + Twilio ===
   if (url === '/api/debug' && req.method === 'GET') {
     const wa = process.env.TWILIO_WHATSAPP_NUMBER || '';
     const ph = process.env.TWILIO_PHONE_NUMBER || '';
     const sid = process.env.TWILIO_ACCOUNT_SID || '';
+    const token = process.env.TWILIO_AUTH_TOKEN || '';
+    let twilio = { error: null };
+    try {
+      const auth = Buffer.from(sid + ':' + token).toString('base64');
+      const bal = await fetch('https://api.twilio.com/2010-04-01/Accounts/' + sid + '.json', {
+        headers: { Authorization: 'Basic ' + auth }
+      });
+      const balData = await bal.json();
+      const bal2 = await fetch('https://api.twilio.com/2010-04-01/Accounts/' + sid + '/Balance.json', {
+        headers: { Authorization: 'Basic ' + auth }
+      });
+      const bal2Data = await bal2.json();
+      const msg = await fetch('https://api.twilio.com/2010-04-01/Accounts/' + sid + '/Messages.json?PageSize=1', {
+        headers: { Authorization: 'Basic ' + auth }
+      });
+      const msgData = await msg.json();
+      twilio = {
+        status: balData.status,
+        type: balData.type,
+        balance: bal2Data.balance || bal2Data.error || 'unknown',
+        currency: bal2Data.currency || '',
+        lastMessage: (msgData.messages || []).slice(0,1).map(m => ({
+          status: m.status, errorCode: m.error_code, errorMessage: m.error_message,
+          direction: m.direction, dateSent: m.date_sent
+        }))[0] || null
+      };
+    } catch (e) { twilio.error = e.message; }
     res.json({
       whatsappNumber: wa ? wa.slice(0,6)+'...'+wa.slice(-4) : '(empty)',
       phoneNumber: ph ? ph.slice(0,6)+'...'+ph.slice(-4) : '(empty)',
       accountSid: sid ? sid.slice(0,6)+'...' : '(empty)',
-      businessPhone: process.env.BUSINESS_PHONE || ''
+      businessPhone: process.env.BUSINESS_PHONE || '',
+      twilio
     });
+    return;
+  }
+
+  // === TEST SEND ===
+  if (url === '/api/test-send' && req.method === 'POST') {
+    try {
+      const b = await getBody(req);
+      const to = b.to || '+34678092305';
+      const text = b.text || 'Test desde Nymara';
+      const { sendMessage } = require('../lib/whatsapp');
+      const result = await sendMessage(to, text);
+      res.json({ sent: true, result: result.error || result.status + ' ' + (result.sid||'') });
+    } catch (e) { res.status(500).json({ error: e.message }); }
     return;
   }
 
@@ -304,6 +345,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
           name: (b.clientName||'')+' (Online)', phone: b.clientPhone, email: b.clientEmail||'',
           address: '', city: '', province: '', zip: '', nif: '', notes: '',
+          historialTecnico: '', punctuality: '',
           visits: 0, totalSpent: 0, created: new Date().toISOString(),
           _modified: Date.now(), _deleted: false
         };
@@ -382,12 +424,12 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
           name: (b.name||'')+' (Online)', phone: b.phone, email: b.email||'',
           address: '', city: '', province: '', zip: '', nif: '', notes: '',
+          historialTecnico: '', punctuality: '',
           visits: 0, totalSpent: 0, created: new Date().toISOString(),
           _modified: Date.now(), _deleted: false
         };
         d.clients.push(client);
-        await writeData(d);
-        res.json({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email } });
+        res.json({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email, historialTecnico: client.historialTecnico, punctuality: client.punctuality } });
       } catch (e) {
         res.status(400).json({ error: e.message });
       }
