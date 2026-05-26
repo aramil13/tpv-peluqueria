@@ -8,7 +8,7 @@ function escXml(s) {
 }
 
 module.exports = async (req, res) => {
-  res.setHeader('Content-Type', 'text/xml');
+  res.setHeader('Content-Type', 'text/xml; charset=utf-8');
 
   try {
     let raw = '';
@@ -32,17 +32,17 @@ module.exports = async (req, res) => {
 
     res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Gather input="speech" action="/api/phone-webhook" method="POST" language="es-ES" speechTimeout="auto">
-    <Say voice="alice" language="es-ES">${escXml(responseText)}</Say>
+  <Gather input="speech" action="https://nymaraestilistas.es/api/phone-webhook" method="POST" language="es-ES" speechTimeout="auto">
+    <Say voice="woman" language="es-ES">${escXml(responseText)}</Say>
   </Gather>
-  <Say voice="alice" language="es-ES">Si no tienes más dudas, gracias por llamar a ${BUSINESS_NAME}. ¡Que tengas un buen día!</Say>
+  <Say voice="woman" language="es-ES">Si no tienes más dudas, gracias por llamar a ${BUSINESS_NAME}. ¡Que tengas un buen día!</Say>
 </Response>`);
 
   } catch (e) {
     console.error('[PHONE WEBHOOK ERROR]', e.message);
     res.status(200).send(`<?xml version="1.0" encoding="UTF-8"?>
 <Response>
-  <Say voice="Polly.Lucia" language="es-ES">Lo siento, ha surgido un problema técnico con la centralita. Por favor, llámanos directamente al ${BUSINESS_PHONE}.</Say>
+  <Say voice="woman" language="es-ES">Lo siento, ha surgido un problema técnico con la centralita. Por favor, llámanos directamente al ${BUSINESS_PHONE}.</Say>
 </Response>`);
   }
 };
