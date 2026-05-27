@@ -5,7 +5,16 @@ const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 
 process.env.TZ = 'Europe/Madrid';
-console.log('Starting sync-helper... Forward URL:', process.env.SYNC_FORWARD_URL || '(none)');
+const GROQ_KEY = process.env.GROQ_API_KEY || '';
+console.log('=== SYNC-HELPER STARTING ===');
+console.log('GROQ_API_KEY:', GROQ_KEY ? 'SET ('+GROQ_KEY.substring(0,8)+'...)' : 'EMPTY');
+console.log('GROQ_API_KEY length:', GROQ_KEY.length);
+console.log('BUSINESS_NAME:', process.env.BUSINESS_NAME || '(not set)');
+console.log('PORT:', process.env.PORT || 3456);
+console.log('SYNC_FORWARD_URL:', process.env.SYNC_FORWARD_URL || '(none)');
+console.log('Working dir:', __dirname);
+console.log('.env.local path:', path.join(__dirname, '.env.local'));
+console.log('=== END INIT ===');
 const PORT = parseInt(process.env.PORT) || parseInt(process.env.SYNC_PORT) || 3456;
 const HOST = process.env.HOST || '0.0.0.0';
 const DATA_DIR = (() => {
@@ -913,11 +922,14 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     req.on('end', async () => {
       try {
         const { phone, text } = JSON.parse(body);
+        console.log('[AI] Phone:', phone, 'Text:', text?.substring(0,50));
+        console.log('[AI] GROQ_API_KEY loaded:', process.env.GROQ_API_KEY ? 'YES' : 'NO');
         let replyText = '';
         if (phone && text) {
           const { processWhatsAppMessage } = require('./lib/ai-assistant');
           replyText = await processWhatsAppMessage(phone, text) || '';
         }
+        console.log('[AI] Reply:', replyText?.substring(0,80));
         res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ response: replyText }));
       } catch (e) {

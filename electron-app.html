@@ -630,6 +630,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="tab" onclick="switchSettingsTab('iva',this)">IVA</div>
       <div class="tab" onclick="switchSettingsTab('sync',this)">Sync</div>
       <div class="tab" onclick="switchSettingsTab('whatsapp',this)">Recordatorios WAS</div>
+      <div class="tab" onclick="switchSettingsTab('schedule',this)">Horarios</div>
     </div>
     <div id="settingsBusiness">
       <div class="grid-2">
@@ -693,6 +694,36 @@ tr:hover td { background: #f8f9fa; }
     </div>
     <div id="settingsWhatsApp" style="display:none;">
       <div id="waReminderList" style="max-height:400px;overflow-y:auto;"></div>
+    </div>
+    <div id="settingsSchedule" style="display:none;">
+      <div style="font-size:13px;color:#666;margin-bottom:15px;">Configura los horarios generales para reservas online. Puedes override en días específicos desde la Agenda.</div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label>Hora de apertura (defecto)</label>
+          <input type="time" id="setScheduleOpen" value="09:00">
+        </div>
+        <div class="form-group">
+          <label>Hora de cierre (defecto)</label>
+          <input type="time" id="setScheduleClose" value="19:00">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Duración máxima de reservas online (horas desde apertura)</label>
+        <input type="number" id="setScheduleMaxHours" value="10" min="1" max="14" style="width:100px;">
+        <span style="font-size:12px;color:#888;margin-left:8px;">Ej: 10 = hasta las 19:00 si abre a las 09:00</span>
+      </div>
+      <div class="form-group">
+        <label>Días abiertos por defecto (sin configuración específica)</label>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:6px;">
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="dayMon" checked> Lunes</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="dayTue" checked> Martes</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="dayWed" checked> Miércoles</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="dayThu" checked> Jueves</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="dayFri" checked> Viernes</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="daySat"> Sábado</label>
+          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="daySun"> Domingo</label>
+        </div>
+      </div>
     </div>
     <div class="modal-footer"><button class="btn btn-primary" onclick="saveSettings()">Guardar</button><button class="btn btn-secondary" onclick="closeModal('settingsModal')">Cancelar</button></div>
   </div>
@@ -1112,6 +1143,7 @@ function switchSettingsTab(tab, el) {
   document.getElementById('settingsIva').style.display = tab === 'iva' ? 'block' : 'none';
   document.getElementById('settingsSync').style.display = tab === 'sync' ? 'block' : 'none';
   document.getElementById('settingsWhatsApp').style.display = tab === 'whatsapp' ? 'block' : 'none';
+  document.getElementById('settingsSchedule').style.display = tab === 'schedule' ? 'block' : 'none';
   if (tab === 'ticket') { populateBackupLists('ticket'); document.getElementById('currentTicketNum').textContent = lastTicketNum(); }
   if (tab === 'invoice') { populateBackupLists('invoice'); document.getElementById('currentInvoiceNum').textContent = lastInvoiceNum(); }
   if (tab === 'whatsapp') renderWaReminderList();
@@ -1137,6 +1169,18 @@ function openSettings() {
   const webSync = s.webSync || {};
   document.getElementById('webSyncEnabled').checked = webSync.enabled || false;
   document.getElementById('webSyncInterval').value = webSync.interval || 10;
+  const sched = s.schedule || {};
+  document.getElementById('setScheduleOpen').value = sched.openTime || '09:00';
+  document.getElementById('setScheduleClose').value = sched.closeTime || '19:00';
+  document.getElementById('setScheduleMaxHours').value = sched.maxHours || 10;
+  const openDays = sched.openDays || [1,2,3,4,5];
+  document.getElementById('dayMon').checked = openDays.includes(1);
+  document.getElementById('dayTue').checked = openDays.includes(2);
+  document.getElementById('dayWed').checked = openDays.includes(3);
+  document.getElementById('dayThu').checked = openDays.includes(4);
+  document.getElementById('dayFri').checked = openDays.includes(5);
+  document.getElementById('daySat').checked = openDays.includes(6);
+  document.getElementById('daySun').checked = openDays.includes(0);
   document.getElementById('currentTicketNum').textContent = lastTicketNum();
   document.getElementById('currentInvoiceNum').textContent = lastInvoiceNum();
   switchSettingsTab('business', document.querySelector('#settingsModal .tab'));
@@ -1168,6 +1212,20 @@ function saveSettings() {
     webSync: {
       enabled: document.getElementById('webSyncEnabled').checked,
       interval: parseInt(document.getElementById('webSyncInterval').value) || 10
+    },
+    schedule: {
+      openTime: document.getElementById('setScheduleOpen').value || '09:00',
+      closeTime: document.getElementById('setScheduleClose').value || '19:00',
+      maxHours: parseInt(document.getElementById('setScheduleMaxHours').value) || 10,
+      openDays: [
+        document.getElementById('dayMon').checked ? 1 : 0,
+        document.getElementById('dayTue').checked ? 2 : 0,
+        document.getElementById('dayWed').checked ? 3 : 0,
+        document.getElementById('dayThu').checked ? 4 : 0,
+        document.getElementById('dayFri').checked ? 5 : 0,
+        document.getElementById('daySat').checked ? 6 : 0,
+        document.getElementById('daySun').checked ? 0 : -1
+      ].filter(d => d > 0)
     }
   };
   saveKey('ivaRate'); saveKey('settings');

@@ -1,45 +1,70 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
 const qrcodeImg = require('qrcode');
-const http = require('http');
-const https = require('https');
 const path = require('path');
 const pino = require('pino');
+
+require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 
 const logger = pino({ level: 'warn' });
 
 const AUTH_DIR = path.join(__dirname, 'wa_auth');
-const API_URL = process.env.AI_API_URL || 'http://localhost:3456/api/ai-message';
 const RECONNECT_DELAY = 15000;
 
 let currentSock = null;
 let processing = false;
 let processedIds = new Set();
+const messageQueue = [];
+let queueProcessing = false;
+
+const { processWhatsAppMessage } = require('./lib/ai-assistant');
+
+console.log('GROQ_API_KEY:', process.env.GROQ_API_KEY ? 'SET ('+process.env.GROQ_API_KEY.substring(0,8)+'...)' : 'EMPTY');
+
+const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '';
+
+async function sendStartupMessage() {
+  if (!BUSINESS_PHONE || !currentSock) return;
+  await new Promise(r => setTimeout(r, 5000));
+  console.log('Enviando mensaje de inicio...');
+  const reply = await processWhatsAppMessage('+' + BUSINESS_PHONE, 'Hola Nymara');
+  console.log('Respuesta IA:', reply.substring(0, 80));
+}
+
+async function processQueue() {
+  if (queueProcessing || messageQueue.length === 0) return;
+  queueProcessing = true;
+  
+  while (messageQueue.length > 0) {
+    const item = messageQueue.shift();
+    try {
+      const reply = await processWhatsAppMessage(item.phone, item.text);
+      if (item.jid && currentSock) {
+        await currentSock.sendMessage(item.jid, { text: reply });
+        console.log(` [OUT] ${item.phone.replace('+','')}: ${reply.slice(0, 60)}`);
+      }
+    } catch (e) {
+      console.error('[QUEUE ERROR]', e.message);
+      if (item.jid && currentSock) {
+        try {
+          await currentSock.sendMessage(item.jid, { text: 'Lo siento, hubo un error. Inténtalo de nuevo.' });
+        } catch {}
+      }
+    }
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  
+  queueProcessing = false;
+}
+
+function queueMessage(phone, text, jid) {
+  messageQueue.push({ phone, text, jid });
+  processQueue();
+}
 
 setInterval(() => {
   if (processedIds.size > 1000) processedIds = new Set();
 }, 60000);
-
-function postJSON(url, data) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const body = JSON.stringify(data);
-    const mod = u.protocol === 'https:' ? https : http;
-    const req = mod.request({
-      hostname: u.hostname, path: u.pathname, method: 'POST', port: u.port,
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
-    }, res => {
-      let r = '';
-      res.on('data', c => r += c);
-      res.on('end', () => {
-        try { resolve(JSON.parse(r)); } catch { resolve({}); }
-      });
-    });
-    req.on('error', reject);
-    req.write(body);
-    req.end();
-  });
-}
 
 function isNormalChat(jid) {
   if (!jid) return false;
@@ -79,6 +104,7 @@ async function start() {
     if (connection === 'open') {
       console.log(' WhatsApp conectado como asistente AI');
       processing = false;
+      sendStartupMessage();
     }
   });
 
@@ -101,18 +127,8 @@ async function start() {
         : jid.split('@')[0];
 
       console.log(` ${m.key.fromMe ? '[SELF]' : '[IN]'} ${phone}: ${text.slice(0, 60)}`);
-      await new Promise(r => setTimeout(r, delay));
       delay = 1500;
-
-      const data = await postJSON(API_URL, { phone: '+' + phone, text });
-      const reply = data?.response || 'Lo siento, no pude procesar tu mensaje.';
-
-      try {
-        await sock.sendMessage(jid, { text: reply });
-        console.log(` [OUT] ${phone}: ${reply.slice(0, 60)}`);
-      } catch (e) {
-        console.log(` [SEND FAIL] ${e.message}`);
-      }
+      queueMessage('+' + phone, text, jid);
     }
   });
 }

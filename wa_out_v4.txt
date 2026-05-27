@@ -1,0 +1,50 @@
+ Iniciando bridge WhatsApp...
+ WhatsApp conectado como asistente AI
+ [SKIP] socket closed, can't process: Hola
+ [SKIP] socket closed, can't process: Hola
+ [SKIP] socket closed, can't process: Sara
+ [SKIP] socket closed, can't process: Sara
+ [SKIP] socket closed, can't process: *Twilio Sandbox*: ⚠️ Your number ```whatsapp:+34678092305```
+ [SKIP] socket closed, can't process: *Twilio Sandbox*: ⚠️ Your number ```whatsapp:+34678092305```
+ [SKIP] socket closed, can't process: Hola
+ [SKIP] socket closed, can't process: *Twilio Sandbox*: ⚠️ Your number ```whatsapp:+34678092305```
+ [SKIP] socket closed, can't process: Hola
+ [SKIP] socket closed, can't process: Hola
+ [SKIP] socket closed, can't process: Hola
+{"level":50,"time":1779889668360,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
+ [SKIP] socket closed, can't process: Hola
+{"level":50,"time":1779889690015,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
+{"level":50,"time":1779889711913,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
+{"level":50,"time":1779889733740,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
+{"level":50,"time":1779889755658,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
+{"level":50,"time":1779889777249,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
+{"level":50,"time":1779889798844,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
+{"level":50,"time":1779889820463,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
+{"level":50,"time":1779889842055,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
+{"level":50,"time":1779889863764,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
+{"level":50,"time":1779889885491,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
+{"level":50,"time":1779889907523,"pid":5392,"hostname":"DESKTOP-PQESRG9","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+Reconectando en 10s...
+ WhatsApp conectado como asistente AI
