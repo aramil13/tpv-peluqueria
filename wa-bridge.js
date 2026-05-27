@@ -1,17 +1,22 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
+const http = require('http');
 const https = require('https');
 const path = require('path');
+const pino = require('pino');
+
+const logger = pino({ level: 'warn' });
 
 const AUTH_DIR = path.join(__dirname, 'wa_auth');
-const API_URL = 'https://nymaraestilistas.es/api/ai-message';
+const API_URL = process.env.AI_API_URL || 'http://localhost:3456/api/ai-message';
 
 function postJSON(url, data) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const body = JSON.stringify(data);
-    const req = https.request({
-      hostname: u.hostname, path: u.pathname, method: 'POST',
+    const mod = u.protocol === 'https:' ? https : http;
+    const req = mod.request({
+      hostname: u.hostname, path: u.pathname, method: 'POST', port: u.port,
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
     }, res => {
       let r = '';
@@ -28,7 +33,7 @@ function postJSON(url, data) {
 
 async function start() {
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-  const sock = makeWASocket({ printQRInTerminal: false, auth: state, syncFullHistory: false });
+  const sock = makeWASocket({ printQRInTerminal: false, auth: state, syncFullHistory: false, browser: ['Chrome', 'Android', '14.0'], logger });
 
   sock.ev.on('creds.update', saveCreds);
 

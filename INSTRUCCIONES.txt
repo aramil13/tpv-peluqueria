@@ -1,0 +1,43 @@
+INSTRUCCIONES - Asistente WhatsApp AI para la Peluquería
+======================================================
+
+1. INSTALAR NODE.JS
+   - Descargar: https://nodejs.org (versión LTS)
+   - Instalar con todas las opciones por defecto
+
+2. COPIAR EL PROYECTO
+   - Copiar toda la carpeta "tpv para peluqueria" al ordenador TPV
+   - (Si usas git, clonar el repositorio)
+
+3. INSTALAR DEPENDENCIAS (solo la primera vez)
+   - Abrir PowerShell en la carpeta del proyecto
+   - Ejecutar: npm install
+   - Esperar a que termine
+
+4. VINCULAR WHATSAPP (solo la primera vez)
+   - Ejecutar: node wa-bridge.js
+   - Aparecerá un código QR en la terminal
+   - En tu móvil: WhatsApp > Ajustes > Dispositivos vinculados > Vincular dispositivo
+   - Escanear el QR
+   - Verás el mensaje "WhatsApp conectado como asistente AI"
+   - Cerrar la terminal (la sesión queda guardada)
+
+5. USO DIARIO (a partir de ahora)
+   - Hacer doble clic en "arrancar.bat"
+   - Se abrirán dos ventanas:
+     * Sync Helper (puerto 3456) - el servidor TPV
+     * WhatsApp Bridge - el enlace con WhatsApp
+   - Déjalas abiertas y funcionando
+
+6. OPCIONAL: AUTOARRANQUE AL ENCENDER EL PC
+   - Crear un acceso directo a "arrancar.bat"
+   - Pulsar Win+R, escribir: shell:startup
+   - Pegar el acceso directo
+
+NOTA: Los mensajes de WhatsApp que lleguen serán respondidos
+automáticamente por el asistente AI.
+
+Solución de problemas:
+- Si el QR no aparece, borrar la carpeta wa_auth y repetir paso 4
+- Si falla "npm install", asegurarse de tener Node.js bien instalado
+- Si el bridge se cierra solo, revisar que sync-helper esté corriendo

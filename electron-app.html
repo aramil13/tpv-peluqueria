@@ -3156,9 +3156,21 @@ function deleteTicket(id) {
   const sale = data.sales.find(s => s.id === id);
   if (!sale) return;
   const label = sale.invoiceNumber ? 'factura' : 'ticket';
-  if (!confirm('¿Eliminar esta '+label+' definitivamente?')) return;
+  if (!confirm('¿Eliminar esta '+label+' definitivamente? Los productos volverán al stock.')) return;
+  // Restore stock for product items in this sale
+  sale.items.filter(i => i.type === 'product').forEach(i => {
+    const prod = data.products.find(p => p.id === i.id);
+    if (prod) {
+      prod.stock = (prod.stock||0) + i.qty;
+      const mov = {id:id(), productId:i.id, type:'in', qty:i.qty, resultStock:prod.stock,
+        reason:'Devolución venta '+sale.number, date:new Date().toISOString()};
+      data.movements.push(mov);
+    }
+  });
   data.sales = data.sales.filter(s => s.id !== id);
   saveKey('sales');
+  saveKey('products');
+  saveKey('movements');
   renderReports();
   renderDashboard();
 }
