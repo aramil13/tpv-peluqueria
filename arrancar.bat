@@ -1,4 +1,4 @@
-compilame el @echo off
+@echo off
 cd /d "%~dp0"
 echo Arrancando Sync Helper...
 start "Sync Helper" node sync-helper.js

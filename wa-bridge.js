@@ -1,5 +1,6 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
+const qrcodeImg = require('qrcode');
 const http = require('http');
 const https = require('https');
 const path = require('path');
@@ -41,6 +42,8 @@ async function start() {
     if (qr) {
       console.log('\nEscanea este código QR con WhatsApp (Ajustes > Dispositivos vinculados):');
       qrcode.generate(qr, { small: true });
+      qrcodeImg.toFile(path.join(__dirname, 'qr.png'), qr, { width: 400, margin: 2 }, () => {});
+      console.log('QR guardado como qr.png');
     }
     if (connection === 'close') {
       const logout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
@@ -53,21 +56,27 @@ async function start() {
 
   sock.ev.on('messages.upsert', async ({ messages }) => {
     for (const m of messages) {
-      if (m.key.fromMe) continue;
-      const jid = m.key.remoteJid || '';
+      const isFromMe = m.key.fromMe;
+      let jid = m.key.remoteJid || '';
       if (!jid.endsWith('@s.whatsapp.net') || jid.includes('@g.us')) continue;
 
       const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
       if (!text.trim()) continue;
 
-      const phone = jid.split('@')[0];
-      console.log(` [IN] ${phone}: ${text.slice(0, 60)}`);
+      let phone = jid.split('@')[0];
+      if (isFromMe) {
+        phone = sock.user?.id?.split(':')[0] || phone;
+        console.log(` [SELF] ${phone}: ${text.slice(0, 60)}`);
+      } else {
+        console.log(` [IN] ${phone}: ${text.slice(0, 60)}`);
+      }
 
       try {
-        await sock.sendMessage(jid, { text: ' Sara está pensando...' });
+        const replyTo = isFromMe ? (phone + '@s.whatsapp.net') : jid;
+        await sock.sendMessage(replyTo, { text: ' Sara está pensando...' });
         const data = await postJSON(API_URL, { phone: '+' + phone, text });
         const reply = data.response || 'Lo siento, no pude procesar tu mensaje.';
-        await sock.sendMessage(jid, { text: reply });
+        await sock.sendMessage(replyTo, { text: reply });
         console.log(` [OUT] ${phone}: ${reply.slice(0, 60)}`);
       } catch (e) {
         console.error('[BRIDGE]', e.message);
