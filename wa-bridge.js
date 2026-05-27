@@ -10,6 +10,15 @@ const logger = pino({ level: 'warn' });
 
 const AUTH_DIR = path.join(__dirname, 'wa_auth');
 const API_URL = process.env.AI_API_URL || 'http://localhost:3456/api/ai-message';
+const RECONNECT_DELAY = 15000;
+
+let currentSock = null;
+let processing = false;
+let processedIds = new Set();
+
+setInterval(() => {
+  if (processedIds.size > 1000) processedIds = new Set();
+}, 60000);
 
 function postJSON(url, data) {
   return new Promise((resolve, reject) => {
@@ -32,9 +41,24 @@ function postJSON(url, data) {
   });
 }
 
+function isNormalChat(jid) {
+  if (!jid) return false;
+  if (jid.includes('@g.us')) return false;
+  if (jid.includes('@broadcast')) return false;
+  return true;
+}
+
 async function start() {
+  if (currentSock) {
+    try { currentSock.end(); } catch {}
+    currentSock = null;
+  }
+  processing = false;
+
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-  const sock = makeWASocket({ printQRInTerminal: false, auth: state, syncFullHistory: false, browser: ['Chrome', 'Android', '14.0'], logger });
+  const uid = Math.random().toString(36).substr(2,8);
+  const sock = makeWASocket({ printQRInTerminal: false, auth: state, syncFullHistory: false, browser: ['WhatsApp/2.24.10', 'Windows', '10.0', uid], logger });
+  currentSock = sock;
 
   sock.ev.on('creds.update', saveCreds);
 
@@ -48,39 +72,46 @@ async function start() {
     if (connection === 'close') {
       const logout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
       if (logout) { console.log('Sesión cerrada. Elimina wa_auth/ y ejecuta de nuevo.'); return; }
-      console.log('Reconectando en 3s...');
-      setTimeout(start, 3000);
+      processing = false;
+      console.log('Reconectando en ' + (RECONNECT_DELAY/1000) + 's...');
+      setTimeout(start, RECONNECT_DELAY);
     }
-    if (connection === 'open') console.log(' WhatsApp conectado como asistente AI');
+    if (connection === 'open') {
+      console.log(' WhatsApp conectado como asistente AI');
+      processing = false;
+    }
   });
 
-  sock.ev.on('messages.upsert', async ({ messages }) => {
+  sock.ev.on('messages.upsert', async ({ messages, type }) => {
+    if (type !== 'notify') return;
+    let delay = 0;
     for (const m of messages) {
-      const isFromMe = m.key.fromMe;
+      if (m.key.id && processedIds.has(m.key.id)) continue;
+      if (m.key.id) processedIds.add(m.key.id);
+
       let jid = m.key.remoteJid || '';
-      if (!jid.endsWith('@s.whatsapp.net') || jid.includes('@g.us')) continue;
+      if (!isNormalChat(jid)) continue;
 
       const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
       if (!text.trim()) continue;
+      if (m.key.fromMe && (text.startsWith(' Sara') || text.startsWith('Lo siento'))) continue;
 
-      let phone = jid.split('@')[0];
-      if (isFromMe) {
-        phone = sock.user?.id?.split(':')[0] || phone;
-        console.log(` [SELF] ${phone}: ${text.slice(0, 60)}`);
-      } else {
-        console.log(` [IN] ${phone}: ${text.slice(0, 60)}`);
-      }
+      const phone = m.key.fromMe
+        ? (sock.user?.id?.split(':')[0] || jid.split('@')[0])
+        : jid.split('@')[0];
+
+      console.log(` ${m.key.fromMe ? '[SELF]' : '[IN]'} ${phone}: ${text.slice(0, 60)}`);
+      await new Promise(r => setTimeout(r, delay));
+      delay = 1500;
+
+      const data = await postJSON(API_URL, { phone: '+' + phone, text });
+      const reply = data?.response || 'Lo siento, no pude procesar tu mensaje.';
 
       try {
-        const replyTo = isFromMe ? (phone + '@s.whatsapp.net') : jid;
-        await sock.sendMessage(replyTo, { text: ' Sara está pensando...' });
-        const data = await postJSON(API_URL, { phone: '+' + phone, text });
-        const reply = data.response || 'Lo siento, no pude procesar tu mensaje.';
-        await sock.sendMessage(replyTo, { text: reply });
+        await sock.sendMessage(jid, { text: reply });
         console.log(` [OUT] ${phone}: ${reply.slice(0, 60)}`);
       } catch (e) {
-        console.error('[BRIDGE]', e.message);
-        await sock.sendMessage(jid, { text: 'Lo siento, hubo un error. Intenta de nuevo.' });
+        console.log(` [SEND FAIL] ${e.message}`);
       }
     }
   });
