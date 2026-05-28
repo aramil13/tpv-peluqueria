@@ -504,6 +504,9 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
             _modified: Date.now(), _deleted: false
           };
           data.clients.push(client);
+        } else if (b.clientName && client.name !== b.clientName && client.name !== b.clientName+' (Online)') {
+          client.name = b.clientName;
+          client._modified = Date.now();
         }
         // Check availability
         const empId = b.employeeId || '';

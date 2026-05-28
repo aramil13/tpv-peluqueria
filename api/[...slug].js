@@ -408,6 +408,9 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           _modified: Date.now(), _deleted: false
         };
         data.clients.push(client);
+      } else if (b.clientName && client.name !== b.clientName && client.name !== b.clientName+' (Online)') {
+        client.name = b.clientName;
+        client._modified = Date.now();
       }
       const empId = b.employeeId || '';
       const empAppts = (data.appointments||[]).filter(a => a.date === b.date && !a._deleted && (!empId || a.employeeId === empId || !a.employeeId));
