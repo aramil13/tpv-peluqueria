@@ -29,6 +29,7 @@
   "dependencies": {
     "@upstash/redis": "^1.38.0",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
+    "dotenv": "^16.6.1",
     "qrcode-terminal": "^0.12.0"
   }
 }

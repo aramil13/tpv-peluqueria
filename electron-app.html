@@ -1217,15 +1217,17 @@ function saveSettings() {
       openTime: document.getElementById('setScheduleOpen').value || '09:00',
       closeTime: document.getElementById('setScheduleClose').value || '19:00',
       maxHours: parseInt(document.getElementById('setScheduleMaxHours').value) || 10,
-      openDays: [
-        document.getElementById('dayMon').checked ? 1 : 0,
-        document.getElementById('dayTue').checked ? 2 : 0,
-        document.getElementById('dayWed').checked ? 3 : 0,
-        document.getElementById('dayThu').checked ? 4 : 0,
-        document.getElementById('dayFri').checked ? 5 : 0,
-        document.getElementById('daySat').checked ? 6 : 0,
-        document.getElementById('daySun').checked ? 0 : -1
-      ].filter(d => d > 0)
+      openDays: (function() {
+        var days = [];
+        if (document.getElementById('dayMon').checked) days.push(1);
+        if (document.getElementById('dayTue').checked) days.push(2);
+        if (document.getElementById('dayWed').checked) days.push(3);
+        if (document.getElementById('dayThu').checked) days.push(4);
+        if (document.getElementById('dayFri').checked) days.push(5);
+        if (document.getElementById('daySat').checked) days.push(6);
+        if (document.getElementById('daySun').checked) days.push(0);
+        return days;
+      })()
     }
   };
   saveKey('ivaRate'); saveKey('settings');

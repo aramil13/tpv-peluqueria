@@ -2,8 +2,6 @@ const { app, BrowserWindow } = require('electron');
 const path = require('path');
 const { fork } = require('child_process');
 
-require('dotenv').config({ path: path.join(__dirname, '.env.local') });
-
 let mainWindow;
 let syncHelperProcess;
 
