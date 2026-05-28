@@ -5771,7 +5771,7 @@
       "status": "pending",
       "notes": "Reservado por WhatsApp por Victor Alonso",
       "created": 1779964625444,
-      "_modified": 1779983183894,
+      "_modified": 1779984948849,
       "_deleted": true
     },
     {
@@ -5956,6 +5956,45 @@
       "_modified": 1779983183893,
       "_deleted": false,
       "pendingSalonConfirm": true
+    },
+    {
+      "id": "amppogsd705zr",
+      "clientId": "cmppk2jaou8eg",
+      "serviceId": "srv4",
+      "serviceIds": [
+        "srv4"
+      ],
+      "employeeId": "mpcdolib3jdb",
+      "date": "2026-05-30",
+      "time": "11:00",
+      "endTime": "13:00",
+      "source": "whatsapp",
+      "status": "pending",
+      "notes": "PENDIENTE - Reservado por WhatsApp por Victor Alonso",
+      "created": 1779983916955,
+      "_modified": 1779983916955,
+      "_deleted": false,
+      "pendingSalonConfirm": true
+    },
+    {
+      "id": "amppp2wkwcxeg",
+      "clientId": "cmppk2jaou8eg",
+      "serviceId": "mpcthfvgweiv",
+      "serviceIds": [
+        "mpcthfvgweiv"
+      ],
+      "employeeId": "mpcdolib3jdb",
+      "date": "2026-05-29",
+      "time": "12:00",
+      "endTime": "12:35",
+      "source": "whatsapp",
+      "status": "pending",
+      "notes": "PENDIENTE - Reservado por WhatsApp por Lara 📱+58300003553300",
+      "created": 1779984948849,
+      "_modified": 1779984948849,
+      "_deleted": false,
+      "pendingSalonConfirm": true,
+      "clientPhone": "+58300003553300"
     }
   ],
   "providers": [
@@ -6050,5 +6089,5 @@
       "interval": 10
     }
   },
-  "lastModified": 1779983183894
+  "lastModified": 1779984948849
 }
