@@ -18,7 +18,7 @@ const messageQueue = [];
 let queueProcessing = false;
 
 const { processWhatsAppMessage } = require('./lib/ai-assistant');
-const { loadConversation } = require('./lib/conversation');
+const { loadConversation, clearConversation } = require('./lib/conversation');
 
 const useDeepSeek = !!process.env.DEEPSEEK_API_KEY;
 const useGroq = !!process.env.GROQ_API_KEY;
@@ -128,6 +128,13 @@ async function start() {
       const history = await loadConversation('+' + phone);
       const hasHistory = history.length > 0;
       const isTrigger = normalized === 'hola nymara' || normalized.startsWith('hola nymara');
+      const isGoodbye = normalized === 'adios nymara' || normalized.startsWith('adios nymara');
+      if (isGoodbye && currentSock) {
+        console.log(` [BYE] ${phone}: "${text.slice(0,40)}"`);
+        await clearConversation('+' + phone);
+        await currentSock.sendMessage(jid, { text: '¡Hasta luego! 👋 Si necesitas algo, aquí estaré. ¡Cuídate!' });
+        continue;
+      }
       if (!hasHistory && !isTrigger) {
         console.log(` [IGNORE] ${phone}: "${text.slice(0,40)}"`);
         continue;
