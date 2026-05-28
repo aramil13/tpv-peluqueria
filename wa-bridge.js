@@ -18,6 +18,7 @@ const messageQueue = [];
 let queueProcessing = false;
 
 const { processWhatsAppMessage } = require('./lib/ai-assistant');
+const { loadConversation } = require('./lib/conversation');
 
 console.log('GROQ_API_KEY:', process.env.GROQ_API_KEY ? 'SET ('+process.env.GROQ_API_KEY.substring(0,8)+'...)' : 'EMPTY');
 
@@ -111,11 +112,22 @@ async function start() {
 
       const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
       if (!text.trim()) continue;
-      if (m.key.fromMe && (text.startsWith(' Sara') || text.startsWith('Lo siento'))) continue;
+      if (m.key.fromMe) continue;
 
       const phone = m.key.fromMe
         ? (sock.user?.id?.split(':')[0] || jid.split('@')[0])
         : jid.split('@')[0];
+
+      const normalized = text.trim().toLowerCase();
+      const history = await loadConversation('+' + phone);
+      const hasHistory = history.length > 0;
+      const isTrigger = normalized === 'hola nymara' || normalized.startsWith('hola nymara');
+      console.log(` [CHECK] ${phone}: "${text.slice(0,40)}" | hasHistory=${hasHistory} | isTrigger=${isTrigger}`);
+      if (!hasHistory && !isTrigger) {
+        console.log(` [IGNORE] ${phone}: mensaje ignorado`);
+        continue;
+      }
+      console.log(` [IN] ${phone}: ${text.slice(0, 80)}`);
 
       console.log(` ${m.key.fromMe ? '[SELF]' : '[IN]'} ${phone}: ${text.slice(0, 60)}`);
       delay = 1500;
