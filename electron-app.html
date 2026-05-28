@@ -2648,6 +2648,18 @@ function acceptClientMod(id) {
   saveAll();
   syncWebNow();
   renderAgenda();
+  const c = getSyncCfg();
+  if (c.enabled && c.url && client) {
+    const dateFmt = (a.pendingDate || a.date).split('-').reverse().join('-');
+    const text = `✅ Tu solicitud de modificación ha sido ACEPTADA:\n\n📅 ${dateFmt}\n⏰ ${a.pendingTime || a.time}\n💇 ${srv?.name || 'Servicio'}\n\n¡Te esperamos!`;
+    fetch(c.url.replace(/\/+$/,'') + '/api/send-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: client.phone, text })
+    }).then(r => r.json()).then(d => {
+      if (d.sent) console.log('Modification accepted WhatsApp sent to', d.phone);
+    }).catch(e => console.error('WhatsApp send error:', e));
+  }
 }
 
 function confirmWhatsAppAppt(id) {
@@ -2935,8 +2947,25 @@ function saveAppointment() {
 function deleteAppt(id) {
   if (!confirm('¿Cancelar esta cita?')) return;
   const a = data.appointments.find(x => x.id === id);
+  const client = a ? data.clients.find(c => c.id === a.clientId) : null;
+  const svc = a ? data.services.find(s => s.id === a.serviceId) : null;
+  const dateFmt = a ? (a.date||'').split('-').reverse().join('-') : '';
   if (a) { a._modified = Date.now(); if (a.source === 'online') { a.cancelledBy = 'salon'; delete a._deleted; } else { a._deleted = true; } }
   saveKey('appointments'); renderAgenda(); syncPush();
+  const c = getSyncCfg();
+  if (c.enabled && c.url && a && (a.source === 'whatsapp' || a.source === 'online') && client) {
+    const text = a.source === 'whatsapp'
+      ? `❌ Tu cita en ${BUSINESS_NAME} ha sido CANCELADA por el salón:\n\n📅 ${dateFmt}\n⏰ ${a.time}\n💇 ${svc?.name || 'Servicio'}\n\nSi quieres reservar de nuevo, contacta con nosotros.`
+      : `📋 NOTIFICACIÓN: Tu cita en ${BUSINESS_NAME} ha sido cancelada:\n\n📅 ${dateFmt}\n⏰ ${a.time}\n💇 ${svc?.name || 'Servicio'}\n\nDisculpa las molestias.`;
+    fetch(c.url.replace(/\/+$/,'') + '/api/send-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: client.phone, text })
+    }).then(r => r.json()).then(d => {
+      if (d.sent) console.log('Cancellation WhatsApp sent to', d.phone);
+      else console.warn('WhatsApp send failed:', d.error);
+    }).catch(e => console.error('WhatsApp send error:', e));
+  }
 }
 
 function deleteApptFromModal() {

@@ -234,6 +234,19 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // === SEND CUSTOM WHATSAPP ===
+  if (url === '/api/send-whatsapp' && req.method === 'POST') {
+    try {
+      const b = await getBody(req);
+      const { phone, text } = b;
+      if (!phone || !text) { res.status(400).json({ error: 'phone and text required' }); return; }
+      const { sendMessage } = require('../lib/whatsapp');
+      const result = await sendMessage(phone, text);
+      res.json({ sent: true, phone, result: result.error || result.status + ' ' + (result.sid||'') });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+    return;
+  }
+
   // === SYNC ===
   if (url === '/sync' || url === '/sync/') {
     if (req.method === 'GET') {
