@@ -2,7 +2,6 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 
 process.env.TZ = 'Europe/Madrid';
 console.log('Starting sync-helper... Forward URL:', process.env.SYNC_FORWARD_URL || '(none)');
@@ -422,8 +421,14 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const isToday = date === todayLocal.toISOString().split('T')[0];
     const currentHour = now.getHours() + now.getMinutes() / 60;
 
-    const BUSINESS_START = 9;
-    const BUSINESS_END = 19;
+    const dayHours = getOpeningHoursForDay(date, data.settings);
+    if (dayHours.closed) {
+      res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ slots: [], date, serviceId, duration, closed: true }));
+      return;
+    }
+    const BUSINESS_START = dayHours.open;
+    const BUSINESS_END = dayHours.close;
     const SLOT_INTERVAL = 15;
 
     const slots = [];
@@ -433,8 +438,10 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       const empAppts = appts.filter(a => !a.employeeId || a.employeeId === emp.id);
       
       const allTimes = new Set();
-      for (let h = BUSINESS_START; h < BUSINESS_END; h++) {
-        for (let m = 0; m < 60; m += SLOT_INTERVAL) {
+      for (let h = Math.floor(BUSINESS_START); h < Math.ceil(BUSINESS_END); h++) {
+        const startMin = (h === Math.floor(BUSINESS_START)) ? Math.round((BUSINESS_START - Math.floor(BUSINESS_START)) * 60) : 0;
+        const endMin = (h === Math.ceil(BUSINESS_END) - 1) ? Math.round((BUSINESS_END - Math.floor(BUSINESS_END)) * 60) : 60;
+        for (let m = startMin; m < endMin; m += SLOT_INTERVAL) {
           allTimes.add(h * 60 + m);
         }
       }
@@ -447,7 +454,6 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       });
       
       const sortedMins = [...allTimes].sort((a, b) => a - b);
-      console.log('[SLOTS] Generating for emp', emp.name, 'times:', sortedMins.slice(0,5), '...');
       
       sortedMins.forEach(totalMins => {
         const h = Math.floor(totalMins / 60);
@@ -641,11 +647,22 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const s = d.settings || {};
     const today = new Date().toISOString().split('T')[0];
     const dayCfg = (s.onlineOpening || {})[today] || {};
-    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
-      enabled: dayCfg.enabled !== false,
-      openingTime: dayCfg.time || '18:00'
-    }));
+    if (dayCfg.time === undefined && dayCfg.enabled === undefined) {
+      const oh = getOpeningHoursForDay(today, s);
+      res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        enabled: !oh.closed,
+        openingTime: oh.open < 10 ? '0'+Math.floor(oh.open)+':00' : Math.floor(oh.open)+':00',
+        settings: s
+      }));
+    } else {
+      res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        enabled: dayCfg.enabled !== false,
+        openingTime: dayCfg.time || '18:00',
+        settings: s
+      }));
+    }
     return;
   }
 
@@ -1000,6 +1017,21 @@ function parseTime(t) {
   if (!t || typeof t !== 'string') return 0;
   const p = t.split(':');
   return (parseInt(p[0])||0) + (parseInt(p[1])||0) / 60;
+}
+
+function getOpeningHoursForDay(dateStr, settings) {
+  if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false };
+  const d = new Date(dateStr + 'T12:00:00').getDay();
+  const day = settings.openingHours[d] || { open: '09:00', close: '19:00', closed: false };
+  const openH = parseInt(day.open) || 9;
+  const closeH = parseInt(day.close) || 19;
+  const openMin = parseInt((day.open || '09:00').split(':')[1]) || 0;
+  const closeMin = parseInt((day.close || '19:00').split(':')[1]) || 0;
+  return {
+    open: openH + openMin / 60,
+    close: closeH + closeMin / 60,
+    closed: day.closed === true
+  };
 }
 
 function pullFromSync() {

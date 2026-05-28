@@ -1,89 +1,39 @@
 const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const qrcode = require('qrcode-terminal');
-const qrcodeImg = require('qrcode');
+const http = require('http');
+const https = require('https');
 const path = require('path');
 const pino = require('pino');
-
-require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 
 const logger = pino({ level: 'warn' });
 
 const AUTH_DIR = path.join(__dirname, 'wa_auth');
-const RECONNECT_DELAY = 15000;
+const API_URL = process.env.AI_API_URL || 'http://localhost:3456/api/ai-message';
 
-let currentSock = null;
-let processing = false;
-let processedIds = new Set();
-const messageQueue = [];
-let queueProcessing = false;
-
-const { processWhatsAppMessage } = require('./lib/ai-assistant');
-
-console.log('GROQ_API_KEY:', process.env.GROQ_API_KEY ? 'SET ('+process.env.GROQ_API_KEY.substring(0,8)+'...)' : 'EMPTY');
-
-const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '';
-
-async function sendStartupMessage() {
-  if (!BUSINESS_PHONE || !currentSock) return;
-  await new Promise(r => setTimeout(r, 5000));
-  console.log('Enviando mensaje de inicio...');
-  const reply = await processWhatsAppMessage('+' + BUSINESS_PHONE, 'Hola Nymara');
-  console.log('Respuesta IA:', reply.substring(0, 80));
-}
-
-async function processQueue() {
-  if (queueProcessing || messageQueue.length === 0) return;
-  queueProcessing = true;
-  
-  while (messageQueue.length > 0) {
-    const item = messageQueue.shift();
-    try {
-      const reply = await processWhatsAppMessage(item.phone, item.text);
-      if (item.jid && currentSock) {
-        await currentSock.sendMessage(item.jid, { text: reply });
-        console.log(` [OUT] ${item.phone.replace('+','')}: ${reply.slice(0, 60)}`);
-      }
-    } catch (e) {
-      console.error('[QUEUE ERROR]', e.message);
-      if (item.jid && currentSock) {
-        try {
-          await currentSock.sendMessage(item.jid, { text: 'Lo siento, hubo un error. Inténtalo de nuevo.' });
-        } catch {}
-      }
-    }
-    await new Promise(r => setTimeout(r, 1000));
-  }
-  
-  queueProcessing = false;
-}
-
-function queueMessage(phone, text, jid) {
-  messageQueue.push({ phone, text, jid });
-  processQueue();
-}
-
-setInterval(() => {
-  if (processedIds.size > 1000) processedIds = new Set();
-}, 60000);
-
-function isNormalChat(jid) {
-  if (!jid) return false;
-  if (jid.includes('@g.us')) return false;
-  if (jid.includes('@broadcast')) return false;
-  return true;
+function postJSON(url, data) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const body = JSON.stringify(data);
+    const mod = u.protocol === 'https:' ? https : http;
+    const req = mod.request({
+      hostname: u.hostname, path: u.pathname, method: 'POST', port: u.port,
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+    }, res => {
+      let r = '';
+      res.on('data', c => r += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(r)); } catch { resolve({}); }
+      });
+    });
+    req.on('error', reject);
+    req.write(body);
+    req.end();
+  });
 }
 
 async function start() {
-  if (currentSock) {
-    try { currentSock.end(); } catch {}
-    currentSock = null;
-  }
-  processing = false;
-
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-  const uid = Math.random().toString(36).substr(2,8);
-  const sock = makeWASocket({ printQRInTerminal: false, auth: state, syncFullHistory: false, browser: ['WhatsApp/2.24.10', 'Windows', '10.0', uid], logger });
-  currentSock = sock;
+  const sock = makeWASocket({ printQRInTerminal: false, auth: state, syncFullHistory: false, browser: ['Chrome', 'Android', '14.0'], logger });
 
   sock.ev.on('creds.update', saveCreds);
 
@@ -91,44 +41,38 @@ async function start() {
     if (qr) {
       console.log('\nEscanea este código QR con WhatsApp (Ajustes > Dispositivos vinculados):');
       qrcode.generate(qr, { small: true });
-      qrcodeImg.toFile(path.join(__dirname, 'qr.png'), qr, { width: 400, margin: 2 }, () => {});
-      console.log('QR guardado como qr.png');
     }
     if (connection === 'close') {
       const logout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
       if (logout) { console.log('Sesión cerrada. Elimina wa_auth/ y ejecuta de nuevo.'); return; }
-      processing = false;
-      console.log('Reconectando en ' + (RECONNECT_DELAY/1000) + 's...');
-      setTimeout(start, RECONNECT_DELAY);
+      console.log('Reconectando en 3s...');
+      setTimeout(start, 3000);
     }
-    if (connection === 'open') {
-      console.log(' WhatsApp conectado como asistente AI');
-      processing = false;
-      sendStartupMessage();
-    }
+    if (connection === 'open') console.log(' WhatsApp conectado como asistente AI');
   });
 
-  sock.ev.on('messages.upsert', async ({ messages, type }) => {
-    if (type !== 'notify') return;
-    let delay = 0;
+  sock.ev.on('messages.upsert', async ({ messages }) => {
     for (const m of messages) {
-      if (m.key.id && processedIds.has(m.key.id)) continue;
-      if (m.key.id) processedIds.add(m.key.id);
-
-      let jid = m.key.remoteJid || '';
-      if (!isNormalChat(jid)) continue;
+      if (m.key.fromMe) continue;
+      const jid = m.key.remoteJid || '';
+      if (!jid.endsWith('@s.whatsapp.net') || jid.includes('@g.us')) continue;
 
       const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
       if (!text.trim()) continue;
-      if (m.key.fromMe && (text.startsWith(' Sara') || text.startsWith('Lo siento'))) continue;
 
-      const phone = m.key.fromMe
-        ? (sock.user?.id?.split(':')[0] || jid.split('@')[0])
-        : jid.split('@')[0];
+      const phone = jid.split('@')[0];
+      console.log(` [IN] ${phone}: ${text.slice(0, 60)}`);
 
-      console.log(` ${m.key.fromMe ? '[SELF]' : '[IN]'} ${phone}: ${text.slice(0, 60)}`);
-      delay = 1500;
-      queueMessage('+' + phone, text, jid);
+      try {
+        await sock.sendMessage(jid, { text: ' Sara está pensando...' });
+        const data = await postJSON(API_URL, { phone: '+' + phone, text });
+        const reply = data.response || 'Lo siento, no pude procesar tu mensaje.';
+        await sock.sendMessage(jid, { text: reply });
+        console.log(` [OUT] ${phone}: ${reply.slice(0, 60)}`);
+      } catch (e) {
+        console.error('[BRIDGE]', e.message);
+        await sock.sendMessage(jid, { text: 'Lo siento, hubo un error. Intenta de nuevo.' });
+      }
     }
   });
 }

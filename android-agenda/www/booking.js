@@ -8,6 +8,21 @@ let onlineStatusPoller = null;
 
 function showLoading(v) { document.getElementById('loadingOverlay').style.display = v ? 'flex' : 'none'; }
 
+function getOpeningHoursForDay(dateStr, settings) {
+  if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false };
+  const d = new Date(dateStr + 'T12:00:00').getDay();
+  const day = settings.openingHours[d] || { open: '09:00', close: '19:00', closed: false };
+  const openH = parseInt(day.open) || 9;
+  const closeH = parseInt(day.close) || 19;
+  const openMin = parseInt((day.open || '09:00').split(':')[1]) || 0;
+  const closeMin = parseInt((day.close || '19:00').split(':')[1]) || 0;
+  return {
+    open: openH + openMin / 60,
+    close: closeH + closeMin / 60,
+    closed: day.closed === true
+  };
+}
+
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
 function escAttr(s) { return s.replace(/'/g,"\\'").replace(/"/g,'&quot;'); }
 function cur(n) { return parseFloat(n||0).toFixed(2)+'\u20AC'; }
@@ -53,7 +68,13 @@ async function loadData() {
     const dayCfg = (settings.onlineOpening || {})[today] || {};
     const openingTime = dayCfg.time || '18:00';
     const enabled = dayCfg.enabled !== false;
-    checkOpeningTime(openingTime, enabled);
+    if (dayCfg.time === undefined && dayCfg.enabled === undefined) {
+      const oh = getOpeningHoursForDay(today, settings);
+      if (oh.closed) { showClosedTemporarily(); return; }
+      checkOpeningTime(openingTime, true);
+    } else {
+      checkOpeningTime(openingTime, enabled);
+    }
   } catch(e) { alert('Error al cargar datos: '+e.message); }
   showLoading(false);
 }
@@ -78,7 +99,11 @@ function startOnlineStatusPoller() {
     try {
       const r = await fetch(API + '/api/online-status');
       const d = await r.json();
-      if (!d.enabled) return;
+      if (!d.enabled) {
+        const today = new Date().toISOString().split('T')[0];
+        const oh = getOpeningHoursForDay(today, d.settings || {});
+        if (!oh.closed) return; else { location.reload(); return; }
+      }
       const now = new Date();
       const [h, m] = (d.openingTime || '18:00').split(':').map(Number);
       const opening = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);

@@ -24,6 +24,21 @@ function parseTime(t) {
   return (parseInt(p[0])||0) + (parseInt(p[1])||0) / 60;
 }
 
+function getOpeningHoursForDay(dateStr, settings) {
+  if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false };
+  const d = new Date(dateStr + 'T12:00:00').getDay();
+  const day = settings.openingHours[d] || { open: '09:00', close: '19:00', closed: false };
+  const openH = parseInt(day.open) || 9;
+  const closeH = parseInt(day.close) || 19;
+  const openMin = parseInt((day.open || '09:00').split(':')[1]) || 0;
+  const closeMin = parseInt((day.close || '19:00').split(':')[1]) || 0;
+  return {
+    open: openH + openMin / 60,
+    close: closeH + closeMin / 60,
+    closed: day.closed === true
+  };
+}
+
 function computeETag(data) {
   const hash = require('crypto').createHash('md5').update(JSON.stringify(data)).digest('hex');
   return '"' + hash + '"';
@@ -293,14 +308,21 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const isToday = date === todayLocal.toISOString().split('T')[0];
     const currentHour = now.getHours() + now.getMinutes() / 60;
-    const BUSINESS_START = 9, BUSINESS_END = 19, SLOT_INTERVAL = 15;
+    const dayHours = getOpeningHoursForDay(date, data.settings);
+    if (dayHours.closed) {
+      res.json({ slots: [], date, serviceIds: serviceIds, duration, closed: true });
+      return;
+    }
+    const BUSINESS_START = dayHours.open, BUSINESS_END = dayHours.close, SLOT_INTERVAL = 15;
     const slots = [];
     const availableEmps = employeesList.length ? employeesList : [{ id: '', name: 'Sin asignar' }];
     availableEmps.forEach(emp => {
       const empAppts = appts.filter(a => !a.employeeId || a.employeeId === emp.id);
       const allTimes = new Set();
-      for (let h = BUSINESS_START; h < BUSINESS_END; h++) {
-        for (let m = 0; m < 60; m += SLOT_INTERVAL) allTimes.add(h * 60 + m);
+      for (let h = Math.floor(BUSINESS_START); h < Math.ceil(BUSINESS_END); h++) {
+        const startMin = (h === Math.floor(BUSINESS_START)) ? Math.round((BUSINESS_START - Math.floor(BUSINESS_START)) * 60) : 0;
+        const endMin = (h === Math.ceil(BUSINESS_END) - 1) ? Math.round((BUSINESS_END - Math.floor(BUSINESS_END)) * 60) : 60;
+        for (let m = startMin; m < endMin; m += SLOT_INTERVAL) allTimes.add(h * 60 + m);
       }
       empAppts.forEach(a => {
         const t = parseTime(a.time);
@@ -703,7 +725,20 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const s = d.settings || {};
     const today = new Date().toISOString().split('T')[0];
     const dayCfg = (s.onlineOpening || {})[today] || {};
-    res.json({ enabled: dayCfg.enabled !== false, openingTime: dayCfg.time || '18:00' });
+    if (dayCfg.time === undefined && dayCfg.enabled === undefined) {
+      const oh = getOpeningHoursForDay(today, s);
+      res.json({
+        enabled: !oh.closed,
+        openingTime: oh.open < 10 ? '0'+Math.floor(oh.open)+':00' : Math.floor(oh.open)+':00',
+        settings: s
+      });
+    } else {
+      res.json({
+        enabled: dayCfg.enabled !== false,
+        openingTime: dayCfg.time || '18:00',
+        settings: s
+      });
+    }
     return;
   }
 

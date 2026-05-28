@@ -1,6 +1,6 @@
 {
   "name": "tpv-peluqueria",
-  "version": "1.11.0",
+  "version": "1.10.0",
   "description": "TPV Agenda para Peluquería",
   "main": "main.js",
   "scripts": {
@@ -9,8 +9,7 @@
   },
   "devDependencies": {
     "electron": "^31.0.0",
-    "electron-builder": "^24.13.3",
-    "qrcode": "^1.5.4"
+    "electron-builder": "^24.13.3"
   },
   "appId": "com.peluqueria.tpv",
   "files": [
@@ -29,7 +28,6 @@
   "dependencies": {
     "@upstash/redis": "^1.38.0",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
-    "dotenv": "^16.6.1",
     "qrcode-terminal": "^0.12.0"
   }
 }

@@ -487,11 +487,21 @@ function showDayAppts(dateStr) {
   const colorMap = {};
   appts.forEach((a, i) => { colorMap[a.id] = APPT_COLORS[i % APPT_COLORS.length]; });
 
-  // Todos los slots de 9:00 a 20:30 cada 15 min
+  // Slots según horario del negocio
+  const hToday = getOpeningHoursForDay(dateStr, data.settings);
   const slots = [];
-  for (let h = 9; h <= 20; h++) {
-    if (h < 20) { slots.push(String(h).padStart(2,'0')+':00'); slots.push(String(h).padStart(2,'0')+':15'); slots.push(String(h).padStart(2,'0')+':30'); slots.push(String(h).padStart(2,'0')+':45'); }
-    else { slots.push('20:00'); slots.push('20:15'); slots.push('20:30'); }
+  if (!hToday.closed) {
+    const startH = Math.floor(hToday.open);
+    const startM = Math.round((hToday.open % 1) * 60);
+    const endH = Math.ceil(hToday.close);
+    const endM = Math.round((hToday.close % 1) * 60);
+    for (let h = startH; h <= endH; h++) {
+      const hStartM = (h === startH) ? startM : 0;
+      const hEndM = (h === endH) ? endM : 60;
+      for (let m = hStartM; m < hEndM; m += 15) {
+        slots.push(String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'));
+      }
+    }
   }
 
   const cols = [...employees, null];
@@ -755,9 +765,26 @@ function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
   return null;
 }
 
+function getOpeningHoursForDay(dateStr, settings) {
+  if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false };
+  const d = new Date(dateStr + 'T12:00:00').getDay();
+  const day = settings.openingHours[d] || { open: '09:00', close: '19:00', closed: false };
+  const openH = parseInt(day.open) || 9;
+  const closeH = parseInt(day.close) || 19;
+  const openMin = parseInt((day.open || '09:00').split(':')[1]) || 0;
+  const closeMin = parseInt((day.close || '19:00').split(':')[1]) || 0;
+  return {
+    open: openH + openMin / 60,
+    close: closeH + closeMin / 60,
+    closed: day.closed === true
+  };
+}
+
 function findFreeSlots(date, empId, duration) {
-  const WORK_START = 9;
-  const WORK_END = 19;
+  const dayHours = getOpeningHoursForDay(date, data.settings);
+  if (dayHours.closed) return [];
+  const WORK_START = dayHours.open;
+  const WORK_END = dayHours.close;
   const appts = data.appointments.filter(a => a.date === date && a.employeeId === empId && !a._deleted && a.endTime).sort((a,b) => a.time.localeCompare(b.time));
   const slots = [];
   const neededMins = duration || 30;

@@ -1,0 +1,30 @@
+[
+  {
+    "role": "assistant",
+    "content": "¿En qué puedo ayudarte hoy?"
+  },
+  {
+    "role": "user",
+    "content": "Hola Nymara"
+  },
+  {
+    "role": "assistant",
+    "content": "¿En qué puedo ayudarte hoy? ¿Necesitas reservar una cita, consultar disponibilidad o algo más?"
+  },
+  {
+    "role": "user",
+    "content": "Hola Nymara"
+  },
+  {
+    "role": "assistant",
+    "content": "Disculpa, parece que hay un mal entendido. ¿En qué puedo ayudarte hoy? ¿Necesitas reservar una cita, consultar disponibilidad o algo más?"
+  },
+  {
+    "role": "user",
+    "content": "Hola Nymara"
+  },
+  {
+    "role": "assistant",
+    "content": "¿Quieres saber los servicios que ofrezco, el horario de atención o algo más?"
+  }
+]
