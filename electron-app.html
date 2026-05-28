@@ -150,8 +150,7 @@ tr:hover td { background: #f8f9fa; }
 .appt-online-grid::after { content: '🌐'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 28px; opacity: .2; pointer-events: none; }
 .appt-pending-mod { opacity: .6; }
 .appt-pending-whatsapp { position: relative; opacity: .7; background: #95a5a1 !important; }
-.appt-pending-whatsapp::after { content: '📱'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 28px; opacity: .3; pointer-events: none; }
-.appt-pending-whatsapp .pending-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%) rotate(-15deg); background: rgba(255,255,255,0.8); padding: 4px 12px; border-radius: 4px; font-size: 11px; font-weight: 700; color: #666; white-space: nowrap; z-index: 5; }
+.appt-pending-whatsapp .pending-watermark { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 32px; z-index: 5; filter: grayscale(0.5); }
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
 .stat-card { background: var(--card); border-radius: 10px; box-shadow: var(--shadow); padding: 20px; text-align: center; }
 .stat-card .stat-number { font-size: 28px; font-weight: 700; color: var(--primary); }
@@ -2609,7 +2608,7 @@ function showDayAppts(dateStr) {
           }
         }
         const extraClass = isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : '');
-        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">PENDIENTE</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">📱</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       } else {
         const empId = e ? e.id : '';
         html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
@@ -2670,6 +2669,17 @@ function confirmWhatsAppAppt(id) {
   saveAll();
   syncWebNow();
   renderAgenda();
+  const c = getSyncCfg();
+  if (c.enabled && c.url && client) {
+    fetch(c.url.replace(/\/+$/,'') + '/api/send-confirmation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointmentId: id })
+    }).then(r => r.json()).then(d => {
+      if (d.sent) console.log('WhatsApp confirmation sent to', d.phone);
+      else console.warn('WhatsApp send failed:', d.error);
+    }).catch(e => console.error('WhatsApp send error:', e));
+  }
 }
 
 function editAppt(id) {

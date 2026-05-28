@@ -212,6 +212,28 @@ module.exports = async (req, res) => {
     return;
   }
 
+  // === SEND WHATSAPP CONFIRMATION ===
+  if (url === '/api/send-confirmation' && req.method === 'POST') {
+    try {
+      const b = await getBody(req);
+      const { appointmentId } = b;
+      if (!appointmentId) { res.status(400).json({ error: 'appointmentId required' }); return; }
+      const d = await readData();
+      const appt = (d.appointments||[]).find(a => a.id === appointmentId);
+      if (!appt) { res.status(404).json({ error: 'Appointment not found' }); return; }
+      const client = (d.clients||[]).find(c => c.id === appt.clientId);
+      if (!client) { res.status(404).json({ error: 'Client not found' }); return; }
+      const svc = (d.services||[]).find(s => s.id === (appt.serviceId||'')) || {};
+      const emp = (d.employees||[]).find(e => e.id === appt.employeeId) || {};
+      const dateFmt = appt.date ? appt.date.split('-').reverse().join('-') : '';
+      const text = `✅ Tu cita en ${BUSINESS_NAME} ha sido CONFIRMADA:\n\n📅 ${dateFmt}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${svc.name || 'Servicio'}\n${emp.name ? '👤 '+emp.name : ''}\n\n¡Te esperamos!`;
+      const { sendMessage } = require('../lib/whatsapp');
+      const result = await sendMessage(client.phone, text);
+      res.json({ sent: true, phone: client.phone, result: result.error || result.status + ' ' + (result.sid||'') });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+    return;
+  }
+
   // === SYNC ===
   if (url === '/sync' || url === '/sync/') {
     if (req.method === 'GET') {
