@@ -20,7 +20,16 @@ let queueProcessing = false;
 const { processWhatsAppMessage } = require('./lib/ai-assistant');
 const { loadConversation } = require('./lib/conversation');
 
-console.log('GROQ_API_KEY:', process.env.GROQ_API_KEY ? 'SET ('+process.env.GROQ_API_KEY.substring(0,8)+'...)' : 'EMPTY');
+const useDeepSeek = !!process.env.DEEPSEEK_API_KEY;
+const useGroq = !!process.env.GROQ_API_KEY;
+const useGemini = !!process.env.GEMINI_API_KEY;
+const vercelUrl = process.env.VERCEL_SYNC_URL || '';
+let aiMode = 'Ninguna';
+if (useDeepSeek) aiMode = 'DeepSeek';
+else if (useGroq) aiMode = 'Groq';
+else if (useGemini) aiMode = 'Gemini';
+console.log('AI: DeepSeek='+useDeepSeek+', Groq='+useGroq+', Gemini='+useGemini+' → '+aiMode);
+console.log('VERCEL SYNC: '+(vercelUrl ? vercelUrl : 'NO CONFIGURADO'));
 
 const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '';
 
@@ -44,9 +53,9 @@ async function processQueue() {
         } catch {}
       }
     }
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 3000));
+    messageQueue.shift();
   }
-  
   queueProcessing = false;
 }
 
@@ -112,24 +121,18 @@ async function start() {
 
       const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
       if (!text.trim()) continue;
-      if (m.key.fromMe) continue;
 
-      const phone = m.key.fromMe
-        ? (sock.user?.id?.split(':')[0] || jid.split('@')[0])
-        : jid.split('@')[0];
+      const phone = jid.split('@')[0];
 
       const normalized = text.trim().toLowerCase();
       const history = await loadConversation('+' + phone);
       const hasHistory = history.length > 0;
       const isTrigger = normalized === 'hola nymara' || normalized.startsWith('hola nymara');
-      console.log(` [CHECK] ${phone}: "${text.slice(0,40)}" | hasHistory=${hasHistory} | isTrigger=${isTrigger}`);
       if (!hasHistory && !isTrigger) {
-        console.log(` [IGNORE] ${phone}: mensaje ignorado`);
+        console.log(` [IGNORE] ${phone}: "${text.slice(0,40)}"`);
         continue;
       }
-      console.log(` [IN] ${phone}: ${text.slice(0, 80)}`);
-
-      console.log(` ${m.key.fromMe ? '[SELF]' : '[IN]'} ${phone}: ${text.slice(0, 60)}`);
+      console.log(` [IN] ${phone}: ${text.slice(0, 60)}`);
       delay = 1500;
       queueMessage('+' + phone, text, jid);
     }

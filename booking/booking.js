@@ -546,7 +546,7 @@ function renderSelectedServices() {
 function goToDateStep() {
   if (!selectedServices.length) return;
   selectedSlot = null; selectedDate = '';
-  document.getElementById('selectedService').textContent = 'Servicios: '+selectedServices.map(s=>s.name).join(', ');
+  document.getElementById('selectedService').textContent = 'Servicios: '+selectedServices.map(s=>s.name+' ('+s.id+')').join(', ');
   document.getElementById('selectedSlot').textContent = '';
   document.getElementById('bookingDate').value = '';
   document.getElementById('noSlots').style.display = 'none';

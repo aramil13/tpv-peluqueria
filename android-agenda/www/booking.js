@@ -469,7 +469,7 @@ function selectService(id) {
   const el = document.querySelector('.service-card[data-id="'+id+'"]');
   if (el) el.classList.add('selected');
   selectedService = services.find(s => s.id === id);
-  document.getElementById('selectedService').textContent = 'Servicio: '+(selectedService?selectedService.name:'')+' | '+cur(selectedService?selectedService.price:0)+(selectedService&&selectedService.duration?' &middot; '+selectedService.duration+' min':'');
+  document.getElementById('selectedService').textContent = 'Servicio: '+(selectedService?selectedService.name:'')+' (ID: '+selectedService.id+') | '+cur(selectedService?selectedService.price:0)+(selectedService&&selectedService.duration?' &middot; '+selectedService.duration+' min':'');
   goStep(3);
   fetchSlots();
 }
