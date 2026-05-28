@@ -1,16 +1,4 @@
 {
-  "name": "tpv-peluqueria",
-  "version": "1.10.0",
-  "description": "TPV Agenda para Peluquería",
-  "main": "main.js",
-  "scripts": {
-    "start": "electron .",
-    "build": "electron-builder"
-  },
-  "devDependencies": {
-    "electron": "^31.0.0",
-    "electron-builder": "^24.13.3"
-  },
   "appId": "com.peluqueria.tpv",
   "files": [
     "electron-app.html",

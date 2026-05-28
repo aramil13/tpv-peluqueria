@@ -1331,6 +1331,16 @@
       "visits": 1,
       "totalSpent": 80.9,
       "created": "2026-05-20T17:41:27.245Z"
+    },
+    {
+      "id": "cmppk2jaou8eg",
+      "name": "Nuevo",
+      "phone": "+58300003553300",
+      "email": "",
+      "source": "whatsapp",
+      "created": 1779976533552,
+      "_modified": 1779976533552,
+      "_deleted": false
     }
   ],
   "products": [
@@ -5761,7 +5771,7 @@
       "status": "pending",
       "notes": "Reservado por WhatsApp por Victor Alonso",
       "created": 1779964625444,
-      "_modified": 1779966952373,
+      "_modified": 1779980181817,
       "_deleted": true
     },
     {
@@ -5780,6 +5790,114 @@
       "notes": "Reservado por WhatsApp por Victor Alonso",
       "created": 1779966952373,
       "_modified": 1779966952373,
+      "_deleted": false
+    },
+    {
+      "id": "amppk2jaohfq3",
+      "clientId": "cmppk2jaou8eg",
+      "serviceId": "mpcthfvgc00o",
+      "serviceIds": [
+        "mpcthfvgc00o"
+      ],
+      "employeeId": "mpcdoss31w72",
+      "date": "2026-05-29",
+      "time": "13:00",
+      "endTime": "13:30",
+      "source": "online",
+      "status": "pending",
+      "notes": "Reservado por WhatsApp por Nuevo",
+      "created": 1779976533552,
+      "_modified": 1779976533552,
+      "_deleted": false
+    },
+    {
+      "id": "amppk2psr5zc8",
+      "clientId": "cmppk2jaou8eg",
+      "serviceId": "mpcthfvgc00o",
+      "serviceIds": [
+        "mpcthfvgc00o"
+      ],
+      "employeeId": "mpcdolib3jdb",
+      "date": "2026-05-30",
+      "time": "10:00",
+      "endTime": "10:30",
+      "source": "online",
+      "status": "pending",
+      "notes": "Reservado por WhatsApp por Nuevo",
+      "created": 1779976541979,
+      "_modified": 1779976541979,
+      "_deleted": false
+    },
+    {
+      "id": "amppkqd7e78gd",
+      "clientId": "cmppk2jaou8eg",
+      "serviceId": "mpcthfvgznsq",
+      "serviceIds": [
+        "mpcthfvgznsq"
+      ],
+      "employeeId": "mpcdoss31w72",
+      "date": "2026-05-28",
+      "time": "10:00",
+      "endTime": "10:20",
+      "source": "online",
+      "status": "pending",
+      "notes": "Reservado por WhatsApp por Nuevo",
+      "created": 1779977645402,
+      "_modified": 1779977645402,
+      "_deleted": false
+    },
+    {
+      "id": "amppld42fzlfx",
+      "clientId": "cmppk2jaou8eg",
+      "serviceId": "mpcthfvgc00o",
+      "serviceIds": [
+        "mpcthfvgc00o"
+      ],
+      "employeeId": "mpcdolib3jdb",
+      "date": "2026-05-28",
+      "time": "10:00",
+      "endTime": "10:30",
+      "source": "online",
+      "status": "pending",
+      "notes": "Reservado por WhatsApp por Nuevo",
+      "created": 1779978706647,
+      "_modified": 1779978706647,
+      "_deleted": false
+    },
+    {
+      "id": "amppllz92ln5s",
+      "clientId": "cmppk2jaou8eg",
+      "serviceId": "mpcthfvgc00o",
+      "serviceIds": [
+        "mpcthfvgc00o"
+      ],
+      "employeeId": "mpcdoss31w72",
+      "date": "2026-05-29",
+      "time": "10:00",
+      "endTime": "10:30",
+      "source": "online",
+      "status": "pending",
+      "notes": "Reservado por WhatsApp por Nuevo",
+      "created": 1779979120310,
+      "_modified": 1779979120310,
+      "_deleted": false
+    },
+    {
+      "id": "amppm8qbdz9dp",
+      "clientId": "cmppk2jaou8eg",
+      "serviceId": "mpcthfvgznsq",
+      "serviceIds": [
+        "mpcthfvgznsq"
+      ],
+      "employeeId": "mpcdoss31w72",
+      "date": "2026-05-29",
+      "time": "12:00",
+      "endTime": "12:20",
+      "source": "online",
+      "status": "pending",
+      "notes": "Reservado por WhatsApp por Victor Alonso",
+      "created": 1779980181817,
+      "_modified": 1779980181817,
       "_deleted": false
     }
   ],
@@ -5875,5 +5993,5 @@
       "interval": 10
     }
   },
-  "lastModified": 1779966952373
+  "lastModified": 1779980181817
 }

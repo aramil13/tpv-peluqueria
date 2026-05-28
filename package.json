@@ -2,6 +2,7 @@
   "name": "tpv-peluqueria",
   "version": "1.10.0",
   "description": "TPV Agenda para Peluquería",
+  "author": "Nymara",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
