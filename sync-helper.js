@@ -2,6 +2,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 
 process.env.TZ = 'Europe/Madrid';
 console.log('Starting sync-helper... Forward URL:', process.env.SYNC_FORWARD_URL || '(none)');
