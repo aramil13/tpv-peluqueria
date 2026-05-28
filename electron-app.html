@@ -2598,9 +2598,13 @@ function showDayAppts(dateStr) {
         const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : '');
         const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
         const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
-        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${appt.source==='whatsapp'?' | 📱 WhatsApp':''}${pendingNote}`;
+        const clientPhone = appt.clientPhone || client?.phone || '';
+        const detail = `Cliente: ${client?client.name:'?'}${clientPhone?' 📱'+clientPhone:''} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${appt.source==='whatsapp'?' | 📱 WhatsApp':''}${pendingNote}`;
         const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : `editAppt('${appt.id}')`);
         let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
+        if (appt.source === 'whatsapp' && clientPhone) {
+          cellContent += `<br><span style="font-size:10px;color:#555;">📱${esc(clientPhone)}</span>`;
+        }
         if (appt.clientModified) {
           cellContent = `${esc(appt.time)}→${esc(appt.pendingTime||'')}`;
           if (appt.pendingEmployeeId && appt.employeeId !== appt.pendingEmployeeId) {
