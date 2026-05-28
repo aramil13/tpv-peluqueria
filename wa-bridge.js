@@ -23,14 +23,6 @@ console.log('GROQ_API_KEY:', process.env.GROQ_API_KEY ? 'SET ('+process.env.GROQ
 
 const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '';
 
-async function sendStartupMessage() {
-  if (!BUSINESS_PHONE || !currentSock) return;
-  await new Promise(r => setTimeout(r, 5000));
-  console.log('Enviando mensaje de inicio...');
-  const reply = await processWhatsAppMessage('+' + BUSINESS_PHONE, 'Hola Nymara');
-  console.log('Respuesta IA:', reply.substring(0, 80));
-}
-
 async function processQueue() {
   if (queueProcessing || messageQueue.length === 0) return;
   queueProcessing = true;
@@ -104,7 +96,6 @@ async function start() {
     if (connection === 'open') {
       console.log(' WhatsApp conectado como asistente AI');
       processing = false;
-      sendStartupMessage();
     }
   });
 
@@ -134,4 +125,8 @@ async function start() {
 }
 
 console.log(' Iniciando bridge WhatsApp...');
-start().catch(e => console.error('FATAL', e));
+start().catch(e => {
+  console.error('FATAL', e);
+  console.log('Reconectando en ' + (RECONNECT_DELAY/1000) + 's...');
+  setTimeout(start, RECONNECT_DELAY);
+});
