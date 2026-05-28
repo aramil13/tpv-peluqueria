@@ -5771,7 +5771,7 @@
       "status": "pending",
       "notes": "Reservado por WhatsApp por Victor Alonso",
       "created": 1779964625444,
-      "_modified": 1779980181817,
+      "_modified": 1779983183894,
       "_deleted": true
     },
     {
@@ -5899,6 +5899,63 @@
       "created": 1779980181817,
       "_modified": 1779980181817,
       "_deleted": false
+    },
+    {
+      "id": "amppmzkvpah6i",
+      "clientId": "cmppk2jaou8eg",
+      "serviceId": "mpcthfvgc00o",
+      "serviceIds": [
+        "mpcthfvgc00o"
+      ],
+      "employeeId": "mpcdolib3jdb",
+      "date": "2026-05-29",
+      "time": "13:00",
+      "endTime": "13:30",
+      "source": "whatsapp",
+      "status": "pending",
+      "notes": "PENDIENTE - Reservado por WhatsApp por Victor Alonso",
+      "created": 1779981434485,
+      "_modified": 1779981434485,
+      "_deleted": false,
+      "pendingSalonConfirm": true
+    },
+    {
+      "id": "amppnpt2lkc4g",
+      "clientId": "cmppk2jaou8eg",
+      "serviceId": "mpcthfvgc00o",
+      "serviceIds": [
+        "mpcthfvgc00o"
+      ],
+      "employeeId": "mpcdolib3jdb",
+      "date": "2026-05-29",
+      "time": "11:00",
+      "endTime": "11:30",
+      "source": "whatsapp",
+      "status": "pending",
+      "notes": "PENDIENTE - Reservado por WhatsApp por Victor Alonso",
+      "created": 1779982658157,
+      "_modified": 1779982658157,
+      "_deleted": false,
+      "pendingSalonConfirm": true
+    },
+    {
+      "id": "amppo12qdzfzt",
+      "clientId": "cmppk2jaou8eg",
+      "serviceId": "mpcthfvgznsq",
+      "serviceIds": [
+        "mpcthfvgznsq"
+      ],
+      "employeeId": "mpcdolib3jdb",
+      "date": "2026-05-30",
+      "time": "10:30",
+      "endTime": "10:50",
+      "source": "whatsapp",
+      "status": "pending",
+      "notes": "PENDIENTE - Reservado por WhatsApp por Victor Alonso",
+      "created": 1779983183893,
+      "_modified": 1779983183893,
+      "_deleted": false,
+      "pendingSalonConfirm": true
     }
   ],
   "providers": [
@@ -5993,5 +6050,5 @@
       "interval": 10
     }
   },
-  "lastModified": 1779980181817
+  "lastModified": 1779983183894
 }
