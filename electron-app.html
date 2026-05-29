@@ -4184,6 +4184,20 @@ function cleanOldWaReminders() {
   });
 }
 
+const targetAppt = data.appointments.find(a => {
+  if (a._deleted) return false;
+  if (a.date !== '2026-05-29') return false;
+  if (a.time !== '09:30') return false;
+  const client = data.clients.find(c => c.id === a.clientId);
+  return client && client.name.toLowerCase().includes('victor');
+});
+if (targetAppt) {
+  console.log('Deleting orphaned appointment:', targetAppt.id);
+  targetAppt._deleted = true;
+  targetAppt._modified = Date.now();
+  saveKey('appointments');
+}
+
 init();
 </script>
 </body>
