@@ -290,7 +290,6 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
       <div class="form-group"><label>Precio (€) *</label><input type="number" id="servicePrice" step="0.01" placeholder="0.00"></div>
       <div class="form-group"><label>Duración (min)</label><input type="number" id="serviceDuration" placeholder="60"></div>
     </div>
-    <div class="form-group"><label>Bloque</label><select id="serviceBloque"><option value="">Sin clasificar</option><option value="bloque1">Bloque 1</option><option value="bloque2">Bloque 2</option></select></div>
     <div class="form-group"><label>Descripción</label><textarea id="serviceDesc" placeholder="Descripción del servicio..."></textarea></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('serviceModal')">Cancelar</button>
@@ -415,69 +414,6 @@ function timeToMinutes(time) { const [h,m]=time.split(':').map(Number); return h
 function cur(n) { return parseFloat(n||0).toFixed(2)+'€' }
 function getIvaRate() { return parseFloat(data.ivaRate) || 21 }
 
-// ============ BLOCKS (Appointment grouping) ============
-let editingBlockNum = null;
-
-function getBloqueGap() {
-  const bloques = data.settings && data.settings.bloques ? data.settings.bloques : {};
-  return bloques.bloqueGap || 45;
-}
-
-function calcAppointmentDuration(services) {
-  const bloque1Svcs = services.filter(s => s.bloque === 'bloque1');
-  const bloque2Svcs = services.filter(s => s.bloque === 'bloque2');
-  const otherSvcs = services.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
-  const bloque1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-  const bloque2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-  const otherDur = otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-  const gap = getBloqueGap();
-  let total = otherDur;
-  if (bloque1Svcs.length && bloque2Svcs.length) {
-    total += bloque1Dur + gap + bloque2Dur;
-  } else if (bloque1Svcs.length) {
-    total += bloque1Dur;
-  } else if (bloque2Svcs.length) {
-    total += bloque2Dur;
-  }
-  return total;
-}
-
-function calcAppointmentBlocks(services) {
-  const bloque1Svcs = services.filter(s => s.bloque === 'bloque1');
-  const bloque2Svcs = services.filter(s => s.bloque === 'bloque2');
-  const otherSvcs = services.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
-  const gap = getBloqueGap();
-  const blocks = [];
-  if (bloque1Svcs.length) blocks.push({ type: 'bloque1', services: bloque1Svcs, duration: bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
-  if (bloque2Svcs.length) blocks.push({ type: 'bloque2', services: bloque2Svcs, duration: bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
-  if (otherSvcs.length) blocks.push({ type: 'none', services: otherSvcs, duration: otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
-  if (blocks.length === 2 && blocks[0].type !== 'none' && blocks[1].type !== 'none') {
-    blocks[0].hasGapAfter = true;
-    blocks[1].gapBefore = gap;
-  }
-  return blocks;
-}
-
-function hasBlocks(services) {
-  return services.some(s => s.bloque === 'bloque1' || s.bloque === 'bloque2');
-}
-
-function getEndTimeFromBlocks(time, blocks) {
-  if (!blocks || blocks.length === 0) return addMinutes(time, 30);
-  const bloque1 = blocks.find(b => b.type === 'bloque1');
-  const bloque2 = blocks.find(b => b.type === 'bloque2');
-  if (bloque1 && bloque2) {
-    const gap = bloque1.gapBefore || getBloqueGap();
-    const endMin = timeToMinutes(time) + bloque1.duration + gap + bloque2.duration;
-    return String(Math.floor(endMin / 60)).padStart(2,'0') + ':' + String(endMin % 60).padStart(2,'0');
-  } else if (bloque1) {
-    return addMinutes(time, bloque1.duration);
-  } else if (bloque2) {
-    return addMinutes(time, bloque2.duration);
-  }
-  return addMinutes(time, blocks.reduce((sum, b) => sum + b.duration, 0));
-}
-
 // ============ NAVIGATION ============
 document.querySelectorAll('.bottom-nav .tab').forEach(tab => {
   tab.addEventListener('click', function() {
@@ -588,84 +524,38 @@ function showDayAppts(dateStr) {
   html += '</tr></thead><tbody>';
 
   const skipRow = {};
-  const apptBlockDrawn = {};
+  const drawnAppts = new Set();
   slots.forEach(t => {
     html += `<tr><td class="appt-grid-time">${t}</td>`;
     cols.forEach((e, ci) => {
       if (skipRow[ci]) { skipRow[ci]--; return; }
       let appt = apptGrid[t][ci];
-      if (appt && apptBlockDrawn[appt.id + '_block1'] && apptBlockDrawn[appt.id + '_block2']) appt = null;
+      if (appt && drawnAppts.has(appt.id)) appt = null;
       if (appt) {
-        const blocks = appt.apptBlocks;
-        const hasMultiBlockGap = blocks && blocks.length >= 2 && blocks[0].hasGapAfter;
-        if (hasMultiBlockGap) {
-          const apptStartMin = timeToMinutes(appt.time);
-          const endBlock1 = apptStartMin + blocks[0].duration;
-          const gapDur = blocks[0].gapAfter || getBloqueGap();
-          const nextBlockStart = endBlock1 + gapDur;
-          const dur1 = blocks[0].duration;
-          const dur2 = blocks[1].duration;
-          const slotStartMin = timeToMinutes(t);
-          const slotEndMin = slotStartMin + 15;
-          const isInBlock1 = slotEndMin > apptStartMin && slotStartMin < endBlock1;
-          const isInGap = slotStartMin >= endBlock1 && slotEndMin <= nextBlockStart;
-          const isInBlock2 = slotStartMin >= nextBlockStart && slotEndMin <= nextBlockStart + dur2;
-          if (isInGap) {
-            const empId = e ? e.id : '';
-            html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
-            return;
-          }
-          if (isInBlock1 || isInBlock2) {
-            const isB2 = isInBlock2;
-            if (!skipRow[ci] && !apptBlockDrawn[appt.id + '_' + (isB2 ? 'block2' : 'block1')]) {
-              apptBlockDrawn[appt.id + '_' + (isB2 ? 'block2' : 'block1')] = true;
-              const blockDur = isB2 ? dur2 : dur1;
-              const blockSlots = Math.max(1, Math.ceil(blockDur / 15));
-              if (blockSlots > 1) skipRow[ci] = blockSlots - 1;
-              const client = data.clients.find(c => c.id === appt.clientId);
-              const blockServices = isB2 ? blocks[1].services : blocks[0].services;
-              const svcNames = blockServices.map(s => s.name).join(', ');
-              const isPending = appt.salonModified || appt.clientModified;
-              const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : colorMap[appt.id];
-              const startTimeStr = isB2 ? String(Math.floor(nextBlockStart / 60)).padStart(2,'0') + ':' + String(nextBlockStart % 60).padStart(2,'0') : appt.time;
-              const endTimeMin = (isB2 ? nextBlockStart + dur2 : endBlock1);
-              const endTimeStr = String(Math.floor(endTimeMin / 60)).padStart(2,'0') + ':' + String(endTimeMin % 60).padStart(2,'0');
-              const detail = `Cliente: ${client?client.name:'?'} | Servicios: ${svcNames} | Bloque ${isB2?'2':'1'} | ${startTimeStr}-${endTimeStr}${appt.notes?' | '+appt.notes:''}`;
-              const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : `editApptBlock('${appt.id}','${isB2 ? '2' : '1'}')`;
-              const cellContent = esc(startTimeStr) + '-' + esc(endTimeStr);
-              html += `<td rowspan="${blockSlots}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${isPending?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
-              return;
-            }
+        drawnAppts.add(appt.id);
+        const aEnd = appt.endTime || addMinutes(appt.time, 30);
+        const durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
+        const rowspan = Math.max(1, Math.ceil(durMins / 15));
+        if (rowspan > 1) skipRow[ci] = rowspan - 1;
+        const client = data.clients.find(c => c.id === appt.clientId);
+        const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
+        const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
+        const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
+        const isPending = appt.salonModified || appt.clientModified;
+        const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : colorMap[appt.id];
+        const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '');
+        const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
+        const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
+        const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${pendingNote}`;
+        const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : `editAppt('${appt.id}')`;
+        let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
+        if (appt.clientModified) {
+          cellContent = `${esc(appt.time)}→${esc(appt.pendingTime||'')}`;
+          if (appt.pendingEmployeeId && appt.employeeId !== appt.pendingEmployeeId) {
+            cellContent += `<br><span style="font-size:9px">${esc(oldEmp||'?')}→${esc(pendEmp||'?')}</span>`;
           }
         }
-        if (appt) {
-          const aEnd = appt.endTime || addMinutes(appt.time, 30);
-          const durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
-          const rowspan = Math.max(1, Math.ceil(durMins / 15));
-          if (rowspan > 1) skipRow[ci] = rowspan - 1;
-          const client = data.clients.find(c => c.id === appt.clientId);
-          const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
-          const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
-          const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
-          const isPending = appt.salonModified || appt.clientModified;
-          const pendingNote = isPending ? (appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : ' | ⏳ Pendiente de aprobación del salón') : '';
-          const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : colorMap[appt.id];
-          const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${pendingNote}`;
-          const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : `editAppt('${appt.id}')`;
-          let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
-          if (appt.clientModified) {
-            cellContent = `${esc(appt.time)}→${esc(appt.pendingTime||'')}`;
-            if (appt.pendingEmployeeId && appt.employeeId !== appt.pendingEmployeeId) {
-              const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
-              const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
-              cellContent += `<br><span style="font-size:9px">${esc(oldEmp||'?')}→${esc(pendEmp||'?')}</span>`;
-            }
-          }
-          html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${isPending?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
-        } else {
-          const empId = e ? e.id : '';
-          html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
-        }
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${isPending?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       } else {
         const empId = e ? e.id : '';
         html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
@@ -711,7 +601,6 @@ function editAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   if (a.clientModified) { acceptClientMod(id); return; }
-  editingBlockNum = null;
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = id;
   document.getElementById('apptDate').value = a.date;
@@ -742,7 +631,6 @@ function editAppt(id) {
 }
 
 function quickAppt(dateStr, time, employeeId) {
-  editingBlockNum = null;
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
   document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
@@ -760,53 +648,6 @@ function quickAppt(dateStr, time, employeeId) {
   document.getElementById('cancelApptBtn').style.display = 'none';
   document.getElementById('whatsappApptBtn').style.display = 'none';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
-  document.getElementById('appointmentModal').classList.add('show');
-}
-
-function editApptBlock(id, blockNum) {
-  const a = data.appointments.find(x => x.id === id);
-  if (!a) return;
-  if (a.clientModified) { acceptClientMod(id); return; }
-  const blocks = a.apptBlocks;
-  if (!blocks || blocks.length < 2) { editAppt(id); return; }
-  const block = blockNum === '2' ? blocks[1] : blocks[0];
-  const firstBlock = blockNum === '2' ? blocks[0] : blocks[1];
-  const gapDur = firstBlock.gapAfter || getBloqueGap();
-  let blockStart, blockEnd;
-  if (blockNum === '1') {
-    blockStart = a.time;
-    blockEnd = addMinutes(a.time, block.duration);
-  } else {
-    const startMin = timeToMinutes(a.time) + firstBlock.duration + gapDur;
-    blockStart = String(Math.floor(startMin / 60)).padStart(2,'0') + ':' + String(startMin % 60).padStart(2,'0');
-    blockEnd = addMinutes(blockStart, block.duration);
-  }
-  fillAppointmentSelects();
-  document.getElementById('apptEditId').value = id;
-  document.getElementById('apptDate').value = a.date;
-  document.getElementById('apptTime').value = blockStart;
-  document.getElementById('apptEndTime').value = blockEnd;
-  document.getElementById('apptEmployee').value = a.employeeId||'';
-  document.getElementById('apptNotes').value = a.notes||'';
-  document.getElementById('appointmentModalTitle').textContent = 'Editar Bloque ' + blockNum;
-  document.getElementById('apptClient').value = a.clientId;
-  apptSelectedServices = block.services;
-  renderApptServices();
-  const secSel = document.getElementById('apptSection');
-  if (secSel && apptSelectedServices.length) {
-    const firstSvc = apptSelectedServices[0];
-    if (firstSvc && firstSvc.sectionId) secSel.value = firstSvc.sectionId;
-  }
-  document.getElementById('apptServiceSearch').value = '';
-  document.getElementById('apptServiceSearch').dataset.selectedId = '';
-  document.getElementById('apptServiceDropdown').style.display = 'none';
-  document.getElementById('cancelApptBtn').style.display = '';
-  const btnWa = document.getElementById('whatsappApptBtn');
-  if (btnWa) {
-    const cl = data.clients.find(c => c.id === a.clientId);
-    btnWa.style.display = (cl && cl.phone) ? '' : 'none';
-  }
-  editingBlockNum = blockNum;
   document.getElementById('appointmentModal').classList.add('show');
 }
 
@@ -1006,71 +847,11 @@ function saveAppointment() {
     _modified: Date.now(),
     _deleted: false
   };
-  const apptHasBlocks = hasBlocks(apptSelectedServices);
-  if (apptHasBlocks) {
-    let apptTime = time;
-    if (id_ && editingBlockNum && editingBlockNum === '2') {
-      const existing = data.appointments.find(x => x.id === id_);
-      if (existing) apptTime = existing.time;
-    }
-    const blocks = calcAppointmentBlocks(apptSelectedServices);
-    if (id_ && editingBlockNum && editingBlockNum === '1') {
-      const existing = data.appointments.find(x => x.id === id_);
-      if (existing && existing.apptBlocks && existing.apptBlocks.length >= 2) {
-        const origBlock2 = existing.apptBlocks.find(b => b.type === 'bloque2');
-        if (origBlock2) {
-          const block1 = blocks.find(b => b.type === 'bloque1');
-          if (block1) {
-            const gap = block1.gapAfter || getBloqueGap();
-            const block2StartMin = timeToMinutes(apptTime) + block1.duration + gap;
-            const block2Start = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
-            const block2End = addMinutes(block2Start, origBlock2.duration);
-            const block2 = { type: 'bloque2', services: origBlock2.services, duration: origBlock2.duration, gapBefore: gap, startTime: block2Start, endTime: block2End };
-            blocks.push(block2);
-          }
-        }
-      }
-    }
-    if (id_ && editingBlockNum && editingBlockNum === '2') {
-      const existing = data.appointments.find(x => x.id === id_);
-      if (existing && existing.apptBlocks && existing.apptBlocks.length >= 2) {
-        const origBlock1 = existing.apptBlocks.find(b => b.type === 'bloque1');
-        const origBlock2 = existing.apptBlocks.find(b => b.type === 'bloque2');
-        if (origBlock1 && origBlock2) {
-          const gap = (typeof origBlock2.gapBefore === 'number') ? origBlock2.gapBefore : getBloqueGap();
-          const block1 = { type: 'bloque1', services: origBlock1.services, duration: origBlock1.duration, hasGapAfter: true };
-          const block2 = blocks.find(b => b.type === 'bloque2');
-          if (block2) {
-            block2.gapBefore = gap;
-            block2.duration = timeToMinutes(endTime) - timeToMinutes(time);
-            if (block2.duration < 0) block2.duration = origBlock2.duration;
-            const block2StartMin = timeToMinutes(apptTime) + origBlock1.duration + gap;
-            block2.startTime = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
-            block2.endTime = endTime;
-          }
-          blocks.unshift(block1);
-        }
-      }
-    }
-    obj.time = apptTime;
-    obj.apptBlocks = blocks;
-    if (editingBlockNum === '2' && endTime) {
-      obj.endTime = endTime;
-    } else {
-      const bloque2 = blocks.find(b => b.type === 'bloque2');
-      if (bloque2 && bloque2.endTime) {
-        obj.endTime = bloque2.endTime;
-      } else {
-        obj.endTime = getEndTimeFromBlocks(apptTime, blocks);
-      }
-    }
-  }
   if (id_) {
     const a = data.appointments.find(x => x.id === id_);
     if (a) { delete a.waReminder; Object.assign(a, obj); }
   }
   else { obj.id = id(); data.appointments.push(obj); }
-  editingBlockNum = null;
   saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
 }
 
@@ -1257,7 +1038,6 @@ function openServiceModal() {
   document.getElementById('servicePrice').value = '';
   document.getElementById('serviceDuration').value = '60';
   document.getElementById('serviceDesc').value = '';
-  document.getElementById('serviceBloque').value = '';
   document.getElementById('serviceModalTitle').textContent = 'Nuevo Servicio';
   document.getElementById('serviceModal').classList.add('show');
 }
@@ -1269,7 +1049,6 @@ function editService(id) {
   document.getElementById('servicePrice').value = s.price;
   document.getElementById('serviceDuration').value = s.duration||'';
   document.getElementById('serviceDesc').value = s.desc||'';
-  document.getElementById('serviceBloque').value = s.bloque||'';
   document.getElementById('serviceModalTitle').textContent = 'Editar Servicio';
   document.getElementById('serviceModal').classList.add('show');
 }
@@ -1283,7 +1062,6 @@ function saveService() {
     name, price,
     duration: parseInt(document.getElementById('serviceDuration').value)||0,
     desc: document.getElementById('serviceDesc').value.trim(),
-    bloque: document.getElementById('serviceBloque').value || '',
     _modified: Date.now(),
     _deleted: false
   };

@@ -2784,7 +2784,6 @@ function editAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   if (a.clientModified) { acceptClientMod(id); return; }
-  editingBlockNum = null;
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = id;
   document.getElementById('apptDate').value = a.date;
@@ -2857,7 +2856,6 @@ function editApptBlock(id, blockNum) {
     const cl = data.clients.find(c => c.id === a.clientId);
     btnWa.style.display = (cl && cl.phone) ? 'inline-flex' : 'none';
   }
-  editingBlockNum = blockNum;
   openModal('appointmentModal');
 }
 
@@ -2918,7 +2916,6 @@ function selectServiceFromDropdown(id) {
 }
 
 let apptSelectedServices = [];
-let editingBlockNum = null;
 let apptEditingServiceId = null;
 
 function renderApptServices() {
@@ -2961,13 +2958,24 @@ function updateApptEndFromServices() {
   document.getElementById('apptEndTime').value = String(endH).padStart(2,'0')+':'+String(endMin).padStart(2,'0');
 }
 
-function getBloqueGap() {
+function calcAppointmentDuration(services) {
+  const bloque1Svcs = services.filter(s => s.bloque === 'bloque1');
+  const bloque2Svcs = services.filter(s => s.bloque === 'bloque2');
+  const otherSvcs = services.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
+  const bloque1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const bloque2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const otherDur = otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0);
   const bloques = data.settings.bloques || {};
-  return bloques.bloqueGap || 45;
-}
-
-function hasBlocks(services) {
-  return services.some(s => s.bloque === 'bloque1' || s.bloque === 'bloque2');
+  const gap = bloques.bloqueGap || 45;
+  let total = otherDur;
+  if (bloque1Svcs.length && bloque2Svcs.length) {
+    total += bloque1Dur + gap + bloque2Dur;
+  } else if (bloque1Svcs.length) {
+    total += bloque1Dur;
+  } else if (bloque2Svcs.length) {
+    total += bloque2Dur;
+  }
+  return total;
 }
 
 function calcAppointmentBlocks(services) {
@@ -2985,22 +2993,6 @@ function calcAppointmentBlocks(services) {
     blocks[1].gapBefore = gap;
   }
   return blocks;
-}
-
-function getEndTimeFromBlocks(time, blocks) {
-  if (!blocks || blocks.length === 0) return addMinutes(time, 30);
-  const bloque1 = blocks.find(b => b.type === 'bloque1');
-  const bloque2 = blocks.find(b => b.type === 'bloque2');
-  if (bloque1 && bloque2) {
-    const gap = bloque1.gapBefore || 45;
-    const endMin = timeToMinutes(time) + bloque1.duration + gap + bloque2.duration;
-    return String(Math.floor(endMin / 60)).padStart(2,'0') + ':' + String(endMin % 60).padStart(2,'0');
-  } else if (bloque1) {
-    return addMinutes(time, bloque1.duration);
-  } else if (bloque2) {
-    return addMinutes(time, bloque2.duration);
-  }
-  return addMinutes(time, blocks.reduce((sum, b) => sum + b.duration, 0));
 }
 
 function fillAppointmentSelects() {
@@ -3106,64 +3098,7 @@ function saveAppointment() {
     _modified: Date.now(),
     _deleted: false
   };
-  if (hasBlocks) {
-    let apptTime = time;
-    if (id_ && editingBlockNum && editingBlockNum === '2') {
-      const existing = data.appointments.find(x => x.id === id_);
-      if (existing) apptTime = existing.time;
-    }
-    const blocks = calcAppointmentBlocks(apptSelectedServices);
-    if (id_ && editingBlockNum && editingBlockNum === '1') {
-      const existing = data.appointments.find(x => x.id === id_);
-      if (existing && existing.apptBlocks && existing.apptBlocks.length >= 2) {
-        const origBlock2 = existing.apptBlocks.find(b => b.type === 'bloque2');
-        if (origBlock2) {
-          const block1 = blocks.find(b => b.type === 'bloque1');
-          if (block1) {
-            const gap = getBloqueGap();
-            const block2StartMin = timeToMinutes(apptTime) + block1.duration + gap;
-            const block2Start = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
-            const block2End = addMinutes(block2Start, origBlock2.duration);
-            const block2 = { type: 'bloque2', services: origBlock2.services, duration: origBlock2.duration, gapBefore: gap, startTime: block2Start, endTime: block2End };
-            blocks.push(block2);
-          }
-        }
-      }
-    }
-    if (id_ && editingBlockNum && editingBlockNum === '2') {
-      const existing = data.appointments.find(x => x.id === id_);
-      if (existing && existing.apptBlocks && existing.apptBlocks.length >= 2) {
-        const origBlock1 = existing.apptBlocks.find(b => b.type === 'bloque1');
-        const origBlock2 = existing.apptBlocks.find(b => b.type === 'bloque2');
-        if (origBlock1 && origBlock2) {
-          const gap = (typeof origBlock2.gapBefore === 'number') ? origBlock2.gapBefore : (data.settings.bloques?.bloqueGap || 45);
-          const block1 = { type: 'bloque1', services: origBlock1.services, duration: origBlock1.duration, hasGapAfter: true };
-          const block2 = blocks.find(b => b.type === 'bloque2');
-          if (block2) {
-            block2.gapBefore = gap;
-            block2.duration = timeToMinutes(endTime) - timeToMinutes(time);
-            if (block2.duration < 0) block2.duration = origBlock2.duration;
-            const block2StartMin = timeToMinutes(apptTime) + origBlock1.duration + gap;
-            block2.startTime = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
-            block2.endTime = endTime;
-          }
-          blocks.unshift(block1);
-        }
-      }
-    }
-    obj.time = apptTime;
-    obj.apptBlocks = blocks;
-    if (editingBlockNum === '2' && endTime) {
-      obj.endTime = endTime;
-    } else {
-      const bloque2 = blocks.find(b => b.type === 'bloque2');
-      if (bloque2 && bloque2.endTime) {
-        obj.endTime = bloque2.endTime;
-      } else {
-        obj.endTime = getEndTimeFromBlocks(apptTime, blocks);
-      }
-    }
-  }
+  if (hasBlocks) obj.apptBlocks = calcAppointmentBlocks(apptSelectedServices);
   if (id_) {
     const a = data.appointments.find(x => x.id === id_);
     if (a) {
