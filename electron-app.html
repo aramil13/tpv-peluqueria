@@ -3145,15 +3145,18 @@ function saveAppointment() {
       const existing = data.appointments.find(x => x.id === id_);
       if (existing && existing.apptBlocks && existing.apptBlocks.length >= 2) {
         const origBlock1 = existing.apptBlocks.find(b => b.type === 'bloque1');
-        if (origBlock1) {
-          const block1 = { type: 'bloque1', services: origBlock1.services, duration: origBlock1.duration, hasGapAfter: true };
+        const origBlock2 = existing.apptBlocks.find(b => b.type === 'bloque2');
+        if (origBlock1 && origBlock2) {
           const gap = origBlock1.gapAfter || 45;
+          const block1 = { type: 'bloque1', services: origBlock1.services, duration: origBlock1.duration, hasGapAfter: true };
           const block2 = blocks.find(b => b.type === 'bloque2');
           if (block2) {
             block2.gapBefore = gap;
+            block2.duration = timeToMinutes(endTime) - timeToMinutes(time);
+            if (block2.duration < 0) block2.duration = origBlock2.duration;
             const block2StartMin = timeToMinutes(apptTime) + origBlock1.duration + gap;
             block2.startTime = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
-            block2.endTime = addMinutes(block2.startTime, block2.duration);
+            block2.endTime = endTime;
           }
           blocks.unshift(block1);
         }
