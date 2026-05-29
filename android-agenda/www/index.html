@@ -415,6 +415,69 @@ function timeToMinutes(time) { const [h,m]=time.split(':').map(Number); return h
 function cur(n) { return parseFloat(n||0).toFixed(2)+'€' }
 function getIvaRate() { return parseFloat(data.ivaRate) || 21 }
 
+// ============ BLOCKS (Appointment grouping) ============
+let editingBlockNum = null;
+
+function getBloqueGap() {
+  const bloques = data.settings && data.settings.bloques ? data.settings.bloques : {};
+  return bloques.bloqueGap || 45;
+}
+
+function calcAppointmentDuration(services) {
+  const bloque1Svcs = services.filter(s => s.bloque === 'bloque1');
+  const bloque2Svcs = services.filter(s => s.bloque === 'bloque2');
+  const otherSvcs = services.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
+  const bloque1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const bloque2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const otherDur = otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const gap = getBloqueGap();
+  let total = otherDur;
+  if (bloque1Svcs.length && bloque2Svcs.length) {
+    total += bloque1Dur + gap + bloque2Dur;
+  } else if (bloque1Svcs.length) {
+    total += bloque1Dur;
+  } else if (bloque2Svcs.length) {
+    total += bloque2Dur;
+  }
+  return total;
+}
+
+function calcAppointmentBlocks(services) {
+  const bloque1Svcs = services.filter(s => s.bloque === 'bloque1');
+  const bloque2Svcs = services.filter(s => s.bloque === 'bloque2');
+  const otherSvcs = services.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
+  const gap = getBloqueGap();
+  const blocks = [];
+  if (bloque1Svcs.length) blocks.push({ type: 'bloque1', services: bloque1Svcs, duration: bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
+  if (bloque2Svcs.length) blocks.push({ type: 'bloque2', services: bloque2Svcs, duration: bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
+  if (otherSvcs.length) blocks.push({ type: 'none', services: otherSvcs, duration: otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
+  if (blocks.length === 2 && blocks[0].type !== 'none' && blocks[1].type !== 'none') {
+    blocks[0].hasGapAfter = true;
+    blocks[1].gapBefore = gap;
+  }
+  return blocks;
+}
+
+function hasBlocks(services) {
+  return services.some(s => s.bloque === 'bloque1' || s.bloque === 'bloque2');
+}
+
+function getEndTimeFromBlocks(time, blocks) {
+  if (!blocks || blocks.length === 0) return addMinutes(time, 30);
+  const bloque1 = blocks.find(b => b.type === 'bloque1');
+  const bloque2 = blocks.find(b => b.type === 'bloque2');
+  if (bloque1 && bloque2) {
+    const gap = bloque1.gapBefore || getBloqueGap();
+    const endMin = timeToMinutes(time) + bloque1.duration + gap + bloque2.duration;
+    return String(Math.floor(endMin / 60)).padStart(2,'0') + ':' + String(endMin % 60).padStart(2,'0');
+  } else if (bloque1) {
+    return addMinutes(time, bloque1.duration);
+  } else if (bloque2) {
+    return addMinutes(time, bloque2.duration);
+  }
+  return addMinutes(time, blocks.reduce((sum, b) => sum + b.duration, 0));
+}
+
 // ============ NAVIGATION ============
 document.querySelectorAll('.bottom-nav .tab').forEach(tab => {
   tab.addEventListener('click', function() {
@@ -532,6 +595,19 @@ function showDayAppts(dateStr) {
       if (skipRow[ci]) { skipRow[ci]--; return; }
       let appt = apptGrid[t][ci];
       if (appt && drawnAppts.has(appt.id)) appt = null;
+      if (appt && appt.apptBlocks && appt.apptBlocks.length >= 2) {
+        const block1 = appt.apptBlocks[0];
+        const block2 = appt.apptBlocks[1];
+        const gap = block1.gapAfter || getBloqueGap();
+        const startMin = timeToMinutes(appt.time);
+        const block1End = startMin + block1.duration;
+        const gapStart = block1End;
+        const gapEnd = block1End + gap;
+        const slotMin = timeToMinutes(t);
+        if (slotMin >= gapStart && slotMin < gapEnd) {
+          appt = null;
+        }
+      }
       if (appt) {
         drawnAppts.add(appt.id);
         const aEnd = appt.endTime || addMinutes(appt.time, 30);
@@ -542,13 +618,14 @@ function showDayAppts(dateStr) {
         const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
         const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
         const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
-        const isPending = appt.salonModified || appt.clientModified;
-        const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : colorMap[appt.id];
         const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '');
         const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
         const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
         const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${pendingNote}`;
-        const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : `editAppt('${appt.id}')`;
+        const hasApptBlocks = appt.apptBlocks && appt.apptBlocks.length >= 2;
+        const isPending = appt.salonModified || appt.clientModified;
+        const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : colorMap[appt.id];
+        const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (hasApptBlocks ? `editApptBlock('${appt.id}','1')` : `editAppt('${appt.id}')`);
         let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
         if (appt.clientModified) {
           cellContent = `${esc(appt.time)}→${esc(appt.pendingTime||'')}`;
@@ -602,6 +679,7 @@ function editAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   if (a.clientModified) { acceptClientMod(id); return; }
+  editingBlockNum = null;
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = id;
   document.getElementById('apptDate').value = a.date;
@@ -632,6 +710,7 @@ function editAppt(id) {
 }
 
 function quickAppt(dateStr, time, employeeId) {
+  editingBlockNum = null;
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
   document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
@@ -649,6 +728,53 @@ function quickAppt(dateStr, time, employeeId) {
   document.getElementById('cancelApptBtn').style.display = 'none';
   document.getElementById('whatsappApptBtn').style.display = 'none';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
+  document.getElementById('appointmentModal').classList.add('show');
+}
+
+function editApptBlock(id, blockNum) {
+  const a = data.appointments.find(x => x.id === id);
+  if (!a) return;
+  if (a.clientModified) { acceptClientMod(id); return; }
+  const blocks = a.apptBlocks;
+  if (!blocks || blocks.length < 2) { editAppt(id); return; }
+  const block = blockNum === '2' ? blocks[1] : blocks[0];
+  const firstBlock = blockNum === '2' ? blocks[0] : blocks[1];
+  const gapDur = firstBlock.gapAfter || getBloqueGap();
+  let blockStart, blockEnd;
+  if (blockNum === '1') {
+    blockStart = a.time;
+    blockEnd = addMinutes(a.time, block.duration);
+  } else {
+    const startMin = timeToMinutes(a.time) + firstBlock.duration + gapDur;
+    blockStart = String(Math.floor(startMin / 60)).padStart(2,'0') + ':' + String(startMin % 60).padStart(2,'0');
+    blockEnd = addMinutes(blockStart, block.duration);
+  }
+  fillAppointmentSelects();
+  document.getElementById('apptEditId').value = id;
+  document.getElementById('apptDate').value = a.date;
+  document.getElementById('apptTime').value = blockStart;
+  document.getElementById('apptEndTime').value = blockEnd;
+  document.getElementById('apptEmployee').value = a.employeeId||'';
+  document.getElementById('apptNotes').value = a.notes||'';
+  document.getElementById('appointmentModalTitle').textContent = 'Editar Bloque ' + blockNum;
+  document.getElementById('apptClient').value = a.clientId;
+  apptSelectedServices = block.services;
+  renderApptServices();
+  const secSel = document.getElementById('apptSection');
+  if (secSel && apptSelectedServices.length) {
+    const firstSvc = apptSelectedServices[0];
+    if (firstSvc && firstSvc.sectionId) secSel.value = firstSvc.sectionId;
+  }
+  document.getElementById('apptServiceSearch').value = '';
+  document.getElementById('apptServiceSearch').dataset.selectedId = '';
+  document.getElementById('apptServiceDropdown').style.display = 'none';
+  document.getElementById('cancelApptBtn').style.display = '';
+  const btnWa = document.getElementById('whatsappApptBtn');
+  if (btnWa) {
+    const cl = data.clients.find(c => c.id === a.clientId);
+    btnWa.style.display = (cl && cl.phone) ? '' : 'none';
+  }
+  editingBlockNum = blockNum;
   document.getElementById('appointmentModal').classList.add('show');
 }
 
@@ -848,11 +974,68 @@ function saveAppointment() {
     _modified: Date.now(),
     _deleted: false
   };
+  const apptHasBlocks = hasBlocks(apptSelectedServices);
+  if (apptHasBlocks) {
+    let apptTime = time;
+    if (id_ && editingBlockNum && editingBlockNum === '2') {
+      const existing = data.appointments.find(x => x.id === id_);
+      if (existing) apptTime = existing.time;
+    }
+    const blocks = calcAppointmentBlocks(apptSelectedServices);
+    if (id_ && editingBlockNum && editingBlockNum === '1') {
+      const existing = data.appointments.find(x => x.id === id_);
+      if (existing && existing.apptBlocks && existing.apptBlocks.length >= 2) {
+        const origBlock2 = existing.apptBlocks.find(b => b.type === 'bloque2');
+        if (origBlock2) {
+          const block1 = blocks.find(b => b.type === 'bloque1');
+          if (block1) {
+            const gap = block1.gapAfter || getBloqueGap();
+            const block2StartMin = timeToMinutes(apptTime) + block1.duration + gap;
+            const block2Start = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
+            const block2End = addMinutes(block2Start, origBlock2.duration);
+            const block2 = blocks.find(b => b.type === 'bloque2') || { type: 'bloque2', services: [], duration: 0 };
+            block2.services = origBlock2.services;
+            block2.duration = origBlock2.duration;
+            block2.gapBefore = gap;
+            block2.startTime = block2Start;
+            block2.endTime = block2End;
+            if (!blocks.find(b => b.type === 'bloque2')) blocks.push(block2);
+          }
+        }
+      }
+    }
+    if (id_ && editingBlockNum && editingBlockNum === '2') {
+      const existing = data.appointments.find(x => x.id === id_);
+      if (existing && existing.apptBlocks && existing.apptBlocks.length >= 2) {
+        const origBlock1 = existing.apptBlocks.find(b => b.type === 'bloque1');
+        if (origBlock1) {
+          const block1 = blocks.find(b => b.type === 'bloque1');
+          if (block1) {
+            block1.services = origBlock1.services;
+            block1.duration = origBlock1.duration;
+            block1.hasGapAfter = true;
+            const gap = getBloqueGap();
+            const block2 = blocks.find(b => b.type === 'bloque2');
+            if (block2) {
+              block2.gapBefore = gap;
+              const block2StartMin = timeToMinutes(apptTime) + block1.duration + gap;
+              block2.startTime = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
+              block2.endTime = addMinutes(block2.startTime, block2.duration);
+            }
+          }
+        }
+      }
+    }
+    obj.time = apptTime;
+    obj.apptBlocks = blocks;
+    obj.endTime = getEndTimeFromBlocks(apptTime, blocks);
+  }
   if (id_) {
     const a = data.appointments.find(x => x.id === id_);
     if (a) { delete a.waReminder; Object.assign(a, obj); }
   }
   else { obj.id = id(); data.appointments.push(obj); }
+  editingBlockNum = null;
   saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
 }
 
