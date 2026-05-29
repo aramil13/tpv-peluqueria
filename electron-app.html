@@ -2969,8 +2969,6 @@ function getBloqueGap() {
 function hasBlocks(services) {
   return services.some(s => s.bloque === 'bloque1' || s.bloque === 'bloque2');
 }
-  return total;
-}
 
 function calcAppointmentBlocks(services) {
   const bloque1Svcs = services.filter(s => s.bloque === 'bloque1');
@@ -3122,7 +3120,7 @@ function saveAppointment() {
         if (origBlock2) {
           const block1 = blocks.find(b => b.type === 'bloque1');
           if (block1) {
-            const gap = block1.gapAfter || 45;
+            const gap = getBloqueGap();
             const block2StartMin = timeToMinutes(apptTime) + block1.duration + gap;
             const block2Start = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
             const block2End = addMinutes(block2Start, origBlock2.duration);
