@@ -588,58 +588,71 @@ function showDayAppts(dateStr) {
   html += '</tr></thead><tbody>';
 
   const skipRow = {};
-  const drawnAppts = new Set();
-  const drawnBlockAppts = new Set();
+  const apptBlockDrawn = {};
   slots.forEach(t => {
     html += `<tr><td class="appt-grid-time">${t}</td>`;
     cols.forEach((e, ci) => {
       if (skipRow[ci]) { skipRow[ci]--; return; }
       let appt = apptGrid[t][ci];
-      if (appt && drawnAppts.has(appt.id) && !drawnBlockAppts.has(appt.id+'_block1')) appt = null;
-      let isBlockGap = false;
-      let isBlock2Cell = false;
-      if (appt && appt.apptBlocks && appt.apptBlocks.length >= 2) {
-        const block1 = appt.apptBlocks[0];
-        const block2 = appt.apptBlocks[1];
-        const gap = block1.gapAfter || getBloqueGap();
-        const startMin = timeToMinutes(appt.time);
-        const block1End = startMin + block1.duration;
-        const gapStart = block1End;
-        const gapEnd = block1End + gap;
-        const block2Start = gapEnd;
-        const block2End = block2Start + block2.duration;
-        const slotMin = timeToMinutes(t);
-        if (slotMin >= gapStart && slotMin < gapEnd) {
-          isBlockGap = true;
-          appt = null;
-        } else if (drawnBlockAppts.has(appt.id+'_block1') && slotMin >= block2Start) {
-          isBlock2Cell = true;
-        }
-      }
+      if (appt && apptBlockDrawn[appt.id + '_block1'] && apptBlockDrawn[appt.id + '_block2']) appt = null;
       if (appt) {
-        drawnAppts.add(appt.id);
-        const isMultiBlock = appt.apptBlocks && appt.apptBlocks.length >= 2;
-        let durMins, rowspan, svcNames, detail, cellContent;
-        if (isMultiBlock) {
-          const block1 = appt.apptBlocks[0];
-          durMins = block1.duration;
-          const client = data.clients.find(c => c.id === appt.clientId);
-          const block1SvcNames = block1.services.map(s => s.name).join(', ');
-          svcNames = block1SvcNames;
-          detail = `Cliente: ${client?client.name:'?'} | Bloque 1: ${svcNames} | Hora: ${appt.time}`;
-          const block1End = addMinutes(appt.time, block1.duration);
-          cellContent = esc(appt.time) + '-' + esc(block1End);
-          drawnBlockAppts.add(appt.id+'_block1');
-        } else {
+        const blocks = appt.apptBlocks;
+        const hasMultiBlockGap = blocks && blocks.length >= 2 && blocks[0].hasGapAfter;
+        if (hasMultiBlockGap) {
+          const apptStartMin = timeToMinutes(appt.time);
+          const endBlock1 = apptStartMin + blocks[0].duration;
+          const gapDur = blocks[0].gapAfter || getBloqueGap();
+          const nextBlockStart = endBlock1 + gapDur;
+          const dur1 = blocks[0].duration;
+          const dur2 = blocks[1].duration;
+          const slotStartMin = timeToMinutes(t);
+          const slotEndMin = slotStartMin + 15;
+          const isInBlock1 = slotEndMin > apptStartMin && slotStartMin < endBlock1;
+          const isInGap = slotStartMin >= endBlock1 && slotEndMin <= nextBlockStart;
+          const isInBlock2 = slotStartMin >= nextBlockStart && slotEndMin <= nextBlockStart + dur2;
+          if (isInGap) {
+            const empId = e ? e.id : '';
+            html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
+            return;
+          }
+          if (isInBlock1 || isInBlock2) {
+            const isB2 = isInBlock2;
+            if (!skipRow[ci] && !apptBlockDrawn[appt.id + '_' + (isB2 ? 'block2' : 'block1')]) {
+              apptBlockDrawn[appt.id + '_' + (isB2 ? 'block2' : 'block1')] = true;
+              const blockDur = isB2 ? dur2 : dur1;
+              const blockSlots = Math.max(1, Math.ceil(blockDur / 15));
+              if (blockSlots > 1) skipRow[ci] = blockSlots - 1;
+              const client = data.clients.find(c => c.id === appt.clientId);
+              const blockServices = isB2 ? blocks[1].services : blocks[0].services;
+              const svcNames = blockServices.map(s => s.name).join(', ');
+              const isPending = appt.salonModified || appt.clientModified;
+              const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : colorMap[appt.id];
+              const startTimeStr = isB2 ? String(Math.floor(nextBlockStart / 60)).padStart(2,'0') + ':' + String(nextBlockStart % 60).padStart(2,'0') : appt.time;
+              const endTimeMin = (isB2 ? nextBlockStart + dur2 : endBlock1);
+              const endTimeStr = String(Math.floor(endTimeMin / 60)).padStart(2,'0') + ':' + String(endTimeMin % 60).padStart(2,'0');
+              const detail = `Cliente: ${client?client.name:'?'} | Servicios: ${svcNames} | Bloque ${isB2?'2':'1'} | ${startTimeStr}-${endTimeStr}${appt.notes?' | '+appt.notes:''}`;
+              const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : `editApptBlock('${appt.id}','${isB2 ? '2' : '1'}')`;
+              const cellContent = esc(startTimeStr) + '-' + esc(endTimeStr);
+              html += `<td rowspan="${blockSlots}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${isPending?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+              return;
+            }
+          }
+        }
+        if (appt) {
           const aEnd = appt.endTime || addMinutes(appt.time, 30);
-          durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
+          const durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
+          const rowspan = Math.max(1, Math.ceil(durMins / 15));
+          if (rowspan > 1) skipRow[ci] = rowspan - 1;
           const client = data.clients.find(c => c.id === appt.clientId);
           const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
           const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
-          svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
-          const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '');
-          detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${pendingNote}`;
-          cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
+          const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
+          const isPending = appt.salonModified || appt.clientModified;
+          const pendingNote = isPending ? (appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : ' | ⏳ Pendiente de aprobación del salón') : '';
+          const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : colorMap[appt.id];
+          const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${pendingNote}`;
+          const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : `editAppt('${appt.id}')`;
+          let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
           if (appt.clientModified) {
             cellContent = `${esc(appt.time)}→${esc(appt.pendingTime||'')}`;
             if (appt.pendingEmployeeId && appt.employeeId !== appt.pendingEmployeeId) {
@@ -648,41 +661,14 @@ function showDayAppts(dateStr) {
               cellContent += `<br><span style="font-size:9px">${esc(oldEmp||'?')}→${esc(pendEmp||'?')}</span>`;
             }
           }
-        }
-        rowspan = Math.max(1, Math.ceil(durMins / 15));
-        if (rowspan > 1) skipRow[ci] = rowspan - 1;
-        const hasApptBlocks = isMultiBlock;
-        const isPending = appt.salonModified || appt.clientModified;
-        const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : colorMap[appt.id];
-        const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (hasApptBlocks ? `editApptBlock('${appt.id}','1')` : `editAppt('${appt.id}')`);
-        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${isPending?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
-      } else if (isBlock2Cell) {
-        const block1 = apptGrid[t][ci].apptBlocks[0];
-        const block2 = apptGrid[t][ci].apptBlocks[1];
-        const gap = block1.gapAfter || getBloqueGap();
-        const startMin = timeToMinutes(appt.time);
-        const block1End = startMin + block1.duration;
-        const block2Start = block1End + gap;
-        const block2End = block2Start + block2.duration;
-        const block2StartStr = String(Math.floor(block2Start / 60)).padStart(2,'0') + ':' + String(block2Start % 60).padStart(2,'0');
-        const block2EndStr = String(Math.floor(block2End / 60)).padStart(2,'0') + ':' + String(block2End % 60).padStart(2,'0');
-        const client = data.clients.find(c => c.id === apptGrid[t][ci].clientId);
-        const block2SvcNames = block2.services.map(s => s.name).join(', ');
-        const detail = `Cliente: ${client?client.name:'?'} | Bloque 2: ${block2SvcNames} | Hora: ${block2StartStr}`;
-        const isPending = apptGrid[t][ci].salonModified || apptGrid[t][ci].clientModified;
-        const cellColor = (isPending && apptGrid[t][ci].source === 'online') ? '#8a8a8a' : colorMap[apptGrid[t][ci].id];
-        const b2DurMins = block2.duration;
-        const b2Rowspan = Math.max(1, Math.ceil(b2DurMins / 15));
-        if (b2Rowspan > 1) skipRow[ci] = b2Rowspan - 1;
-        drawnBlockAppts.add(apptGrid[t][ci].id+'_block2');
-        html += `<td rowspan="${b2Rowspan}" class="appt-grid-cell appt-grid-occ${apptGrid[t][ci].source==='online'?' appt-online-grid':''}${isPending?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="editApptBlock('${apptGrid[t][ci].id}','2')">${esc(block2StartStr)}-${esc(block2EndStr)}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${apptGrid[t][ci].id}')">✕</span></td>`;
-      } else {
-        const empId = e ? e.id : '';
-        if (isBlockGap) {
-          html += `<td class="appt-grid-cell appt-grid-free" style="background:#f0f0f0;" title="Gap de bloqueo"></td>`;
+          html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${isPending?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
         } else {
+          const empId = e ? e.id : '';
           html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
         }
+      } else {
+        const empId = e ? e.id : '';
+        html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
       }
     });
     html += '</tr>';
@@ -1039,13 +1025,8 @@ function saveAppointment() {
             const block2StartMin = timeToMinutes(apptTime) + block1.duration + gap;
             const block2Start = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
             const block2End = addMinutes(block2Start, origBlock2.duration);
-            const block2 = blocks.find(b => b.type === 'bloque2') || { type: 'bloque2', services: [], duration: 0 };
-            block2.services = origBlock2.services;
-            block2.duration = origBlock2.duration;
-            block2.gapBefore = gap;
-            block2.startTime = block2Start;
-            block2.endTime = block2End;
-            if (!blocks.find(b => b.type === 'bloque2')) blocks.push(block2);
+            const block2 = { type: 'bloque2', services: origBlock2.services, duration: origBlock2.duration, gapBefore: gap, startTime: block2Start, endTime: block2End };
+            blocks.push(block2);
           }
         }
       }
@@ -1055,20 +1036,16 @@ function saveAppointment() {
       if (existing && existing.apptBlocks && existing.apptBlocks.length >= 2) {
         const origBlock1 = existing.apptBlocks.find(b => b.type === 'bloque1');
         if (origBlock1) {
-          const block1 = blocks.find(b => b.type === 'bloque1');
-          if (block1) {
-            block1.services = origBlock1.services;
-            block1.duration = origBlock1.duration;
-            block1.hasGapAfter = true;
-            const gap = getBloqueGap();
-            const block2 = blocks.find(b => b.type === 'bloque2');
-            if (block2) {
-              block2.gapBefore = gap;
-              const block2StartMin = timeToMinutes(apptTime) + block1.duration + gap;
-              block2.startTime = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
-              block2.endTime = addMinutes(block2.startTime, block2.duration);
-            }
+          const gap = origBlock1.gapAfter || getBloqueGap();
+          const block2 = blocks.find(b => b.type === 'bloque2');
+          if (block2) {
+            block2.gapBefore = gap;
+            const block2StartMin = timeToMinutes(apptTime) + origBlock1.duration + gap;
+            block2.startTime = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
+            block2.endTime = addMinutes(block2.startTime, block2.duration);
           }
+          const block1 = { type: 'bloque1', services: origBlock1.services, duration: origBlock1.duration, hasGapAfter: true };
+          blocks.unshift(block1);
         }
       }
     }

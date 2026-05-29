@@ -3135,13 +3135,8 @@ function saveAppointment() {
             const block2StartMin = timeToMinutes(apptTime) + block1.duration + gap;
             const block2Start = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
             const block2End = addMinutes(block2Start, origBlock2.duration);
-            const block2 = blocks.find(b => b.type === 'bloque2') || { type: 'bloque2', services: [], duration: 0 };
-            block2.services = origBlock2.services;
-            block2.duration = origBlock2.duration;
-            block2.gapBefore = gap;
-            block2.startTime = block2Start;
-            block2.endTime = block2End;
-            if (!blocks.find(b => b.type === 'bloque2')) blocks.push(block2);
+            const block2 = { type: 'bloque2', services: origBlock2.services, duration: origBlock2.duration, gapBefore: gap, startTime: block2Start, endTime: block2End };
+            blocks.push(block2);
           }
         }
       }
@@ -3151,20 +3146,16 @@ function saveAppointment() {
       if (existing && existing.apptBlocks && existing.apptBlocks.length >= 2) {
         const origBlock1 = existing.apptBlocks.find(b => b.type === 'bloque1');
         if (origBlock1) {
-          const block1 = blocks.find(b => b.type === 'bloque1');
-          if (block1) {
-            block1.services = origBlock1.services;
-            block1.duration = origBlock1.duration;
-            block1.hasGapAfter = true;
-            const gap = 45;
-            const block2 = blocks.find(b => b.type === 'bloque2');
-            if (block2) {
-              block2.gapBefore = gap;
-              const block2StartMin = timeToMinutes(apptTime) + block1.duration + gap;
-              block2.startTime = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
-              block2.endTime = addMinutes(block2.startTime, block2.duration);
-            }
+          const block1 = { type: 'bloque1', services: origBlock1.services, duration: origBlock1.duration, hasGapAfter: true };
+          const gap = origBlock1.gapAfter || 45;
+          const block2 = blocks.find(b => b.type === 'bloque2');
+          if (block2) {
+            block2.gapBefore = gap;
+            const block2StartMin = timeToMinutes(apptTime) + origBlock1.duration + gap;
+            block2.startTime = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
+            block2.endTime = addMinutes(block2.startTime, block2.duration);
           }
+          blocks.unshift(block1);
         }
       }
     }
