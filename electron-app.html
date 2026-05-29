@@ -2961,23 +2961,14 @@ function updateApptEndFromServices() {
   document.getElementById('apptEndTime').value = String(endH).padStart(2,'0')+':'+String(endMin).padStart(2,'0');
 }
 
-function calcAppointmentDuration(services) {
-  const bloque1Svcs = services.filter(s => s.bloque === 'bloque1');
-  const bloque2Svcs = services.filter(s => s.bloque === 'bloque2');
-  const otherSvcs = services.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
-  const bloque1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-  const bloque2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-  const otherDur = otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+function getBloqueGap() {
   const bloques = data.settings.bloques || {};
-  const gap = bloques.bloqueGap || 45;
-  let total = otherDur;
-  if (bloque1Svcs.length && bloque2Svcs.length) {
-    total += bloque1Dur + gap + bloque2Dur;
-  } else if (bloque1Svcs.length) {
-    total += bloque1Dur;
-  } else if (bloque2Svcs.length) {
-    total += bloque2Dur;
-  }
+  return bloques.bloqueGap || 45;
+}
+
+function hasBlocks(services) {
+  return services.some(s => s.bloque === 'bloque1' || s.bloque === 'bloque2');
+}
   return total;
 }
 
@@ -3147,7 +3138,7 @@ function saveAppointment() {
         const origBlock1 = existing.apptBlocks.find(b => b.type === 'bloque1');
         const origBlock2 = existing.apptBlocks.find(b => b.type === 'bloque2');
         if (origBlock1 && origBlock2) {
-          const gap = origBlock2.gapBefore || 45;
+          const gap = (typeof origBlock2.gapBefore === 'number') ? origBlock2.gapBefore : (data.settings.bloques?.bloqueGap || 45);
           const block1 = { type: 'bloque1', services: origBlock1.services, duration: origBlock1.duration, hasGapAfter: true };
           const block2 = blocks.find(b => b.type === 'bloque2');
           if (block2) {
