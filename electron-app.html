@@ -3147,7 +3147,7 @@ function saveAppointment() {
         const origBlock1 = existing.apptBlocks.find(b => b.type === 'bloque1');
         const origBlock2 = existing.apptBlocks.find(b => b.type === 'bloque2');
         if (origBlock1 && origBlock2) {
-          const gap = origBlock1.gapAfter || 45;
+          const gap = origBlock2.gapBefore || 45;
           const block1 = { type: 'bloque1', services: origBlock1.services, duration: origBlock1.duration, hasGapAfter: true };
           const block2 = blocks.find(b => b.type === 'bloque2');
           if (block2) {
