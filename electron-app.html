@@ -2654,7 +2654,7 @@ function showDayAppts(dateStr) {
               const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : '');
               const clientPhone = appt.clientPhone || client?.phone || '';
               const detail = `Cliente: ${client?client.name:'?'}${clientPhone?' 📱'+clientPhone:''} | Servicios: ${svcNames} | Bloque ${isB2?'2':'1'} | ${startTimeStr}-${endTimeStr}${appt.notes?' | '+appt.notes:''}${pendingNote}`;
-              const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : `editAppt('${appt.id}')`);
+const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : `editApptBlock('${appt.id}','${isB2 ? '2' : '1'}')`);
               const cellContent = esc(startTimeStr) + '-' + esc(endTimeStr);
               const extraClass = isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : '');
               html += `<td rowspan="${blockSlots}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">📱</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
@@ -2801,6 +2801,52 @@ function editAppt(id) {
     if (firstSvc && firstSvc.sectionId) secSel.value = firstSvc.sectionId;
   }
   updateApptEndFromServices();
+  document.getElementById('apptServiceSearch').value = '';
+  document.getElementById('apptServiceSearch').dataset.selectedId = '';
+  document.getElementById('apptServiceDropdown').style.display = 'none';
+  document.getElementById('cancelApptBtn').style.display = '';
+  const btnWa = document.getElementById('whatsappApptBtn');
+  if (btnWa) {
+    const cl = data.clients.find(c => c.id === a.clientId);
+    btnWa.style.display = (cl && cl.phone) ? 'inline-flex' : 'none';
+  }
+  openModal('appointmentModal');
+}
+
+function editApptBlock(id, blockNum) {
+  const a = data.appointments.find(x => x.id === id);
+  if (!a) return;
+  if (a.clientModified) { acceptClientMod(id); return; }
+  const blocks = a.apptBlocks;
+  if (!blocks || blocks.length < 2) { editAppt(id); return; }
+  const block = blockNum === '2' ? blocks[1] : blocks[0];
+  const firstBlock = blockNum === '2' ? blocks[0] : blocks[1];
+  const gapDur = firstBlock.gapAfter || 45;
+  let blockStart, blockEnd;
+  if (blockNum === '1') {
+    blockStart = a.time;
+    blockEnd = addMinutes(a.time, block.duration);
+  } else {
+    const startMin = timeToMinutes(a.time) + firstBlock.duration + gapDur;
+    blockStart = String(Math.floor(startMin / 60)).padStart(2,'0') + ':' + String(startMin % 60).padStart(2,'0');
+    blockEnd = addMinutes(blockStart, block.duration);
+  }
+  fillAppointmentSelects();
+  document.getElementById('apptEditId').value = id;
+  document.getElementById('apptDate').value = a.date;
+  document.getElementById('apptTime').value = blockStart;
+  document.getElementById('apptEndTime').value = blockEnd;
+  document.getElementById('apptEmployee').value = a.employeeId||'';
+  document.getElementById('apptNotes').value = a.notes||'';
+  document.getElementById('appointmentModalTitle').textContent = 'Editar Bloque ' + blockNum;
+  document.getElementById('apptClient').value = a.clientId;
+  apptSelectedServices = block.services;
+  renderApptServices();
+  const secSel = document.getElementById('apptSection');
+  if (secSel && apptSelectedServices.length) {
+    const firstSvc = apptSelectedServices[0];
+    if (firstSvc && firstSvc.sectionId) secSel.value = firstSvc.sectionId;
+  }
   document.getElementById('apptServiceSearch').value = '';
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
