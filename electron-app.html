@@ -2649,7 +2649,7 @@ function showDayAppts(dateStr) {
               const isPendingWhatsApp = !!appt.pendingSalonConfirm;
               const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : (isPendingWhatsApp ? '#95a5a1' : colorMap[appt.id]);
               const startTimeStr = isB2 ? String(Math.floor(nextBlockStart / 60)).padStart(2,'0') + ':' + String(nextBlockStart % 60).padStart(2,'0') : appt.time;
-              const endTimeMin = (isB2 ? nextBlockStart : endBlock1);
+              const endTimeMin = (isB2 ? nextBlockStart + dur2 : endBlock1);
               const endTimeStr = String(Math.floor(endTimeMin / 60)).padStart(2,'0') + ':' + String(endTimeMin % 60).padStart(2,'0');
               const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : '');
               const clientPhone = appt.clientPhone || client?.phone || '';

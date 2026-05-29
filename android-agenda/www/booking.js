@@ -448,10 +448,11 @@ function renderServices(q) {
   div.innerHTML = list.map(s => {
     const sec = sections.find(x => x.id === s.sectionId);
     const sc = sec && sec.color ? sec.color : '#999';
+    const blockBadge = s.bloque === 'bloque1' ? '<span style="background:#27ae60;color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:4px;">B1</span>' : (s.bloque === 'bloque2' ? '<span style="background:#f39c12;color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:4px;">B2</span>' : '');
     return '<div class="service-card" data-id="'+s.id+'" onclick="selectService(\''+s.id+'\')">'+
       '<span class="s-color" style="background:'+sc+';"></span>'+
       '<div class="s-info">'+
-        '<div class="s-name">'+esc(s.name)+'</div>'+
+        '<div class="s-name">'+esc(s.name)+blockBadge+'</div>'+
         '<div class="s-meta">'+(sec ? esc(sec.name) : '')+(s.duration ? ' &middot; '+s.duration+' min' : '')+'</div>'+
       '</div>'+
       '<div class="s-price">'+cur(s.price)+'</div>'+

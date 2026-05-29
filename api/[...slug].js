@@ -39,6 +39,26 @@ function getOpeningHoursForDay(dateStr, settings) {
   };
 }
 
+function calcServiceDurationWithBlocks(servicesList, settings) {
+  const bloques = settings && settings.bloques ? settings.bloques : {};
+  const gap = bloques.bloqueGap || 45;
+  const bloque1Svcs = servicesList.filter(s => s.bloque === 'bloque1');
+  const bloque2Svcs = servicesList.filter(s => s.bloque === 'bloque2');
+  const otherSvcs = servicesList.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
+  const bloque1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const bloque2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const otherDur = otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+  let total = otherDur;
+  if (bloque1Svcs.length && bloque2Svcs.length) {
+    total += bloque1Dur + gap + bloque2Dur;
+  } else if (bloque1Svcs.length) {
+    total += bloque1Dur;
+  } else if (bloque2Svcs.length) {
+    total += bloque2Dur;
+  }
+  return total;
+}
+
 function computeETag(data) {
   const hash = require('crypto').createHash('md5').update(JSON.stringify(data)).digest('hex');
   return '"' + hash + '"';
@@ -336,7 +356,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     }
     const serviceIds = serviceIdsParam.split(',').filter(Boolean);
     const servicesList = (data.services||[]).filter(s => serviceIds.includes(s.id) && !s._deleted);
-    const duration = parseInt(durationParam) || (servicesList.length ? servicesList.reduce((sum, s) => sum + (s.duration || 30), 0) : 30);
+    const duration = parseInt(durationParam) || (servicesList.length ? calcServiceDurationWithBlocks(servicesList, data.settings || {}) : 30);
     const employeesList = (data.employees||[]).filter(e => !e._deleted);
     const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted);
     const now = new Date();
@@ -374,9 +394,21 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         if (isToday && start < currentHour) return;
         const timeStr = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
         const occupied = empAppts.some(a => {
-          const srv = (data.services||[]).find(s => s.id === a.serviceId);
           const aStart = parseTime(a.time);
-          const aEnd = aStart + (srv ? (srv.duration || 30) : 30) / 60;
+          let aDur = 30;
+          if (a.endTime) {
+            aDur = Math.round((parseTime(a.endTime) - aStart) * 60);
+          } else if (a.apptBlocks) {
+            const blocks = a.apptBlocks;
+            const b1 = blocks.filter(b => b.type === 'bloque1');
+            const b2 = blocks.filter(b => b.type === 'bloque2');
+            const gap = (data.settings && data.settings.bloques && data.settings.bloques.bloqueGap) || 45;
+            aDur = b1.reduce((s, b) => s + b.duration, 0) + (b2.length && b1.length ? gap : 0) + b2.reduce((s, b) => s + b.duration, 0);
+          } else {
+            const srv = (data.services||[]).find(s => s.id === a.serviceId);
+            aDur = srv ? (srv.duration || 30) : 30;
+          }
+          const aEnd = aStart + aDur / 60;
           return start < aEnd && end > aStart;
         });
         slots.push({ time: timeStr, employeeId: emp.id, employeeName: emp.name || '', available: !occupied });
