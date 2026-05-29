@@ -2618,32 +2618,48 @@ function showDayAppts(dateStr) {
         if (hasMultiBlockGap) {
           const firstSlot = slots[0];
           const apptStartMin = timeToMinutes(appt.time);
-          const apptStartSlot = Math.floor((apptStartMin - timeToMinutes(firstSlot)) / 15) + 1;
           const endBlock1 = apptStartMin + blocks[0].duration;
           const gapDur = blocks[0].gapAfter || 45;
           const nextBlockStart = endBlock1 + gapDur;
           const dur1 = blocks[0].duration;
           const dur2 = blocks[1].duration;
-          const slotPos = Math.floor((timeToMinutes(t) - timeToMinutes(firstSlot)) / 15) + 1;
           const slotStartMin = timeToMinutes(t);
           const slotEndMin = slotStartMin + 15;
           const isInBlock1 = slotEndMin > apptStartMin && slotStartMin < endBlock1;
           const isInGap = slotStartMin >= endBlock1 && slotEndMin <= nextBlockStart;
           const isInBlock2 = slotStartMin >= nextBlockStart && slotEndMin <= nextBlockStart + dur2;
           if (isInGap) {
-            html += '<td class="appt-grid-cell" style="background:#f5f5f5;border:2px dashed #bbb;" title="Gap entre bloques"><span style="font-size:10px;color:#999;">──</span></td>';
+            const empId = e ? e.id : '';
+            html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
             return;
           }
-          if (!skipRow[ci] && isInBlock1 && !apptBlockDrawn[appt.id + '_block1']) {
-            apptBlockDrawn[appt.id + '_block1'] = true;
-            const blockSlots = Math.ceil(dur1 / 15);
-            if (blockSlots > 1) skipRow[ci] = blockSlots - 1;
-            appt = null;
-          } else if (!skipRow[ci] && isInBlock2 && !apptBlockDrawn[appt.id + '_block2']) {
-            apptBlockDrawn[appt.id + '_block2'] = true;
-            const blockSlots = Math.ceil(dur2 / 15);
-            if (blockSlots > 1) skipRow[ci] = blockSlots - 1;
-            appt = null;
+          if (isInBlock1 || isInBlock2) {
+            const isB2 = isInBlock2;
+            if (!skipRow[ci] && !apptBlockDrawn[appt.id + '_' + (isB2 ? 'block2' : 'block1')]) {
+              apptBlockDrawn[appt.id + '_' + (isB2 ? 'block2' : 'block1')] = true;
+              const blockDur = isB2 ? dur2 : dur1;
+              const blockSlots = Math.max(1, Math.ceil(blockDur / 15));
+              if (blockSlots > 1) skipRow[ci] = blockSlots - 1;
+              const client = data.clients.find(c => c.id === appt.clientId);
+              const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
+              const allServices = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
+              const blockServices = isB2 ? blocks[1].services : blocks[0].services;
+              const svcNames = blockServices.map(s => s.name).join(', ');
+              const isPending = appt.salonModified || appt.clientModified;
+              const isPendingWhatsApp = !!appt.pendingSalonConfirm;
+              const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : (isPendingWhatsApp ? '#95a5a1' : colorMap[appt.id]);
+              const startTimeStr = isB2 ? String(Math.floor(nextBlockStart / 60)).padStart(2,'0') + ':' + String(nextBlockStart % 60).padStart(2,'0') : appt.time;
+              const endTimeMin = (isB2 ? nextBlockStart : endBlock1);
+              const endTimeStr = String(Math.floor(endTimeMin / 60)).padStart(2,'0') + ':' + String(endTimeMin % 60).padStart(2,'0');
+              const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : '');
+              const clientPhone = appt.clientPhone || client?.phone || '';
+              const detail = `Cliente: ${client?client.name:'?'}${clientPhone?' 📱'+clientPhone:''} | Servicios: ${svcNames} | Bloque ${isB2?'2':'1'} | ${startTimeStr}-${endTimeStr}${appt.notes?' | '+appt.notes:''}${pendingNote}`;
+              const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : `editAppt('${appt.id}')`);
+              const cellContent = esc(startTimeStr) + '-' + esc(endTimeStr);
+              const extraClass = isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : '');
+              html += `<td rowspan="${blockSlots}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">📱</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+              return;
+            }
           }
         }
         if (appt) {
