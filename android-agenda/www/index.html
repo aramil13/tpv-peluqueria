@@ -1051,7 +1051,16 @@ function saveAppointment() {
     }
     obj.time = apptTime;
     obj.apptBlocks = blocks;
-    obj.endTime = getEndTimeFromBlocks(apptTime, blocks);
+    if (editingBlockNum === '2' && endTime) {
+      obj.endTime = endTime;
+    } else {
+      const bloque2 = blocks.find(b => b.type === 'bloque2');
+      if (bloque2 && bloque2.endTime) {
+        obj.endTime = bloque2.endTime;
+      } else {
+        obj.endTime = getEndTimeFromBlocks(apptTime, blocks);
+      }
+    }
   }
   if (id_) {
     const a = data.appointments.find(x => x.id === id_);
