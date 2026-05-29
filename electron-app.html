@@ -2617,25 +2617,29 @@ function showDayAppts(dateStr) {
         const hasMultiBlockGap = blocks && blocks.length >= 2 && blocks[0].hasGapAfter;
         if (hasMultiBlockGap) {
           const firstSlot = slots[0];
-          const endBlock1 = timeToMinutes(appt.time) + blocks[0].duration;
-          const gapDur = blocks[0].gapAfter || 0;
+          const apptStartMin = timeToMinutes(appt.time);
+          const apptStartSlot = Math.floor((apptStartMin - timeToMinutes(firstSlot)) / 15) + 1;
+          const endBlock1 = apptStartMin + blocks[0].duration;
+          const gapDur = blocks[0].gapAfter || 45;
           const nextBlockStart = endBlock1 + gapDur;
           const dur1 = blocks[0].duration;
           const dur2 = blocks[1].duration;
-          const gapStartSlot = Math.floor((endBlock1 - timeToMinutes(firstSlot)) / 15) + 1;
-          const gapEndSlot = gapStartSlot + Math.ceil(gapDur / 15);
           const slotPos = Math.floor((timeToMinutes(t) - timeToMinutes(firstSlot)) / 15) + 1;
-          const isGapSlot = gapDur > 0 && slotPos > Math.ceil(dur1 / 15) && timeToMinutes(t) >= endBlock1 && timeToMinutes(t) < nextBlockStart;
-          if (isGapSlot) {
+          const slotStartMin = timeToMinutes(t);
+          const slotEndMin = slotStartMin + 15;
+          const isInBlock1 = slotEndMin > apptStartMin && slotStartMin < endBlock1;
+          const isInGap = slotStartMin >= endBlock1 && slotEndMin <= nextBlockStart;
+          const isInBlock2 = slotStartMin >= nextBlockStart && slotEndMin <= nextBlockStart + dur2;
+          if (isInGap) {
             html += '<td class="appt-grid-cell" style="background:#f5f5f5;border:2px dashed #bbb;" title="Gap entre bloques"><span style="font-size:10px;color:#999;">──</span></td>';
             return;
           }
-          if (!skipRow[ci] && timeToMinutes(t) === timeToMinutes(appt.time) && !apptBlockDrawn[appt.id + '_block1']) {
+          if (!skipRow[ci] && isInBlock1 && !apptBlockDrawn[appt.id + '_block1']) {
             apptBlockDrawn[appt.id + '_block1'] = true;
             const blockSlots = Math.ceil(dur1 / 15);
             if (blockSlots > 1) skipRow[ci] = blockSlots - 1;
             appt = null;
-          } else if (!skipRow[ci] && timeToMinutes(t) >= nextBlockStart && !apptBlockDrawn[appt.id + '_block2']) {
+          } else if (!skipRow[ci] && isInBlock2 && !apptBlockDrawn[appt.id + '_block2']) {
             apptBlockDrawn[appt.id + '_block2'] = true;
             const blockSlots = Math.ceil(dur2 / 15);
             if (blockSlots > 1) skipRow[ci] = blockSlots - 1;
