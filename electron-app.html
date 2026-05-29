@@ -306,7 +306,7 @@ tr:hover td { background: #f8f9fa; }
           </select>
         </div>
         <div class="alphabet-filter" id="serviceAlphabetFilter"></div>
-        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Sección</th><th>Duración</th><th>Precio</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="servicesTable"></tbody></table></div>
+        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Sección</th><th>Duración</th><th>Precio</th><th>Bloque</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="servicesTable"></tbody></table></div>
       </div>
     </div>
 
@@ -458,6 +458,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Precio *</label><input type="number" id="servicePrice" placeholder="0.00" step="0.01" min="0"></div>
       <div class="form-group"><label>Duración (min)</label><input type="number" id="serviceDuration" placeholder="30" min="0"></div>
       <div class="form-group"><label>Sección</label><select id="serviceSection"><option value="">Sin sección</option></select></div>
+      <div class="form-group"><label>Bloque</label><select id="serviceBloque"><option value="">Sin clasificar</option><option value="bloque1">Bloque 1</option><option value="bloque2">Bloque 2</option></select></div>
     </div>
     <div class="form-group"><label>Descripción</label><textarea id="serviceDesc" placeholder="Descripción..."></textarea></div>
     <div class="form-group-inline"><input type="checkbox" id="serviceShowPos" checked> <label for="serviceShowPos">Mostrar en caja (TPV)</label></div>
@@ -633,6 +634,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="tab" onclick="switchSettingsTab('sync',this)">Sync</div>
       <div class="tab" onclick="switchSettingsTab('whatsapp',this)">Recordatorios WAS</div>
       <div class="tab" onclick="switchSettingsTab('hours',this)">Horarios</div>
+      <div class="tab" onclick="switchSettingsTab('bloques',this)">Bloques</div>
     </div>
     <div id="settingsBusiness">
       <div class="grid-2">
@@ -700,6 +702,17 @@ tr:hover td { background: #f8f9fa; }
     <div id="settingsHours" style="display:none;">
       <div style="font-size:13px;margin-bottom:10px;color:var(--text-light);">Define el horario habitual del negocio. Los días cerrados no mostrarán disponibilidad en reservas online ni en la IA.</div>
       <div id="hoursContainer"></div>
+    </div>
+    <div id="settingsBloques" style="display:none;">
+      <div style="font-size:13px;margin-bottom:10px;color:var(--text-light);">Configura los periodos temporales de cada bloque. Cuando una cita tenga servicios de ambos bloques, se separarán con un gap en la agenda.</div>
+      <div class="grid-2" style="margin-top:12px;">
+        <div class="form-group"><label>Bloque 1 - Duración (min)</label><input type="number" id="bloque1Duration" placeholder="60" min="1" value="60"></div>
+        <div class="form-group"><label>Bloque 2 - Duración (min)</label><input type="number" id="bloque2Duration" placeholder="60" min="1" value="60"></div>
+      </div>
+      <div class="form-group" style="margin-top:8px;"><label>Separación entre bloques (min)</label><input type="number" id="bloqueGap" placeholder="45" min="0" value="45"></div>
+      <div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--text-light);">
+        <strong>Nota:</strong> Los servicios sin clasificar usan su propia duración. Si una cita tiene servicios de Bloque 1 y Bloque 2, se mostrarán separados en la agenda con el color del primer bloque.
+      </div>
     </div>
     <div class="modal-footer"><button class="btn btn-primary" onclick="saveSettings()">Guardar</button><button class="btn btn-secondary" onclick="closeModal('settingsModal')">Cancelar</button></div>
   </div>
@@ -1129,6 +1142,7 @@ function switchSettingsTab(tab, el) {
   document.getElementById('settingsSync').style.display = tab === 'sync' ? 'block' : 'none';
   document.getElementById('settingsWhatsApp').style.display = tab === 'whatsapp' ? 'block' : 'none';
   document.getElementById('settingsHours').style.display = tab === 'hours' ? 'block' : 'none';
+  document.getElementById('settingsBloques').style.display = tab === 'bloques' ? 'block' : 'none';
   if (tab === 'ticket') { populateBackupLists('ticket'); document.getElementById('currentTicketNum').textContent = lastTicketNum(); }
   if (tab === 'invoice') { populateBackupLists('invoice'); document.getElementById('currentInvoiceNum').textContent = lastInvoiceNum(); }
   if (tab === 'whatsapp') renderWaReminderList();
@@ -1157,6 +1171,10 @@ function openSettings() {
   document.getElementById('currentTicketNum').textContent = lastTicketNum();
   document.getElementById('currentInvoiceNum').textContent = lastInvoiceNum();
   renderHoursSettings();
+  const bloques = s.bloques || {};
+  document.getElementById('bloque1Duration').value = bloques.bloque1Duration || 60;
+  document.getElementById('bloque2Duration').value = bloques.bloque2Duration || 60;
+  document.getElementById('bloqueGap').value = bloques.bloqueGap || 45;
   switchSettingsTab('business', document.querySelector('#settingsModal .tab'));
   openModal('settingsModal');
 }
@@ -1229,7 +1247,12 @@ function saveSettings() {
       enabled: document.getElementById('webSyncEnabled').checked,
       interval: parseInt(document.getElementById('webSyncInterval').value) || 10
     },
-    openingHours: hours
+    openingHours: hours,
+    bloques: {
+      bloque1Duration: parseInt(document.getElementById('bloque1Duration').value) || 60,
+      bloque2Duration: parseInt(document.getElementById('bloque2Duration').value) || 60,
+      bloqueGap: parseInt(document.getElementById('bloqueGap').value) || 45
+    }
   };
   saveKey('ivaRate'); saveKey('settings');
   updateAppHeader();
@@ -1851,16 +1874,18 @@ function renderServices() {
     if (sectionFilter && s.sectionId !== sectionFilter) return false;
     return true;
   }).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No hay servicios</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay servicios</td></tr>'; return; }
   tbody.innerHTML = list.map(s => {
     const sec = data.sections.find(x => x.id === s.sectionId);
     const sc = sec && sec.color ? sec.color : null;
     const bg = sc ? hexToRgba(sc, 0.06) : '';
+    const bloqueBadge = s.bloque === 'bloque1' ? '<span style="background:#27ae60;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">Bloque 1</span>' : (s.bloque === 'bloque2' ? '<span style="background:#f39c12;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">Bloque 2</span>' : '-');
     return `<tr style="${bg ? 'background:'+bg+';' : ''}">
     <td><strong>${esc(s.name)}</strong></td>
     <td>${sc ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${sc};margin-right:6px;vertical-align:middle;"></span><span style="color:${sc};font-weight:500;">${esc(sec.name)}</span>` : '-'}</td>
     <td>${s.duration||'-'} min</td>
     <td><strong>${cur(s.price)}</strong></td>
+    <td>${bloqueBadge}</td>
     <td>${esc(s.desc||'-')}</td>
     <td><div class="btn-group">
       <button class="btn btn-primary btn-sm" onclick="editService('${s.id}')">✏️</button>
@@ -1879,6 +1904,7 @@ function saveService() {
     duration: parseInt(document.getElementById('serviceDuration').value)||0,
     desc: document.getElementById('serviceDesc').value.trim(),
     sectionId: document.getElementById('serviceSection').value || '',
+    bloque: document.getElementById('serviceBloque').value || '',
     showInPos: document.getElementById('serviceShowPos').checked,
     _modified: Date.now(),
     _deleted: false
@@ -1901,6 +1927,7 @@ function editService(id) {
   document.getElementById('serviceDuration').value = s.duration||'';
   document.getElementById('serviceDesc').value = s.desc||'';
   document.getElementById('serviceSection').value = s.sectionId||'';
+  document.getElementById('serviceBloque').value = s.bloque||'';
   document.getElementById('serviceShowPos').checked = s.showInPos !== false;
   document.getElementById('serviceModalTitle').textContent = 'Editar Servicio'; openModal('serviceModal');
 }
@@ -1915,6 +1942,7 @@ function deleteService(id) {
 function clearServiceForm() {
   ['serviceEditId','serviceName','servicePrice','serviceDuration','serviceDesc'].forEach(id => document.getElementById(id).value='');
   document.getElementById('serviceSection').value = '';
+  document.getElementById('serviceBloque').value = '';
   document.getElementById('serviceShowPos').checked = true;
   document.getElementById('serviceModalTitle').textContent = 'Nuevo Servicio';
 }
@@ -2576,6 +2604,8 @@ function showDayAppts(dateStr) {
 
   const skipRow = {};
   const drawnAppts = new Set();
+  const apptBlockDrawn = {};
+  const gapPending = {};
   slots.forEach(t => {
     html += `<tr><td class="appt-grid-time">${t}</td>`;
     cols.forEach((e, ci) => {
@@ -2583,37 +2613,69 @@ function showDayAppts(dateStr) {
       let appt = apptGrid[t][ci];
       if (appt && drawnAppts.has(appt.id)) appt = null;
       if (appt) {
-        drawnAppts.add(appt.id);
-        const aEnd = appt.endTime || addMinutes(appt.time, 30);
-        const durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
-        const rowspan = Math.max(1, Math.ceil(durMins / 15));
-        if (rowspan > 1) skipRow[ci] = rowspan - 1;
-        const client = data.clients.find(c => c.id === appt.clientId);
-        const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
-        const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
-        const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
-        const isPending = appt.salonModified || appt.clientModified;
-        const isPendingWhatsApp = !!appt.pendingSalonConfirm;
-        const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : (isPendingWhatsApp ? '#95a5a1' : colorMap[appt.id]);
-        const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : '');
-        const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
-        const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
-        const clientPhone = appt.clientPhone || client?.phone || '';
-        const detail = `Cliente: ${client?client.name:'?'}${clientPhone?' 📱'+clientPhone:''} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${appt.source==='whatsapp'?' | 📱 WhatsApp':''}${pendingNote}`;
-        const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : `editAppt('${appt.id}')`);
-        let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
-        if (appt.source === 'whatsapp' && clientPhone) {
-          cellContent += `<br><span style="font-size:10px;color:#555;">📱${esc(clientPhone)}</span>`;
-        }
-        if (appt.clientModified) {
-          cellContent = `${esc(appt.time)}→${esc(appt.pendingTime||'')}`;
-          if (appt.pendingEmployeeId && appt.employeeId !== appt.pendingEmployeeId) {
-            cellContent += `<br><span style="font-size:9px">${esc(oldEmp||'?')}→${esc(pendEmp||'?')}</span>`;
+        const blocks = appt.apptBlocks;
+        const hasMultiBlockGap = blocks && blocks.length >= 2 && blocks[0].hasGapAfter;
+        if (hasMultiBlockGap) {
+          const firstSlot = slots[0];
+          const endBlock1 = timeToMinutes(appt.time) + blocks[0].duration;
+          const gapDur = blocks[0].gapAfter || 0;
+          const nextBlockStart = endBlock1 + gapDur;
+          const dur1 = blocks[0].duration;
+          const dur2 = blocks[1].duration;
+          const gapStartSlot = Math.floor((endBlock1 - timeToMinutes(firstSlot)) / 15) + 1;
+          const gapEndSlot = gapStartSlot + Math.ceil(gapDur / 15);
+          const slotPos = Math.floor((timeToMinutes(t) - timeToMinutes(firstSlot)) / 15) + 1;
+          const isGapSlot = gapDur > 0 && slotPos > Math.ceil(dur1 / 15) && timeToMinutes(t) >= endBlock1 && timeToMinutes(t) < nextBlockStart;
+          if (isGapSlot) {
+            html += '<td class="appt-grid-cell" style="background:#f5f5f5;border:2px dashed #bbb;" title="Gap entre bloques"><span style="font-size:10px;color:#999;">──</span></td>';
+            return;
+          }
+          if (!skipRow[ci] && timeToMinutes(t) === timeToMinutes(appt.time) && !apptBlockDrawn[appt.id + '_block1']) {
+            apptBlockDrawn[appt.id + '_block1'] = true;
+            const blockSlots = Math.ceil(dur1 / 15);
+            if (blockSlots > 1) skipRow[ci] = blockSlots - 1;
+            appt = null;
+          } else if (!skipRow[ci] && timeToMinutes(t) >= nextBlockStart && !apptBlockDrawn[appt.id + '_block2']) {
+            apptBlockDrawn[appt.id + '_block2'] = true;
+            const blockSlots = Math.ceil(dur2 / 15);
+            if (blockSlots > 1) skipRow[ci] = blockSlots - 1;
+            appt = null;
           }
         }
-        const extraClass = isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : '');
-        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">📱</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
-      } else {
+        if (appt) {
+          drawnAppts.add(appt.id);
+          const aEnd = appt.endTime || addMinutes(appt.time, 30);
+          const durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
+          const rowspan = Math.max(1, Math.ceil(durMins / 15));
+          if (rowspan > 1) skipRow[ci] = rowspan - 1;
+          const client = data.clients.find(c => c.id === appt.clientId);
+          const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
+          const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
+          const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
+          const isPending = appt.salonModified || appt.clientModified;
+          const isPendingWhatsApp = !!appt.pendingSalonConfirm;
+          const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : (isPendingWhatsApp ? '#95a5a1' : colorMap[appt.id]);
+          const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : '');
+          const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
+          const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
+          const clientPhone = appt.clientPhone || client?.phone || '';
+          const detail = `Cliente: ${client?client.name:'?'}${clientPhone?' 📱'+clientPhone:''} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${appt.source==='whatsapp'?' | 📱 WhatsApp':''}${pendingNote}`;
+          const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : `editAppt('${appt.id}')`);
+          let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
+          if (appt.source === 'whatsapp' && clientPhone) {
+            cellContent += `<br><span style="font-size:10px;color:#555;">📱${esc(clientPhone)}</span>`;
+          }
+          if (appt.clientModified) {
+            cellContent = `${esc(appt.time)}→${esc(appt.pendingTime||'')}`;
+            if (appt.pendingEmployeeId && appt.employeeId !== appt.pendingEmployeeId) {
+              cellContent += `<br><span style="font-size:9px">${esc(oldEmp||'?')}→${esc(pendEmp||'?')}</span>`;
+            }
+          }
+          const extraClass = isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : '');
+          html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">📱</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+        }
+      }
+      if (!appt) {
         const empId = e ? e.id : '';
         html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
       }
@@ -2822,12 +2884,49 @@ function updateApptEndFromServices() {
   const startTime = document.getElementById('apptTime').value;
   if (!startTime) return;
   if (!apptSelectedServices.length) { document.getElementById('apptEndTime').value = ''; return; }
-  const totalDur = apptSelectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const totalDur = calcAppointmentDuration(apptSelectedServices);
   const [h, m] = startTime.split(':').map(Number);
   const endM = m + totalDur;
   const endH = h + Math.floor(endM / 60);
   const endMin = endM % 60;
   document.getElementById('apptEndTime').value = String(endH).padStart(2,'0')+':'+String(endMin).padStart(2,'0');
+}
+
+function calcAppointmentDuration(services) {
+  const bloque1Svcs = services.filter(s => s.bloque === 'bloque1');
+  const bloque2Svcs = services.filter(s => s.bloque === 'bloque2');
+  const otherSvcs = services.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
+  const bloque1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const bloque2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const otherDur = otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+  const bloques = data.settings.bloques || {};
+  const gap = bloques.bloqueGap || 45;
+  let total = otherDur;
+  if (bloque1Svcs.length && bloque2Svcs.length) {
+    total += bloque1Dur + gap + bloque2Dur;
+  } else if (bloque1Svcs.length) {
+    total += bloque1Dur;
+  } else if (bloque2Svcs.length) {
+    total += bloque2Dur;
+  }
+  return total;
+}
+
+function calcAppointmentBlocks(services) {
+  const bloque1Svcs = services.filter(s => s.bloque === 'bloque1');
+  const bloque2Svcs = services.filter(s => s.bloque === 'bloque2');
+  const otherSvcs = services.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
+  const bloques = data.settings.bloques || {};
+  const gap = bloques.bloqueGap || 45;
+  const blocks = [];
+  if (bloque1Svcs.length) blocks.push({ type: 'bloque1', services: bloque1Svcs, duration: bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
+  if (bloque2Svcs.length) blocks.push({ type: 'bloque2', services: bloque2Svcs, duration: bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
+  if (otherSvcs.length) blocks.push({ type: 'none', services: otherSvcs, duration: otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
+  if (blocks.length === 2 && blocks[0].type !== 'none' && blocks[1].type !== 'none') {
+    blocks[0].hasGapAfter = true;
+    blocks[1].gapBefore = gap;
+  }
+  return blocks;
 }
 
 function fillAppointmentSelects() {
@@ -2904,6 +3003,7 @@ function saveAppointment() {
   const serviceId = apptSelectedServices.length === 1 ? apptSelectedServices[0].id : '';
   const serviceIds = apptSelectedServices.map(s => s.id);
   const employeeId = document.getElementById('apptEmployee').value||'';
+  const hasBlocks = apptSelectedServices.some(s => s.bloque === 'bloque1' || s.bloque === 'bloque2');
   if (!clientId || !date) { alert('Cliente y fecha son obligatorios'); return; }
   if (!document.getElementById('apptSection').value) { alert('Selecciona una sección'); return; }
   if (!apptSelectedServices.length) { alert('Añade al menos un servicio'); return; }
@@ -2932,6 +3032,7 @@ function saveAppointment() {
     _modified: Date.now(),
     _deleted: false
   };
+  if (hasBlocks) obj.apptBlocks = calcAppointmentBlocks(apptSelectedServices);
   if (id_) {
     const a = data.appointments.find(x => x.id === id_);
     if (a) {
