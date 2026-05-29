@@ -290,6 +290,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
       <div class="form-group"><label>Precio (€) *</label><input type="number" id="servicePrice" step="0.01" placeholder="0.00"></div>
       <div class="form-group"><label>Duración (min)</label><input type="number" id="serviceDuration" placeholder="60"></div>
     </div>
+    <div class="form-group"><label>Bloque</label><select id="serviceBloque"><option value="">Sin clasificar</option><option value="bloque1">Bloque 1</option><option value="bloque2">Bloque 2</option></select></div>
     <div class="form-group"><label>Descripción</label><textarea id="serviceDesc" placeholder="Descripción del servicio..."></textarea></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('serviceModal')">Cancelar</button>
@@ -1038,6 +1039,7 @@ function openServiceModal() {
   document.getElementById('servicePrice').value = '';
   document.getElementById('serviceDuration').value = '60';
   document.getElementById('serviceDesc').value = '';
+  document.getElementById('serviceBloque').value = '';
   document.getElementById('serviceModalTitle').textContent = 'Nuevo Servicio';
   document.getElementById('serviceModal').classList.add('show');
 }
@@ -1049,6 +1051,7 @@ function editService(id) {
   document.getElementById('servicePrice').value = s.price;
   document.getElementById('serviceDuration').value = s.duration||'';
   document.getElementById('serviceDesc').value = s.desc||'';
+  document.getElementById('serviceBloque').value = s.bloque||'';
   document.getElementById('serviceModalTitle').textContent = 'Editar Servicio';
   document.getElementById('serviceModal').classList.add('show');
 }
@@ -1062,6 +1065,7 @@ function saveService() {
     name, price,
     duration: parseInt(document.getElementById('serviceDuration').value)||0,
     desc: document.getElementById('serviceDesc').value.trim(),
+    bloque: document.getElementById('serviceBloque').value || '',
     _modified: Date.now(),
     _deleted: false
   };
