@@ -2571,7 +2571,11 @@ function showDayAppts(dateStr) {
   // Colores para cada cita
   const APPT_COLORS = ['#8E44AD','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#16A085','#2980B9','#D35400','#C0392B','#2C3E50'];
   const colorMap = {};
-  appts.forEach((a, i) => { colorMap[a.id] = APPT_COLORS[i % APPT_COLORS.length]; });
+  appts.forEach((a, i) => {
+    const colorKey = a.blockGroupId || a.id;
+    if (!colorMap[colorKey]) colorMap[colorKey] = APPT_COLORS[i % APPT_COLORS.length];
+    colorMap[a.id] = colorMap[colorKey];
+  });
 
   // Todos los slots de 9:00 a 20:30 cada 15 min
   const slots = [];
@@ -2604,8 +2608,7 @@ function showDayAppts(dateStr) {
 
   const skipRow = {};
   const drawnAppts = new Set();
-  const apptBlockDrawn = {};
-  const gapPending = {};
+  const gap = (data.settings.bloques && data.settings.bloques.bloqueGap) ? data.settings.bloques.bloqueGap : 45;
   slots.forEach(t => {
     html += `<tr><td class="appt-grid-time">${t}</td>`;
     cols.forEach((e, ci) => {
@@ -2613,87 +2616,54 @@ function showDayAppts(dateStr) {
       let appt = apptGrid[t][ci];
       if (appt && drawnAppts.has(appt.id)) appt = null;
       if (appt) {
-        const blocks = appt.apptBlocks;
-        const hasMultiBlockGap = blocks && blocks.length >= 2 && blocks[0].hasGapAfter;
-        if (hasMultiBlockGap) {
-          const firstSlot = slots[0];
-          const apptStartMin = timeToMinutes(appt.time);
-          const endBlock1 = apptStartMin + blocks[0].duration;
-          const gapDur = blocks[0].gapAfter || 45;
-          const nextBlockStart = endBlock1 + gapDur;
-          const dur1 = blocks[0].duration;
-          const dur2 = blocks[1].duration;
-          const slotStartMin = timeToMinutes(t);
-          const slotEndMin = slotStartMin + 15;
-          const isInBlock1 = slotEndMin > apptStartMin && slotStartMin < endBlock1;
-          const isInGap = slotStartMin >= endBlock1 && slotEndMin <= nextBlockStart;
-          const isInBlock2 = slotStartMin >= nextBlockStart && slotEndMin <= nextBlockStart + dur2;
-          if (isInGap) {
-            const empId = e ? e.id : '';
-            html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
-            return;
-          }
-          if (isInBlock1 || isInBlock2) {
-            const isB2 = isInBlock2;
-            if (!skipRow[ci] && !apptBlockDrawn[appt.id + '_' + (isB2 ? 'block2' : 'block1')]) {
-              apptBlockDrawn[appt.id + '_' + (isB2 ? 'block2' : 'block1')] = true;
-              const blockDur = isB2 ? dur2 : dur1;
-              const blockSlots = Math.max(1, Math.ceil(blockDur / 15));
-              if (blockSlots > 1) skipRow[ci] = blockSlots - 1;
-              const client = data.clients.find(c => c.id === appt.clientId);
-              const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
-              const allServices = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
-              const blockServices = isB2 ? blocks[1].services : blocks[0].services;
-              const svcNames = blockServices.map(s => s.name).join(', ');
-              const isPending = appt.salonModified || appt.clientModified;
-              const isPendingWhatsApp = !!appt.pendingSalonConfirm;
-              const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : (isPendingWhatsApp ? '#95a5a1' : colorMap[appt.id]);
-              const startTimeStr = isB2 ? String(Math.floor(nextBlockStart / 60)).padStart(2,'0') + ':' + String(nextBlockStart % 60).padStart(2,'0') : appt.time;
-              const endTimeMin = (isB2 ? nextBlockStart + dur2 : endBlock1);
-              const endTimeStr = String(Math.floor(endTimeMin / 60)).padStart(2,'0') + ':' + String(endTimeMin % 60).padStart(2,'0');
-              const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : '');
-              const clientPhone = appt.clientPhone || client?.phone || '';
-              const detail = `Cliente: ${client?client.name:'?'}${clientPhone?' 📱'+clientPhone:''} | Servicios: ${svcNames} | Bloque ${isB2?'2':'1'} | ${startTimeStr}-${endTimeStr}${appt.notes?' | '+appt.notes:''}${pendingNote}`;
-const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : `editApptBlock('${appt.id}','${isB2 ? '2' : '1'}')`);
-              const cellContent = esc(startTimeStr) + '-' + esc(endTimeStr);
-              const extraClass = isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : '');
-              html += `<td rowspan="${blockSlots}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">📱</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+        const isBlock = appt.blockGroupId && appt.blockNum;
+        const isB2 = isBlock && appt.blockNum === '2';
+        if (isBlock && isB2) {
+          const block1Appt = appts.find(a => a.blockGroupId === appt.blockGroupId && a.blockNum === '1');
+          if (block1Appt) {
+            const block1EndMin = timeToMinutes(block1Appt.endTime || addMinutes(block1Appt.time, 30));
+            const block2StartMin = timeToMinutes(appt.time);
+            const slotStartMin = timeToMinutes(t);
+            const slotEndMin = slotStartMin + 15;
+            if (slotStartMin >= block1EndMin && slotEndMin <= block2StartMin) {
+              const empId = e ? e.id : '';
+              html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
               return;
             }
           }
         }
-        if (appt) {
-          drawnAppts.add(appt.id);
-          const aEnd = appt.endTime || addMinutes(appt.time, 30);
-          const durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
-          const rowspan = Math.max(1, Math.ceil(durMins / 15));
-          if (rowspan > 1) skipRow[ci] = rowspan - 1;
-          const client = data.clients.find(c => c.id === appt.clientId);
-          const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
-          const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
-          const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
-          const isPending = appt.salonModified || appt.clientModified;
-          const isPendingWhatsApp = !!appt.pendingSalonConfirm;
-          const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : (isPendingWhatsApp ? '#95a5a1' : colorMap[appt.id]);
-          const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : '');
-          const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
-          const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
-          const clientPhone = appt.clientPhone || client?.phone || '';
-          const detail = `Cliente: ${client?client.name:'?'}${clientPhone?' 📱'+clientPhone:''} | Servicio: ${svcNames} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${appt.source==='whatsapp'?' | 📱 WhatsApp':''}${pendingNote}`;
-          const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : `editAppt('${appt.id}')`);
-          let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
-          if (appt.source === 'whatsapp' && clientPhone) {
-            cellContent += `<br><span style="font-size:10px;color:#555;">📱${esc(clientPhone)}</span>`;
-          }
-          if (appt.clientModified) {
-            cellContent = `${esc(appt.time)}→${esc(appt.pendingTime||'')}`;
-            if (appt.pendingEmployeeId && appt.employeeId !== appt.pendingEmployeeId) {
-              cellContent += `<br><span style="font-size:9px">${esc(oldEmp||'?')}→${esc(pendEmp||'?')}</span>`;
-            }
-          }
-          const extraClass = isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : '');
-          html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">📱</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+        drawnAppts.add(appt.id);
+        const aEnd = appt.endTime || addMinutes(appt.time, 30);
+        const durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
+        const rowspan = Math.max(1, Math.ceil(durMins / 15));
+        if (rowspan > 1) skipRow[ci] = rowspan - 1;
+        const client = data.clients.find(c => c.id === appt.clientId);
+        const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
+        const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
+        const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
+        const isPending = appt.salonModified || appt.clientModified;
+        const isPendingWhatsApp = !!appt.pendingSalonConfirm;
+        const colorKey = appt.blockGroupId || appt.id;
+        const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : (isPendingWhatsApp ? '#95a5a1' : colorMap[colorKey]);
+        const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : '');
+        const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
+        const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
+        const clientPhone = appt.clientPhone || client?.phone || '';
+        const blockLabel = isBlock ? ` | Bloque ${appt.blockNum}` : '';
+        const detail = `Cliente: ${client?client.name:'?'}${clientPhone?' 📱'+clientPhone:''} | Servicio: ${svcNames}${blockLabel} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${appt.source==='whatsapp'?' | 📱 WhatsApp':''}${pendingNote}`;
+        const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : (isBlock ? `editApptBlock('${appt.id}','${appt.blockNum}')` : `editAppt('${appt.id}')`));
+        let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
+        if (appt.source === 'whatsapp' && clientPhone) {
+          cellContent += `<br><span style="font-size:10px;color:#555;">📱${esc(clientPhone)}</span>`;
         }
+        if (appt.clientModified) {
+          cellContent = `${esc(appt.time)}→${esc(appt.pendingTime||'')}`;
+          if (appt.pendingEmployeeId && appt.employeeId !== appt.pendingEmployeeId) {
+            cellContent += `<br><span style="font-size:9px">${esc(oldEmp||'?')}→${esc(pendEmp||'?')}</span>`;
+          }
+        }
+        const extraClass = isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : '');
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">📱</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       }
       if (!appt) {
         const empId = e ? e.id : '';
@@ -2817,30 +2787,22 @@ function editApptBlock(id, blockNum) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   if (a.clientModified) { acceptClientMod(id); return; }
-  const blocks = a.apptBlocks;
-  if (!blocks || blocks.length < 2) { editAppt(id); return; }
-  const block = blockNum === '2' ? blocks[1] : blocks[0];
-  const firstBlock = blockNum === '2' ? blocks[0] : blocks[1];
-  const gapDur = firstBlock.gapAfter || 45;
-  let blockStart, blockEnd;
-  if (blockNum === '1') {
-    blockStart = a.time;
-    blockEnd = addMinutes(a.time, block.duration);
-  } else {
-    const startMin = timeToMinutes(a.time) + firstBlock.duration + gapDur;
-    blockStart = String(Math.floor(startMin / 60)).padStart(2,'0') + ':' + String(startMin % 60).padStart(2,'0');
-    blockEnd = addMinutes(blockStart, block.duration);
-  }
+  if (!a.blockGroupId) { editAppt(id); return; }
+  const blockAppts = data.appointments.filter(x => x.blockGroupId === a.blockGroupId && !x._deleted);
+  const bloque1Appt = blockAppts.find(x => x.blockNum === '1');
+  const bloque2Appt = blockAppts.find(x => x.blockNum === '2');
+  const targetAppt = blockNum === '2' ? bloque2Appt : bloque1Appt;
+  if (!targetAppt) { editAppt(id); return; }
   fillAppointmentSelects();
-  document.getElementById('apptEditId').value = id;
-  document.getElementById('apptDate').value = a.date;
-  document.getElementById('apptTime').value = blockStart;
-  document.getElementById('apptEndTime').value = blockEnd;
-  document.getElementById('apptEmployee').value = a.employeeId||'';
-  document.getElementById('apptNotes').value = a.notes||'';
+  document.getElementById('apptEditId').value = targetAppt.id;
+  document.getElementById('apptDate').value = targetAppt.date;
+  document.getElementById('apptTime').value = targetAppt.time;
+  document.getElementById('apptEndTime').value = targetAppt.endTime || '';
+  document.getElementById('apptEmployee').value = targetAppt.employeeId||'';
+  document.getElementById('apptNotes').value = targetAppt.notes||'';
   document.getElementById('appointmentModalTitle').textContent = 'Editar Bloque ' + blockNum;
-  document.getElementById('apptClient').value = a.clientId;
-  apptSelectedServices = block.services;
+  document.getElementById('apptClient').value = targetAppt.clientId;
+  apptSelectedServices = (targetAppt.serviceIds||[]).map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
   renderApptServices();
   const secSel = document.getElementById('apptSection');
   if (secSel && apptSelectedServices.length) {
@@ -2853,13 +2815,196 @@ function editApptBlock(id, blockNum) {
   document.getElementById('cancelApptBtn').style.display = '';
   const btnWa = document.getElementById('whatsappApptBtn');
   if (btnWa) {
-    const cl = data.clients.find(c => c.id === a.clientId);
+    const cl = data.clients.find(c => c.id === targetAppt.clientId);
     btnWa.style.display = (cl && cl.phone) ? 'inline-flex' : 'none';
   }
+  editingBlockNum = blockNum;
   openModal('appointmentModal');
 }
 
+function saveAppointment() {
+  const id_ = document.getElementById('apptEditId').value;
+  const clientId = document.getElementById('apptClient').value;
+  const date = document.getElementById('apptDate').value;
+  const time = document.getElementById('apptTime').value;
+  const endTime = document.getElementById('apptEndTime').value || '';
+  const employeeId = document.getElementById('apptEmployee').value||'';
+  const hasBlocks = apptSelectedServices.some(s => s.bloque === 'bloque1' || s.bloque === 'bloque2');
+  if (!clientId || !date) { alert('Cliente y fecha son obligatorios'); return; }
+  if (!document.getElementById('apptSection').value) { alert('Selecciona una sección'); return; }
+  if (!apptSelectedServices.length) { alert('Añade al menos un servicio'); return; }
+  const overlap = checkApptOverlap(date, time, endTime, employeeId, id_);
+  let msg = '';
+  if (overlap) {
+    msg = '⚠️ El empleado tiene otra cita en ese horario:\n' + overlap.client + ' - ' + overlap.service + '\n' + overlap.time + '-' + overlap.endTime + '\n\n';
+    if (overlap.suggestions && overlap.suggestions.length > 0) {
+      msg += 'Horarios disponibles: ' + overlap.suggestions.join(', ') + '\n\n';
+    }
+    msg += '¿Guardar de todos modos?';
+    if (!confirm(msg)) return;
+  }
+  let notes = document.getElementById('apptNotes').value.trim();
+  if (id_) {
+    const existing = data.appointments.find(x => x.id === id_);
+    if (existing && existing.source === 'online' && notes.indexOf('Reserva online modificada por salon') === -1) {
+      notes = notes ? notes + ' | Reserva online modificada por salon' : 'Reserva online modificada por salon';
+    }
+  }
+  const gap = (data.settings.bloques && data.settings.bloques.bloqueGap) ? data.settings.bloques.bloqueGap : 45;
+
+  if (editingBlockNum === '1') {
+    const bloque1Svcs = apptSelectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque);
+    const bloque2Svcs = apptSelectedServices.filter(s => s.bloque === 'bloque2');
+    if (!bloque1Svcs.length) { alert('Añade servicios del Bloque 1'); return; }
+    const block1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+    const block1End = addMinutes(time, block1Dur);
+    const block1Appt = data.appointments.find(x => x.id === id_);
+    if (!block1Appt) { alert('Cita no encontrada'); return; }
+    const blockGroupId = block1Appt.blockGroupId || id_ || id();
+    Object.assign(block1Appt, {
+      clientId, employeeId, date, time,
+      endTime: block1End,
+      notes, status: 'pending',
+      serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
+      serviceIds: bloque1Svcs.map(s => s.id),
+      _modified: Date.now(), _deleted: false,
+      blockGroupId, blockNum: '1'
+    });
+    if (bloque2Svcs.length) {
+      const block2StartMin = timeToMinutes(time) + block1Dur + gap;
+      const block2Start = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
+      const block2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+      const block2End = addMinutes(block2Start, block2Dur);
+      let block2Appt = data.appointments.find(x => x.blockGroupId === blockGroupId && x.blockNum === '2');
+      if (block2Appt) {
+        Object.assign(block2Appt, {
+          time: block2Start, endTime: block2End,
+          serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
+          serviceIds: bloque2Svcs.map(s => s.id),
+          _modified: Date.now()
+        });
+      } else {
+        data.appointments.push({
+          id: id(), clientId, employeeId,
+          date, time: block2Start, endTime: block2End,
+          notes, status: 'pending',
+          serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
+          serviceIds: bloque2Svcs.map(s => s.id),
+          _modified: Date.now(), _deleted: false,
+          blockGroupId, blockNum: '2'
+        });
+      }
+    } else {
+      const staleBlock2 = data.appointments.find(x => x.blockGroupId === blockGroupId && x.blockNum === '2');
+      if (staleBlock2) { staleBlock2._modified = Date.now(); staleBlock2._deleted = true; }
+    }
+    editingBlockNum = null;
+    saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
+    return;
+  }
+
+  if (editingBlockNum === '2') {
+    const bloque2Svcs = apptSelectedServices.filter(s => s.bloque === 'bloque2');
+    if (!bloque2Svcs.length) { alert('Añade servicios del Bloque 2'); return; }
+    const block2Appt = data.appointments.find(x => x.id === id_);
+    if (!block2Appt) { alert('Cita no encontrada'); return; }
+    const block2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+    const block2End = addMinutes(time, block2Dur);
+    Object.assign(block2Appt, {
+      clientId, employeeId, date, time,
+      endTime: block2End,
+      notes, status: 'pending',
+      serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
+      serviceIds: bloque2Svcs.map(s => s.id),
+      _modified: Date.now(), _deleted: false,
+      blockGroupId: block2Appt.blockGroupId, blockNum: '2'
+    });
+    editingBlockNum = null;
+    saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
+    return;
+  }
+
+  if (hasBlocks) {
+    const blockGroupId = id_ || id();
+    const bloque1Svcs = apptSelectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque);
+    const bloque2Svcs = apptSelectedServices.filter(s => s.bloque === 'bloque2');
+    if (!bloque1Svcs.length) { alert('Añade servicios del Bloque 1'); return; }
+    const block1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+    const block1End = addMinutes(time, block1Dur);
+    if (id_) {
+      const existing = data.appointments.find(x => x.id === id_);
+      if (existing) {
+        const wasModified = existing._modified;
+        Object.assign(existing, {
+          clientId, employeeId, date, time,
+          endTime: block1End, notes, status: 'pending',
+          serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
+          serviceIds: bloque1Svcs.map(s => s.id),
+          _modified: Date.now(), _deleted: false,
+          blockGroupId, blockNum: '1'
+        });
+        if (wasModified && wasModified < Date.now() - 5000) existing._modified = wasModified;
+      }
+    } else {
+      data.appointments.push({
+        id: blockGroupId, clientId, employeeId,
+        date, time, endTime: block1End,
+        notes, status: 'pending',
+        serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
+        serviceIds: bloque1Svcs.map(s => s.id),
+        _modified: Date.now(), _deleted: false,
+        blockGroupId, blockNum: '1'
+      });
+    }
+    if (bloque2Svcs.length) {
+      const block2StartMin = timeToMinutes(time) + block1Dur + gap;
+      const block2Start = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
+      const block2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+      const block2End = addMinutes(block2Start, block2Dur);
+      data.appointments.push({
+        id: id(), clientId, employeeId,
+        date, time: block2Start, endTime: block2End,
+        notes, status: 'pending',
+        serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
+        serviceIds: bloque2Svcs.map(s => s.id),
+        _modified: Date.now(), _deleted: false,
+        blockGroupId, blockNum: '2'
+      });
+    }
+    saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
+    return;
+  }
+
+  const serviceId = apptSelectedServices.length === 1 ? apptSelectedServices[0].id : '';
+  const serviceIds = apptSelectedServices.map(s => s.id);
+  const obj = {
+    clientId, serviceId, serviceIds,
+    employeeId,
+    date, time, endTime, notes: notes,
+    status: 'pending',
+    _modified: Date.now(),
+    _deleted: false
+  };
+  if (id_) {
+    const a = data.appointments.find(x => x.id === id_);
+    if (a) {
+      const wasModified = a._modified && a._modified < Date.now() - 5000;
+      delete a.waReminder;
+      if (a.source === 'online' && !a.salonModified) {
+        obj.salonModified = true;
+      }
+      Object.assign(a, obj);
+      if (wasModified) delete a.waReminder;
+    }
+  }
+  else { obj.id = id(); data.appointments.push(obj); }
+  saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
+}
+
+let editingBlockNum = null;
+
 function quickAppt(dateStr, time, employeeId) {
+  editingBlockNum = null;
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
   document.getElementById('whatsappApptBtn').style.display = 'none';
@@ -2978,23 +3123,6 @@ function calcAppointmentDuration(services) {
   return total;
 }
 
-function calcAppointmentBlocks(services) {
-  const bloque1Svcs = services.filter(s => s.bloque === 'bloque1');
-  const bloque2Svcs = services.filter(s => s.bloque === 'bloque2');
-  const otherSvcs = services.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
-  const bloques = data.settings.bloques || {};
-  const gap = bloques.bloqueGap || 45;
-  const blocks = [];
-  if (bloque1Svcs.length) blocks.push({ type: 'bloque1', services: bloque1Svcs, duration: bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
-  if (bloque2Svcs.length) blocks.push({ type: 'bloque2', services: bloque2Svcs, duration: bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
-  if (otherSvcs.length) blocks.push({ type: 'none', services: otherSvcs, duration: otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0) });
-  if (blocks.length === 2 && blocks[0].type !== 'none' && blocks[1].type !== 'none') {
-    blocks[0].hasGapAfter = true;
-    blocks[1].gapBefore = gap;
-  }
-  return blocks;
-}
-
 function fillAppointmentSelects() {
   const clientSel = document.getElementById('apptClient');
   clientSel.innerHTML = '<option value="">Seleccionar cliente...</option>' + 
@@ -3060,83 +3188,33 @@ function findFreeSlots(date, empId, duration) {
   return slots;
 }
 
-function saveAppointment() {
-  const id_ = document.getElementById('apptEditId').value;
-  const clientId = document.getElementById('apptClient').value;
-  const date = document.getElementById('apptDate').value;
-  const time = document.getElementById('apptTime').value;
-  const endTime = document.getElementById('apptEndTime').value || '';
-  const serviceId = apptSelectedServices.length === 1 ? apptSelectedServices[0].id : '';
-  const serviceIds = apptSelectedServices.map(s => s.id);
-  const employeeId = document.getElementById('apptEmployee').value||'';
-  const hasBlocks = apptSelectedServices.some(s => s.bloque === 'bloque1' || s.bloque === 'bloque2');
-  if (!clientId || !date) { alert('Cliente y fecha son obligatorios'); return; }
-  if (!document.getElementById('apptSection').value) { alert('Selecciona una sección'); return; }
-  if (!apptSelectedServices.length) { alert('Añade al menos un servicio'); return; }
-  const overlap = checkApptOverlap(date, time, endTime, employeeId, id_);
-  let msg = '';
-  if (overlap) {
-    msg = '⚠️ El empleado tiene otra cita en ese horario:\n' + overlap.client + ' - ' + overlap.service + '\n' + overlap.time + '-' + overlap.endTime + '\n\n';
-    if (overlap.suggestions && overlap.suggestions.length > 0) {
-      msg += 'Horarios disponibles: ' + overlap.suggestions.join(', ') + '\n\n';
-    }
-    msg += '¿Guardar de todos modos?';
-    if (!confirm(msg)) return;
-  }
-  let notes = document.getElementById('apptNotes').value.trim();
-  if (id_) {
-    const existing = data.appointments.find(x => x.id === id_);
-    if (existing && existing.source === 'online' && notes.indexOf('Reserva online modificada por salon') === -1) {
-      notes = notes ? notes + ' | Reserva online modificada por salon' : 'Reserva online modificada por salon';
-    }
-  }
-  const obj = {
-    clientId, serviceId, serviceIds,
-    employeeId,
-    date, time, endTime, notes: notes,
-    status: 'pending',
-    _modified: Date.now(),
-    _deleted: false
-  };
-  if (hasBlocks) obj.apptBlocks = calcAppointmentBlocks(apptSelectedServices);
-  if (id_) {
-    const a = data.appointments.find(x => x.id === id_);
-    if (a) {
-      const wasModified = a._modified && a._modified < Date.now() - 5000;
-      delete a.waReminder;
-      if (a.source === 'online' && !a.salonModified) {
-        obj.salonModified = true;
-      }
-      Object.assign(a, obj);
-      if (wasModified) delete a.waReminder;
-    }
-  }
-  else { obj.id = id(); data.appointments.push(obj); }
-  saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
-}
-
 function deleteAppt(id) {
   if (!confirm('¿Cancelar esta cita?')) return;
   const a = data.appointments.find(x => x.id === id);
-  const client = a ? data.clients.find(c => c.id === a.clientId) : null;
-  const svc = a ? data.services.find(s => s.id === a.serviceId) : null;
-  const dateFmt = a ? (a.date||'').split('-').reverse().join('-') : '';
-  if (a) { a._modified = Date.now(); if (a.source === 'online') { a.cancelledBy = 'salon'; delete a._deleted; } else { a._deleted = true; } }
-  saveKey('appointments'); renderAgenda(); syncPush();
-  const c = getSyncCfg();
-  if (c.enabled && c.url && a && (a.source === 'whatsapp' || a.source === 'online') && client) {
-    const text = a.source === 'whatsapp'
-      ? `❌ Tu cita en ${BUSINESS_NAME} ha sido CANCELADA por el salón:\n\n📅 ${dateFmt}\n⏰ ${a.time}\n💇 ${svc?.name || 'Servicio'}\n\nSi quieres reservar de nuevo, contacta con nosotros.`
-      : `📋 NOTIFICACIÓN: Tu cita en ${BUSINESS_NAME} ha sido cancelada:\n\n📅 ${dateFmt}\n⏰ ${a.time}\n💇 ${svc?.name || 'Servicio'}\n\nDisculpa las molestias.`;
-    fetch(c.url.replace(/\/+$/,'') + '/api/send-whatsapp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: client.phone, text })
-    }).then(r => r.json()).then(d => {
-      if (d.sent) console.log('Cancellation WhatsApp sent to', d.phone);
-      else console.warn('WhatsApp send failed:', d.error);
-    }).catch(e => console.error('WhatsApp send error:', e));
+  if (!a) return;
+  if (a.blockGroupId) {
+    const relatedAppts = data.appointments.filter(x => x.blockGroupId === a.blockGroupId);
+    relatedAppts.forEach(ra => {
+      ra._modified = Date.now();
+      if (ra.source === 'online') { ra.cancelledBy = 'salon'; delete ra._deleted; }
+      else { ra._deleted = true; }
+    });
+  } else {
+    a._modified = Date.now();
+    if (a.source === 'online') { a.cancelledBy = 'salon'; delete a._deleted; }
+    else { a._deleted = true; }
   }
+  saveKey('appointments'); renderAgenda(); syncPush();
+}
+
+function deleteAllAppointments() {
+  if (!confirm('¿Eliminar TODAS las citas? Esta acción no se puede deshacer.')) return;
+  data.appointments.forEach(a => {
+    a._modified = Date.now();
+    a._deleted = true;
+  });
+  saveKey('appointments'); renderAgenda(); syncPush();
+  alert('Todas las citas han sido eliminadas.');
 }
 
 function deleteApptFromModal() {
