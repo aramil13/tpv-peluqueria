@@ -1537,6 +1537,11 @@ function syncPull() {
       if (safeMergeRemote('products', remote.products, 'productModal')) changed = true;
       if (safeMergeRemote('projects', remote.projects, 'projectModal')) changed = true;
       if (safeMergeRemote('providers', remote.providers, 'providerModal')) changed = true;
+      // Si el servidor tiene datos que no tenemos localmente, forzar sincronización
+      if (Array.isArray(remote.services) && remote.services.length > 0 && data.services.length < remote.services.length) changed = true;
+      if (Array.isArray(remote.employees) && remote.employees.length > 0 && data.employees.length < remote.employees.length) changed = true;
+      if (Array.isArray(remote.products) && remote.products.length > 0 && data.products.length < remote.products.length) changed = true;
+      if (Array.isArray(remote.clients) && remote.clients.length > 0 && data.clients.length < remote.clients.length) changed = true;
       if (changed) {
         saveKey('appointments'); saveKey('clients'); saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products'); saveKey('projects'); saveKey('providers');
         const active = document.querySelector('.nav-item.active');
@@ -1569,7 +1574,7 @@ function stopWebSyncPoller() { if (webSyncTimer) { clearInterval(webSyncTimer); 
 
 // Start sync on load
 startSyncPoller();
-if (getSyncCfg().enabled) syncPush();
+if (getSyncCfg().enabled) { syncPush(); syncPull(); }
 startWebSyncPoller();
 
 // Manual web sync — pushes data and shows clear feedback

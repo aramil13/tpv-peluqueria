@@ -1,6 +1,6 @@
 const API = window.location.origin;
 let services = [], sections = [], employees = [], allClients = [];
-let selectedService = null, selectedDate = '', selectedSlot = null;
+let selectedServices = [], selectedDate = '', selectedSlot = null;
 let currentClient = null, currentAppointments = [];
 let modifyingApptId = null;
 let countdownTimer = null;
@@ -63,7 +63,6 @@ async function loadData() {
     allClients = (d.clients||[]).filter(c => !c._deleted);
     const settings = d.settings || {};
     document.getElementById('footerInfo').textContent = settings.businessName || 'Nymara Estilistas';
-    renderServices();
     const today = new Date().toISOString().split('T')[0];
     const dayCfg = (settings.onlineOpening || {})[today] || {};
     const openingTime = dayCfg.time || '18:00';
@@ -210,31 +209,59 @@ function renderMyAppts() {
     if (cancelledBySalon) cardClass += ' appt-cancelled-by-salon';
     if (modifiedBySalon) cardClass += ' appt-modified-by-salon';
     const timeColor = modifiedBySalon ? 'color:#e74c3c;' : '';
-    return '<div class="'+cardClass+'">'+
-      '<div class="appt-card-date">'+
-        '<span class="appt-card-day" style="'+timeColor+'">'+esc(fmtDate(a.date))+'</span>'+
-        '<span class="appt-card-time" style="'+timeColor+'">'+esc(a.time)+(a.endTime ? ' - '+esc(a.endTime) : '')+'</span>'+
-        '<div class="appt-cal-tooltip">'+miniCalendar(a.date)+'</div>'+
-      '</div>'+
-      '<div class="appt-card-info">'+
-        '<div class="appt-card-service">'+esc(a.serviceName)+'</div>'+
-        (a.employeeName ? '<div class="appt-card-notes">👤 '+esc(a.employeeName)+'</div>' : '')+
-        (a.notes?'<div class="appt-card-notes">'+esc(a.notes)+'</div>':'')+
-        (cancelledByClient ? '<div style="color:#e74c3c;font-weight:600;margin-top:4px;">Cancelada por ti</div>' : '')+
-        (modifiedBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;">⚠️ Cita modificada por el salón</div>' : '')+
+    return '<div class="'+cardClass+'">'+ 
+      '<div class="appt-card-date">'+ 
+        '<span class="appt-card-day" style="'+timeColor+'">'+esc(fmtDate(a.date))+'</span>'+ 
+        '<span class="appt-card-time" style="'+timeColor+'">'+esc(a.time)+(a.endTime ? ' - '+esc(a.endTime) : '')+'</span>'+ 
+        '<div class="appt-cal-tooltip">'+miniCalendar(a.date)+'</div>'+ 
+      '</div>'+ 
+      '<div class="appt-card-info">'+ 
+        '<div class="appt-card-service">'+esc(a.serviceName)+'</div>'+ 
+        (a.employeeName ? '<div class="appt-card-notes">👤 '+esc(a.employeeName)+'</div>' : '')+ 
+        (a.notes ? '<div class="appt-card-notes">'+esc(a.notes)+'</div>' : '')+ 
+        (cancelledByClient ? '<div style="color:#e74c3c;font-weight:600;margin-top:4px;">Cancelada por ti</div>' : '')+ 
+        (modifiedBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;">⚠️ Cita modificada por el salón</div>' : '')+ 
         (pendingClientMod ? '<div style="color:#f39c12;font-weight:600;font-size:13px;margin-top:6px;">⏳ Pendiente de aprobación del salón</div>'+
           '<div style="color:#f39c12;font-size:12px;margin-top:3px;">'+esc(a.date)+' '+esc(a.time)+' → '+esc(a.pendingDate||a.date)+' '+esc(a.pendingTime||a.time)+'</div>'+
-          (a.pendingEmployeeId && a.employeeId !== a.pendingEmployeeId ? '<div style="color:#f39c12;font-size:12px;">👤 '+esc(a.employeeName||'?')+' → '+esc(a.pendingEmployeeName||'?')+'</div>' : '') : '')+
-        (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 Esta cita ha sido anulada por el salón.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+
-      '</div>'+
-      (!isPast && a.source==='online' && !cancelledByClient ? '<div class="appt-card-actions">'+
-        (!cancelledBySalon && !modifiedBySalon && !pendingClientMod ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+
+          (a.pendingEmployeeId && a.employeeId !== a.pendingEmployeeId ? '<div style="color:#f39c12;font-size:12px;">👤 '+esc(a.employeeName||'?')+' → '+esc(a.pendingEmployeeName||'?')+'</div>' : '') : '')+ 
+        (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 Esta cita ha sido anulada por el salón.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+ 
+      '</div>'+ 
+      (!isPast && a.source==='online' && !cancelledByClient ? '<div class="appt-card-actions">'+ 
+        (!cancelledBySalon && !modifiedBySalon && !pendingClientMod ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+ 
         (modifiedBySalon ? '<button class="btn btn-sm btn-success" onclick="acceptModification(\''+a.id+'\')">✔ Aceptar modificación</button>' : '')+
         '<button class="btn btn-sm '+(cancelledBySalon?'btn-success':'btn-danger')+'" onclick="cancelAppt(\''+a.id+'\')">'+
-          (cancelledBySalon ? 'VISTO' : 'Cancelar')+'</button>'+
-      '</div>' : '')+
+          (cancelledBySalon ? 'VISTO' : 'Cancelar')+'</button>'+ 
+      '</div>' : '')+ 
     '</div>';
   }).join('');
+}
+
+async function cancelAppt(id) {
+  const appt = currentAppointments.find(a => a.id === id);
+  const isSalonCancelled = appt && appt.cancelledBy === 'salon';
+  if (isSalonCancelled) {
+    if (!confirm('¿Has leído el aviso?')) return;
+  } else {
+    if (!confirm('¿Estás seguro de cancelar esta cita?')) return;
+  }
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointmentId: id, phone: currentClient.phone })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error||'Error al cancelar'); showLoading(false); return; }
+    showLoading(false);
+    if (isSalonCancelled) {
+      currentAppointments = currentAppointments.filter(a => a.id !== id);
+      renderMyAppts();
+    } else {
+      alert('Cita cancelada correctamente');
+      refreshMyAppts();
+    }
+  } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
 
 async function acceptModification(id) {
@@ -253,25 +280,6 @@ async function acceptModification(id) {
     showLoading(false);
     appt.salonModified = false;
     renderMyAppts();
-  } catch(e) { alert('Error: '+e.message); showLoading(false); }
-}
-
-async function cancelAppt(id) {
-  const appt = currentAppointments.find(a => a.id === id);
-  const isSalonCancelled = appt && appt.cancelledBy === 'salon';
-  if (!confirm(isSalonCancelled ? '¿Confirmas la anulación del salón? La cita se eliminará definitivamente.' : '¿Estás seguro de cancelar esta cita?')) return;
-  showLoading(true);
-  try {
-    const r = await fetch(API+'/api/cancel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ appointmentId: id, phone: currentClient.phone })
-    });
-    const d = await r.json();
-    if (!d.ok) { alert(d.error||'Error al cancelar'); showLoading(false); return; }
-    showLoading(false);
-    alert(isSalonCancelled ? 'Cita eliminada definitivamente' : 'Cita cancelada correctamente');
-    refreshMyAppts();
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
 
@@ -428,8 +436,7 @@ async function confirmModify() {
 
 // === NEW BOOKING FLOW ===
 function startNewBooking() {
-  selectedService = null; selectedSlot = null;
-  document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
+  selectedServices = []; selectedSlot = null;
   document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('clientName').value = currentClient.name;
   document.getElementById('clientPhone').value = currentClient.phone;
@@ -437,47 +444,128 @@ function startNewBooking() {
   document.getElementById('bookingNotes').value = '';
   document.getElementById('confirmBtn').disabled = false;
   document.getElementById('confirmBtn').textContent = 'Confirmar Reserva';
+  const secSel = document.getElementById('apptSection');
+  if (secSel) {
+    secSel.innerHTML = '<option value="">Todas las secciones</option>' + sections.map(s => '<option value="'+s.id+'">'+esc(s.name)+'</option>').join('');
+    secSel.value = '';
+  }
+  document.getElementById('searchService').value = '';
+  document.getElementById('serviceDropdown').style.display = 'none';
+  document.getElementById('addServiceBtn').disabled = true;
+  renderSelectedServices();
+  document.getElementById('continueToDateBtn').disabled = true;
   goStep(2);
 }
 
-function renderServices(q) {
-  const div = document.getElementById('servicesList');
+function getFilteredServices() {
   let list = services;
+  const secSel = document.getElementById('apptSection');
+  const secId = secSel ? secSel.value : '';
+  if (secId) list = list.filter(s => s.sectionId === secId);
+  const q = document.getElementById('searchService').value.toLowerCase();
   if (q) list = list.filter(s => s.name.toLowerCase().includes(q));
-  if (!list.length) { div.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No hay servicios disponibles</div>'; return; }
-  div.innerHTML = list.map(s => {
+  return list;
+}
+
+function onSectionChange() {
+  document.getElementById('searchService').value = '';
+  renderServiceDropdown('');
+}
+
+function renderServiceDropdown(q) {
+  const dd = document.getElementById('serviceDropdown');
+  let list = getFilteredServices();
+  if (q) list = list.filter(s => s.name.toLowerCase().includes(q));
+  list = list.filter(s => !selectedServices.find(x => x.id === s.id));
+  if (!list.length) { dd.style.display = 'none'; document.getElementById('addServiceBtn').disabled = true; return; }
+  dd.innerHTML = list.map(s => {
     const sec = sections.find(x => x.id === s.sectionId);
     const sc = sec && sec.color ? sec.color : '#999';
-    const blockBadge = s.bloque === 'bloque1' ? '<span style="background:#27ae60;color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:4px;">B1</span>' : (s.bloque === 'bloque2' ? '<span style="background:#f39c12;color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:4px;">B2</span>' : '');
-    return '<div class="service-card" data-id="'+s.id+'" onclick="selectService(\''+s.id+'\')">'+
-      '<span class="s-color" style="background:'+sc+';"></span>'+
-      '<div class="s-info">'+
-        '<div class="s-name">'+esc(s.name)+blockBadge+'</div>'+
-        '<div class="s-meta">'+(sec ? esc(sec.name) : '')+(s.duration ? ' &middot; '+s.duration+' min' : '')+'</div>'+
-      '</div>'+
-      '<div class="s-price">'+cur(s.price)+'</div>'+
+    return '<div class="service-dropdown-item" data-id="'+s.id+'" onclick="selectDropdownService(\''+s.id+'\')">'+
+      '<span class="s-color-dot" style="background:'+sc+';"></span>'+
+      '<span class="s-name">'+esc(s.name)+'</span>'+
+      '<span class="s-price">'+cur(s.price)+'</span>'+
     '</div>';
+  }).join('');
+  dd.style.display = 'block';
+  document.getElementById('addServiceBtn').disabled = true;
+  dd.dataset.selectedId = '';
+}
+
+function onSearchServiceInput() {
+  renderServiceDropdown(document.getElementById('searchService').value);
+}
+
+function onSearchServiceFocus() {
+  renderServiceDropdown(document.getElementById('searchService').value);
+}
+
+function selectDropdownService(id) {
+  if (event) event.stopPropagation();
+  const dd = document.getElementById('serviceDropdown');
+  dd.querySelectorAll('.service-dropdown-item').forEach(el => el.classList.remove('selected'));
+  const el = dd.querySelector('.service-dropdown-item[data-id="'+id+'"]');
+  if (el) el.classList.add('selected');
+  dd.dataset.selectedId = id;
+  document.getElementById('addServiceBtn').disabled = false;
+}
+
+function addSelectedService() {
+  const id = document.getElementById('serviceDropdown').dataset.selectedId;
+  if (!id) return;
+  const svc = services.find(s => s.id === id);
+  if (!svc) return;
+  if (selectedServices.find(s => s.id === id)) return;
+  selectedServices.push(svc);
+  document.getElementById('searchService').value = '';
+  document.getElementById('serviceDropdown').style.display = 'none';
+  document.getElementById('addServiceBtn').disabled = true;
+  renderSelectedServices();
+  document.getElementById('continueToDateBtn').disabled = selectedServices.length === 0;
+}
+
+function removeService(idx) {
+  selectedServices.splice(idx, 1);
+  renderSelectedServices();
+  document.getElementById('continueToDateBtn').disabled = selectedServices.length === 0;
+}
+
+function renderSelectedServices() {
+  const div = document.getElementById('selectedServicesList');
+  if (!selectedServices.length) {
+    div.innerHTML = '<p style="font-size:13px;color:var(--text-light);">Ningún servicio seleccionado</p>';
+    return;
+  }
+  div.innerHTML = selectedServices.map((s, i) => {
+    const sec = sections.find(x => x.id === s.sectionId);
+    const sc = sec && sec.color ? sec.color : '#999';
+    return '<span class="svc-tag"><span class="svc-color" style="background:'+sc+';"></span>'+esc(s.name)+' <strong>'+cur(s.price)+'</strong><span class="svc-remove" onclick="removeService('+i+')">&times;</span></span>';
   }).join('');
 }
 
-function filterServices() {
-  const q = document.getElementById('searchService').value.toLowerCase();
-  renderServices(q);
+function goToDateStep() {
+  if (!selectedServices.length) return;
+  selectedSlot = null; selectedDate = '';
+  document.getElementById('selectedService').textContent = 'Servicios: '+selectedServices.map(s=>s.name+' ('+s.id+')').join(', ');
+  document.getElementById('selectedSlot').textContent = '';
+  document.getElementById('bookingDate').value = '';
+  document.getElementById('noSlots').style.display = 'none';
+  document.getElementById('slotsContainer').innerHTML = '';
+  goStep(3);
 }
 
-function selectService(id) {
-  document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
-  const el = document.querySelector('.service-card[data-id="'+id+'"]');
-  if (el) el.classList.add('selected');
-  selectedService = services.find(s => s.id === id);
-  document.getElementById('selectedService').textContent = 'Servicio: '+(selectedService?selectedService.name:'')+' (ID: '+selectedService.id+') | '+cur(selectedService?selectedService.price:0)+(selectedService&&selectedService.duration?' &middot; '+selectedService.duration+' min':'');
-  goStep(3);
-  fetchSlots();
-}
+// Close dropdown on click outside
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('serviceDropdown');
+  const sb = document.getElementById('searchService');
+  if (dd && sb && !sb.contains(e.target) && !dd.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
 
 function onDateChange() {
   selectedDate = document.getElementById('bookingDate').value;
-  if (!selectedService) return;
+  if (!selectedServices.length) return;
   selectedSlot = null;
   document.getElementById('selectedSlot').textContent = '';
   document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
@@ -485,10 +573,16 @@ function onDateChange() {
 }
 
 async function fetchSlots() {
-  if (!selectedService || !selectedDate) return;
+  if (!selectedServices.length || !selectedDate) return;
   showLoading(true);
   try {
-    const r = await fetch(API+'/api/slots?date='+selectedDate+'&serviceId='+selectedService.id);
+    const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
+    const params = '?date='+encodeURIComponent(selectedDate)+'&serviceIds='+selectedServices.map(s=>encodeURIComponent(s.id)).join(',')+'&duration='+totalDuration;
+    const r = await fetch(API+'/api/slots'+params);
+    if (!r.ok) {
+      const errData = await r.json().catch(() => ({}));
+      throw new Error(errData.error || 'HTTP ' + r.status);
+    }
     const d = await r.json();
     renderSlots(d.slots || []);
   } catch(e) { document.getElementById('slotsContainer').innerHTML = ''; document.getElementById('noSlots').style.display = 'block'; }
@@ -541,16 +635,17 @@ function selectSlotFromTable(el) {
 
 function updateSummary() {
   const div = document.getElementById('bookingSummary');
-  if (!selectedService || !selectedSlot) { div.innerHTML = ''; return; }
+  if (!selectedServices.length || !selectedSlot) { div.innerHTML = ''; return; }
+  const total = selectedServices.reduce((sum, s) => sum + parseFloat(s.price || 0), 0);
   div.innerHTML = '<strong>Resumen</strong><br>'+
-    'Servicio: '+esc(selectedService.name)+'<br>'+
+    'Servicios: '+selectedServices.map(s=>esc(s.name)).join(', ')+'<br>'+
     'Fecha: '+fmtDate(selectedDate)+'<br>'+
     'Horario: '+selectedSlot.time+(selectedSlot.employeeName?' con '+selectedSlot.employeeName:'')+'<br>'+
-    '<strong>Total: '+cur(selectedService.price)+'</strong>';
+    '<strong>Total: '+cur(total)+'</strong>';
 }
 
 async function confirmBooking() {
-  if (!selectedService || !selectedSlot) { alert('Selecciona servicio y horario'); return; }
+  if (!selectedServices.length || !selectedSlot) { alert('Selecciona servicio y horario'); return; }
 
   document.getElementById('confirmBtn').disabled = true;
   document.getElementById('confirmBtn').textContent = 'Reservando...';
@@ -560,7 +655,7 @@ async function confirmBooking() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        serviceId: selectedService.id,
+        serviceIds: selectedServices.map(s => s.id),
         date: selectedDate,
         time: selectedSlot.time,
         employeeId: selectedSlot.employeeId,
@@ -572,14 +667,19 @@ async function confirmBooking() {
     });
     const d = await r.json();
     if (d.ok) {
+      if (d.cleanedCount) {
+        currentAppointments = currentAppointments.filter(a => a.cancelledBy !== 'salon');
+      }
       goStep(5);
+      const svcNames = selectedServices.map(s => s.name).join(', ');
       const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20confirmada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(selectedSlot.time) + '.';
       const waPhone = (currentClient.phone||'').replace(/[^0-9]/g,'');
       const waLink = 'https://wa.me/34' + waPhone + '?text=' + waMsg;
       let extra = '';
       if (d.emailSent) extra = '✅ Te hemos enviado un email de confirmación.<br><br>';
       extra += '💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Recibir confirmación por WhatsApp</a>';
-      document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido registrada para el <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+extra;
+      document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido registrada para el <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+
+        'Servicios: <strong>'+esc(svcNames)+'</strong><br><br>'+extra;
     } else {
       alert('Error: '+(d.error||'No se pudo reservar'));
       document.getElementById('confirmBtn').disabled = false;
@@ -596,7 +696,7 @@ function goToMyAppts() {
 function logout() {
   currentClient = null;
   currentAppointments = [];
-  selectedService = null; selectedSlot = null;
+  selectedServices = []; selectedSlot = null;
   document.getElementById('loginPhone').value = '';
   document.getElementById('regName').value = '';
   document.getElementById('regPhone').value = '';
