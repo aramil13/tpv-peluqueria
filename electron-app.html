@@ -1530,59 +1530,54 @@ function syncPull() {
   if (!c.enabled) return;
   fetch(c.url.replace(/\/+$/,'') + '/sync')
     .then(r => r.json()).then(remote => {
-      console.log('SYNC PULL: server has', (remote.services||[]).length, 'services,', (remote.employees||[]).length, 'employees,', (remote.products||[]).length, 'products');
-      console.log('SYNC PULL: local has', data.services.length, 'services,', data.employees.length, 'employees,', data.products.length, 'products');
+      console.log('SYNC PULL: server has', (remote.services||[]).length, 'services,', (remote.employees||[]).length, 'employees');
       
-      // FORZAR reemplazo completo de datos del servidor (sin merge, sin timestamp)
-      if (Array.isArray(remote.services) && remote.services.length > 0) {
-        data.services = [...remote.services];
-        console.log('SYNC PULL: replaced services with', data.services.length);
-      }
-      if (Array.isArray(remote.sections) && remote.sections.length > 0) {
-        data.sections = [...remote.sections];
-        console.log('SYNC PULL: replaced sections with', data.sections.length);
-      }
-      if (Array.isArray(remote.employees) && remote.employees.length > 0) {
-        data.employees = [...remote.employees];
-        console.log('SYNC PULL: replaced employees with', data.employees.length);
-      }
-      if (Array.isArray(remote.products) && remote.products.length > 0) {
-        data.products = [...remote.products];
-        console.log('SYNC PULL: replaced products with', data.products.length);
-      }
-      if (Array.isArray(remote.clients) && remote.clients.length > 0) {
-        data.clients = [...remote.clients];
-      }
-      if (Array.isArray(remote.projects) && remote.projects.length > 0) {
-        data.projects = [...remote.projects];
-      }
-      if (Array.isArray(remote.providers) && remote.providers.length > 0) {
-        data.providers = [...remote.providers];
-      }
-      if (Array.isArray(remote.appointments) && remote.appointments.length > 0) {
-        data.appointments = [...remote.appointments];
-      }
+      // FORZAR reemplazo completo de datos del servidor
+      if (Array.isArray(remote.services) && remote.services.length > 0) data.services = [...remote.services];
+      if (Array.isArray(remote.sections) && remote.sections.length > 0) data.sections = [...remote.sections];
+      if (Array.isArray(remote.employees) && remote.employees.length > 0) data.employees = [...remote.employees];
+      if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
+      if (Array.isArray(remote.clients) && remote.clients.length > 0) data.clients = [...remote.clients];
+      if (Array.isArray(remote.projects) && remote.projects.length > 0) data.projects = [...remote.projects];
+      if (Array.isArray(remote.providers) && remote.providers.length > 0) data.providers = [...remote.providers];
+      if (Array.isArray(remote.appointments) && remote.appointments.length > 0) data.appointments = [...remote.appointments];
       
       // Guardar todo
-      saveKey('appointments'); saveKey('clients'); saveKey('services'); saveKey('sections');
-      saveKey('employees'); saveKey('products'); saveKey('projects'); saveKey('providers');
+      try {
+        saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
+        saveKey('clients'); saveKey('projects'); saveKey('providers'); saveKey('appointments');
+        
+        // Verificar que se guardó
+        const verif = JSON.parse(localStorage.getItem('tpv_services') || '[]');
+        console.log('VERIFIED: localStorage has', verif.length, 'services after save');
+        
+        if (verif.length > 0) {
+          const status = document.getElementById('syncStatus');
+          if (status) status.textContent = '✅ Sincronizado: ' + verif.length + ' servicios';
+          setTimeout(() => { if (status) status.textContent = ''; }, 5000);
+        }
+      } catch(e) {
+        console.error('SAVE ERROR:', e);
+        alert('Error al guardar datos de sincronización');
+      }
       
-      // Renderizar la sección activa
+      // Renderizar
       const active = document.querySelector('.nav-item.active');
       if (active) {
         const sec = active.dataset.section;
-        console.log('SYNC PULL: current section is', sec);
         if (sec === 'agenda') renderAgenda();
         else if (sec === 'clients') renderClients();
-        else if (sec === 'services') { renderServices(); console.log('SYNC PULL: rendered services'); }
+        else if (sec === 'services') renderServices();
         else if (sec === 'sections') renderSections();
-        else if (sec === 'employees') { renderEmployees(); console.log('SYNC PULL: rendered employees'); }
-        else if (sec === 'products') { renderProducts(); renderWarehouse(); console.log('SYNC PULL: rendered products'); }
+        else if (sec === 'employees') renderEmployees();
+        else if (sec === 'products') { renderProducts(); renderWarehouse(); }
         else if (sec === 'projects') renderProjects();
         else if (sec === 'dashboard') renderDashboard();
       }
-      console.log('SYNC PULL: done. Now local has', data.services.length, 'services,', data.employees.length, 'employees,', data.products.length, 'products');
-    }).catch(e => console.error('SYNC PULL ERROR:', e));
+    }).catch(e => {
+      console.error('SYNC PULL ERROR:', e);
+      alert('Error de sincronización: ' + e.message);
+    });
 }
 
 let syncTimer = null;
