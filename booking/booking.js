@@ -451,7 +451,6 @@ function startNewBooking() {
   }
   document.getElementById('searchService').value = '';
   document.getElementById('serviceDropdown').style.display = 'none';
-  document.getElementById('addServiceBtn').disabled = true;
   renderSelectedServices();
   document.getElementById('continueToDateBtn').disabled = true;
   goStep(2);
@@ -477,19 +476,17 @@ function renderServiceDropdown(q) {
   let list = getFilteredServices();
   if (q) list = list.filter(s => s.name.toLowerCase().includes(q));
   list = list.filter(s => !selectedServices.find(x => x.id === s.id));
-  if (!list.length) { dd.style.display = 'none'; document.getElementById('addServiceBtn').disabled = true; return; }
+  if (!list.length) { dd.style.display = 'none'; return; }
   dd.innerHTML = list.map(s => {
     const sec = sections.find(x => x.id === s.sectionId);
     const sc = sec && sec.color ? sec.color : '#999';
-    return '<div class="service-dropdown-item" data-id="'+s.id+'" onclick="selectDropdownService(\''+s.id+'\')">'+
+    return '<div class="service-dropdown-item" data-id="'+s.id+'" onclick="addSelectedService(\''+s.id+'\')">'+
       '<span class="s-color-dot" style="background:'+sc+';"></span>'+
       '<span class="s-name">'+esc(s.name)+'</span>'+
       '<span class="s-price">'+cur(s.price)+'</span>'+
     '</div>';
   }).join('');
   dd.style.display = 'block';
-  document.getElementById('addServiceBtn').disabled = true;
-  dd.dataset.selectedId = '';
 }
 
 function onSearchServiceInput() {
@@ -500,18 +497,7 @@ function onSearchServiceFocus() {
   renderServiceDropdown(document.getElementById('searchService').value);
 }
 
-function selectDropdownService(id) {
-  if (event) event.stopPropagation();
-  const dd = document.getElementById('serviceDropdown');
-  dd.querySelectorAll('.service-dropdown-item').forEach(el => el.classList.remove('selected'));
-  const el = dd.querySelector('.service-dropdown-item[data-id="'+id+'"]');
-  if (el) el.classList.add('selected');
-  dd.dataset.selectedId = id;
-  document.getElementById('addServiceBtn').disabled = false;
-}
-
-function addSelectedService() {
-  const id = document.getElementById('serviceDropdown').dataset.selectedId;
+function addSelectedService(id) {
   if (!id) return;
   const svc = services.find(s => s.id === id);
   if (!svc) return;
@@ -519,7 +505,6 @@ function addSelectedService() {
   selectedServices.push(svc);
   document.getElementById('searchService').value = '';
   document.getElementById('serviceDropdown').style.display = 'none';
-  document.getElementById('addServiceBtn').disabled = true;
   renderSelectedServices();
   document.getElementById('continueToDateBtn').disabled = selectedServices.length === 0;
 }
@@ -546,7 +531,17 @@ function renderSelectedServices() {
 function goToDateStep() {
   if (!selectedServices.length) return;
   selectedSlot = null; selectedDate = '';
-  document.getElementById('selectedService').textContent = 'Servicios: '+selectedServices.map(s=>s.name+' ('+s.id+')').join(', ');
+  const bloque1Svcs = selectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque);
+  const bloque2Svcs = selectedServices.filter(s => s.bloque === 'bloque2');
+  let info = 'Servicios: '+selectedServices.map(s=>s.name+' ('+s.id+')').join(', ');
+  if (bloque1Svcs.length && bloque2Svcs.length) {
+    const gap = 45;
+    const b1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+    info = '<strong>Primera cita:</strong> '+bloque1Svcs.map(s=>s.name).join(', ')+' ('+b1Dur+' min)<br>'+
+      '<strong>Descanso:</strong> '+gap+' min<br>'+
+      '<strong>Segunda cita:</strong> '+bloque2Svcs.map(s=>s.name).join(', ')+' ('+bloque2Svcs.reduce((sum,s)=>sum+(s.duration||30),0)+' min)';
+  }
+  document.getElementById('selectedService').innerHTML = info;
   document.getElementById('selectedSlot').textContent = '';
   document.getElementById('bookingDate').value = '';
   document.getElementById('noSlots').style.display = 'none';
@@ -576,8 +571,7 @@ async function fetchSlots() {
   if (!selectedServices.length || !selectedDate) return;
   showLoading(true);
   try {
-    const totalDuration = selectedServices.reduce((sum, s) => sum + (s.duration || 30), 0);
-    const params = '?date='+encodeURIComponent(selectedDate)+'&serviceIds='+selectedServices.map(s=>encodeURIComponent(s.id)).join(',')+'&duration='+totalDuration;
+    const params = '?date='+encodeURIComponent(selectedDate)+'&serviceIds='+selectedServices.map(s=>encodeURIComponent(s.id)).join(',');
     const r = await fetch(API+'/api/slots'+params);
     if (!r.ok) {
       const errData = await r.json().catch(() => ({}));
@@ -672,14 +666,25 @@ async function confirmBooking() {
       }
       goStep(5);
       const svcNames = selectedServices.map(s => s.name).join(', ');
-      const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20confirmada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(selectedSlot.time) + '.';
+      const times = (d.apptTimes && d.apptTimes.length > 1) ? d.apptTimes.join(' y ') : selectedSlot.time;
+      const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20confirmada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(times) + '.';
       const waPhone = (currentClient.phone||'').replace(/[^0-9]/g,'');
       const waLink = 'https://wa.me/34' + waPhone + '?text=' + waMsg;
       let extra = '';
       if (d.emailSent) extra = '✅ Te hemos enviado un email de confirmación.<br><br>';
       extra += '💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Recibir confirmación por WhatsApp</a>';
-      document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido registrada para el <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+
+      let msg = 'Tu cita ha sido registrada para el <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+times+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+
         'Servicios: <strong>'+esc(svcNames)+'</strong><br><br>'+extra;
+      if (d.apptTimes && d.apptTimes.length > 1) {
+        const bloque1Svcs = selectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque).map(s=>s.name).join(', ');
+        const bloque2Svcs = selectedServices.filter(s => s.bloque === 'bloque2').map(s=>s.name).join(', ');
+        msg = 'Tus citas han sido registradas para el <strong>'+fmtDate(selectedDate)+'</strong>:<br>'+
+          '• <strong>'+d.apptTimes[0]+'</strong> — '+esc(bloque1Svcs)+'<br>'+
+          '• <strong>'+d.apptTimes[1]+'</strong> — '+esc(bloque2Svcs)+'<br><br>'+
+          (selectedSlot.employeeName?'Con <strong>'+selectedSlot.employeeName+'</strong><br><br>':'')+
+          extra;
+      }
+      document.getElementById('doneMsg').innerHTML = msg;
     } else {
       alert('Error: '+(d.error||'No se pudo reservar'));
       document.getElementById('confirmBtn').disabled = false;

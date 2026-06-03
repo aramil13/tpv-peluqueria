@@ -349,14 +349,19 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const q = new URLSearchParams(req.url.split('?')[1]||'');
     const date = q.get('date');
     const serviceIdsParam = q.get('serviceIds') || q.get('serviceId') || '';
-    const durationParam = q.get('duration');
     if (!date || !serviceIdsParam) {
       res.status(400).json({ error: 'date and serviceId(s) required' });
       return;
     }
     const serviceIds = serviceIdsParam.split(',').filter(Boolean);
     const servicesList = (data.services||[]).filter(s => serviceIds.includes(s.id) && !s._deleted);
-    const duration = parseInt(durationParam) || (servicesList.length ? calcServiceDurationWithBlocks(servicesList, data.settings || {}) : 30);
+    const gap = (data.settings && data.settings.bloques && data.settings.bloques.bloqueGap) || 45;
+    const bloque1Svcs = servicesList.filter(s => s.bloque === 'bloque1' || !s.bloque);
+    const bloque2Svcs = servicesList.filter(s => s.bloque === 'bloque2');
+    const hasBlocks = bloque1Svcs.length && bloque2Svcs.length;
+    const bloque1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+    const bloque2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+    const totalDuration = hasBlocks ? bloque1Dur + gap + bloque2Dur : bloque1Dur + bloque2Dur;
     const employeesList = (data.employees||[]).filter(e => !e._deleted);
     const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted);
     const now = new Date();
@@ -365,10 +370,31 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const currentHour = now.getHours() + now.getMinutes() / 60;
     const dayHours = getOpeningHoursForDay(date, data.settings);
     if (dayHours.closed) {
-      res.json({ slots: [], date, serviceIds: serviceIds, duration, closed: true });
+      res.json({ slots: [], date, serviceIds, duration: totalDuration, closed: true });
       return;
     }
     const BUSINESS_START = dayHours.open, BUSINESS_END = dayHours.close, SLOT_INTERVAL = 15;
+    const rangeOccupied = (empAppts, rangeStart, rangeEnd) => {
+      return empAppts.some(a => {
+        const aS = parseTime(a.time);
+        let aE;
+        if (a.endTime) {
+          aE = parseTime(a.endTime);
+        } else if (a.apptBlocks) {
+          const blocks = a.apptBlocks;
+          const b1 = blocks.filter(b => b.type === 'bloque1');
+          const b2 = blocks.filter(b => b.type === 'bloque2');
+          const aGap = (data.settings && data.settings.bloques && data.settings.bloques.bloqueGap) || 45;
+          const b1d = b1.reduce((s, b) => s + b.duration, 0);
+          const b2d = b2.reduce((s, b) => s + b.duration, 0);
+          aE = aS + (b1d + (b2.length && b1.length ? aGap : 0) + b2d) / 60;
+        } else {
+          const srv = (data.services||[]).find(s => s.id === a.serviceId);
+          aE = aS + (srv ? (srv.duration || 30) : 30) / 60;
+        }
+        return rangeStart < aE && rangeEnd > aS;
+      });
+    };
     const slots = [];
     const availableEmps = employeesList.length ? employeesList : [{ id: '', name: 'Sin asignar' }];
     availableEmps.forEach(emp => {
@@ -389,33 +415,25 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         const h = Math.floor(totalMins / 60);
         const m = totalMins % 60;
         const start = h + m / 60;
-        const end = start + duration / 60;
-        if (end > BUSINESS_END) return;
-        if (isToday && start < currentHour) return;
         const timeStr = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
-        const occupied = empAppts.some(a => {
-          const aStart = parseTime(a.time);
-          let aDur = 30;
-          if (a.endTime) {
-            aDur = Math.round((parseTime(a.endTime) - aStart) * 60);
-          } else if (a.apptBlocks) {
-            const blocks = a.apptBlocks;
-            const b1 = blocks.filter(b => b.type === 'bloque1');
-            const b2 = blocks.filter(b => b.type === 'bloque2');
-            const gap = (data.settings && data.settings.bloques && data.settings.bloques.bloqueGap) || 45;
-            aDur = b1.reduce((s, b) => s + b.duration, 0) + (b2.length && b1.length ? gap : 0) + b2.reduce((s, b) => s + b.duration, 0);
-          } else {
-            const srv = (data.services||[]).find(s => s.id === a.serviceId);
-            aDur = srv ? (srv.duration || 30) : 30;
-          }
-          const aEnd = aStart + aDur / 60;
-          return start < aEnd && end > aStart;
-        });
-        slots.push({ time: timeStr, employeeId: emp.id, employeeName: emp.name || '', available: !occupied });
+        if (isToday && start < currentHour) return;
+        if (hasBlocks) {
+          const b1Start = start, b1End = b1Start + bloque1Dur / 60;
+          const b2Start = b1End + gap / 60, b2End = b2Start + bloque2Dur / 60;
+          if (b2End > BUSINESS_END) return;
+          const b1Occ = rangeOccupied(empAppts, b1Start, b1End);
+          const b2Occ = rangeOccupied(empAppts, b2Start, b2End);
+          slots.push({ time: timeStr, employeeId: emp.id, employeeName: emp.name || '', available: !b1Occ && !b2Occ });
+        } else {
+          const end = start + totalDuration / 60;
+          if (end > BUSINESS_END) return;
+          const occupied = rangeOccupied(empAppts, start, end);
+          slots.push({ time: timeStr, employeeId: emp.id, employeeName: emp.name || '', available: !occupied });
+        }
       });
     });
     slots.sort((a,b) => a.time.localeCompare(b.time) || a.employeeName.localeCompare(b.employeeName));
-    res.json({ slots, date, serviceIds: serviceIds, duration });
+    res.json({ slots, date, serviceIds, duration: totalDuration });
     return;
   }
 
@@ -445,34 +463,115 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         client._modified = Date.now();
       }
       const empId = b.employeeId || '';
-      const empAppts = (data.appointments||[]).filter(a => a.date === b.date && !a._deleted && (!empId || a.employeeId === empId || !a.employeeId));
       const svcs = (data.services||[]).filter(s => serviceIds.includes(s.id));
-      const totalDuration = svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-      const reqStart = parseTime(b.time);
-      const reqEnd = reqStart + totalDuration / 60;
-      const conflict = empAppts.find(a => {
-        const as = (data.services||[]).find(s => s.id === a.serviceId);
-        const aStart = parseTime(a.time);
-        const aEnd = aStart + (as ? (as.duration || 30) : 30) / 60;
-        return reqStart < aEnd && reqEnd > aStart;
-      });
-      if (conflict) {
-        const cli = (data.clients||[]).find(c => c.id === conflict.clientId);
-        res.status(409).json({ error: 'Este horario ya no está disponible. '+cli?.name+' tiene cita de '+conflict.time+' a '+(conflict.endTime||'') });
-        return;
-      }
-      const reqEndH = Math.floor(reqEnd);
-      const reqEndM = Math.round((reqEnd - reqEndH) * 60);
-      const endTime = String(reqEndH).padStart(2,'0')+':'+String(reqEndM).padStart(2,'0');
-      const appt = {
-        id: 'a'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
-        clientId: client.id, serviceIds: serviceIds, serviceId: serviceIds[0],
-        employeeId: empId, date: b.date, time: b.time, endTime: endTime,
-        notes: b.notes || 'Reserva online',
-        source: 'online', status: 'pending', _modified: Date.now(), _deleted: false,
-        modificationCount: 0, salonModified: false, cancelledBy: ''
+      const bloque1Svcs = svcs.filter(s => s.bloque === 'bloque1' || !s.bloque);
+      const bloque2Svcs = svcs.filter(s => s.bloque === 'bloque2');
+      const hasBlocks = bloque1Svcs.length && bloque2Svcs.length;
+      const gap = (data.settings && data.settings.bloques && data.settings.bloques.bloqueGap) || 45;
+      const makeBlockAppts = (startTime) => {
+        const mkAppt = (time, services, blockNum, blockGroupId) => {
+          const dur = services.reduce((sum, s) => sum + (s.duration || 30), 0);
+          const totalMin = Math.round(parseTime(time) * 60) + dur;
+          const endH = Math.floor(totalMin / 60);
+          const endM = totalMin % 60;
+          const endTime = String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0');
+          return {
+            id: 'a'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
+            clientId: client.id,
+            serviceId: services.length === 1 ? services[0].id : '',
+            serviceIds: services.map(s => s.id),
+            employeeId: empId, date: b.date, time, endTime,
+            notes: b.notes || 'Reserva online',
+            source: 'online', status: 'pending', _modified: Date.now(), _deleted: false,
+            modificationCount: 0, salonModified: false, cancelledBy: '',
+            blockGroupId, blockNum
+          };
+        };
+        const appts = [];
+        const blockGroupId = 'bg'+Date.now().toString(36)+Math.random().toString(36).substr(2,4);
+        const b1 = mkAppt(startTime, bloque1Svcs, '1', blockGroupId);
+        appts.push(b1);
+        if (bloque2Svcs.length) {
+          const b2StartMin = Math.round(parseTime(startTime) * 60) + bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0) + gap;
+          const b2Start = String(Math.floor(b2StartMin / 60)).padStart(2,'0')+':'+String(b2StartMin % 60).padStart(2,'0');
+          const b2 = mkAppt(b2Start, bloque2Svcs, '2', blockGroupId);
+          appts.push(b2);
+        }
+        return appts;
       };
-      data.appointments.push(appt);
+      const getBlockHours = (block) => {
+        if (block.endTime) {
+          return { s: parseTime(block.time), e: parseTime(block.endTime) };
+        }
+        const dur = (block.serviceIds||[]).reduce((sum, id) => { const s = svcs.find(x => x.id === id); return sum + (s ? (s.duration || 30) : 30); }, 0);
+        return { s: parseTime(block.time), e: parseTime(block.time) + dur / 60 };
+      };
+      const empAppts = (data.appointments||[]).filter(a => a.date === b.date && !a._deleted && (!empId || a.employeeId === empId || !a.employeeId));
+      if (hasBlocks) {
+        const newAppts = makeBlockAppts(b.time);
+        for (const newAppt of newAppts) {
+          const nh = getBlockHours(newAppt);
+          const conflict = empAppts.find(a => {
+            let aStart, aEnd;
+            if (a.blockNum) {
+              const gh = getBlockHours(a);
+              aStart = gh.s; aEnd = gh.e;
+            } else {
+              aStart = parseTime(a.time);
+              if (a.endTime) {
+                aEnd = parseTime(a.endTime);
+              } else {
+                const as = (data.services||[]).find(s => s.id === a.serviceId);
+                aEnd = aStart + (as ? (as.duration || 30) : 30) / 60;
+              }
+            }
+            return nh.s < aEnd && nh.e > aStart;
+          });
+          if (conflict) {
+            const cli = (data.clients||[]).find(c => c.id === conflict.clientId);
+            res.status(409).json({ error: 'Este horario ya no está disponible. '+cli?.name+' tiene cita de '+conflict.time+' a '+(conflict.endTime||'') });
+            return;
+          }
+          data.appointments.push(newAppt);
+        }
+      } else {
+        const totalDuration = svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+        const reqStart = parseTime(b.time);
+        const reqEnd = reqStart + totalDuration / 60;
+        const conflict = empAppts.find(a => {
+          let aStart, aEnd;
+          if (a.blockNum) {
+            const gh = getBlockHours(a);
+            aStart = gh.s; aEnd = gh.e;
+          } else {
+            aStart = parseTime(a.time);
+            if (a.endTime) {
+              aEnd = parseTime(a.endTime);
+            } else {
+              const as = (data.services||[]).find(s => s.id === a.serviceId);
+              aEnd = aStart + (as ? (as.duration || 30) : 30) / 60;
+            }
+          }
+          return reqStart < aEnd && reqEnd > aStart;
+        });
+        if (conflict) {
+          const cli = (data.clients||[]).find(c => c.id === conflict.clientId);
+          res.status(409).json({ error: 'Este horario ya no está disponible. '+cli?.name+' tiene cita de '+conflict.time+' a '+(conflict.endTime||'') });
+          return;
+        }
+        const reqEndH = Math.floor(reqEnd);
+        const reqEndM = Math.round((reqEnd - reqEndH) * 60);
+        const endTime = String(reqEndH).padStart(2,'0')+':'+String(reqEndM).padStart(2,'0');
+        const appt = {
+          id: 'a'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
+          clientId: client.id, serviceIds: serviceIds, serviceId: serviceIds[0],
+          employeeId: empId, date: b.date, time: b.time, endTime: endTime,
+          notes: b.notes || 'Reserva online',
+          source: 'online', status: 'pending', _modified: Date.now(), _deleted: false,
+          modificationCount: 0, salonModified: false, cancelledBy: ''
+        };
+        data.appointments.push(appt);
+      }
       const beforeClean = (data.appointments||[]).filter(a => a.cancelledBy === 'salon' && a.clientId === client.id).length;
       (data.appointments||[]).forEach(a => {
         if (a.cancelledBy === 'salon' && a.clientId === client.id) {
@@ -482,8 +581,15 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       const cleanedCount = beforeClean;
       await writeData(data);
       const emp = (data.employees||[]).find(e => e.id === b.employeeId);
-      sendConfirmationEmail(b.clientEmail, b.clientName, b.date, b.time, svcs.map(s=>s.name).join(', '), emp ? emp.name : '', b.notes);
-      res.json({ ok: true, appointmentId: appt.id, emailSent: !!(transporter && b.clientEmail), cleanedCount });
+      const apptTimes = [b.time];
+      if (hasBlocks && bloque2Svcs.length) {
+        const b1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+        const b2StartMin = Math.round(parseTime(b.time) * 60) + b1Dur + gap;
+        apptTimes.push(String(Math.floor(b2StartMin / 60)).padStart(2,'0')+':'+String(b2StartMin % 60).padStart(2,'0'));
+      }
+      const emailTime = apptTimes.length > 1 ? '1ª cita a las ' + apptTimes[0] + ' y 2ª a las ' + apptTimes[1] : b.time;
+      sendConfirmationEmail(b.clientEmail, b.clientName, b.date, emailTime, svcs.map(s=>s.name).join(', '), emp ? emp.name : '', b.notes);
+      res.json({ ok: true, appointmentId: 'ok', emailSent: !!(transporter && b.clientEmail), cleanedCount, apptTimes });
     } catch (e) {
       res.status(400).json({ error: e.message });
     }
