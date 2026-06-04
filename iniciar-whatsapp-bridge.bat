@@ -13,7 +13,7 @@ echo El bridge necesita el sync-helper corriendo
 echo en http://localhost:3456
 echo.
 echo Si quieres usar el servidor remoto en vez de local:
-echo   set AI_API_URL=https://tudominio.com/api/ai-message
+set AI_API_URL=https://nymaraestilistas/api/ai-message
 echo.
 
 if "%AI_API_URL%"=="" (

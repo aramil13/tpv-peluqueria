@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Postal Charters</title>
+<title>Nymara Estilistas</title>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -202,7 +202,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 
   <div class="card">
     <div style="padding:14px;text-align:center;color:var(--text-light);font-size:11px;">
-      <div id="versionText" onclick="handleVersionClick()" style="cursor:pointer;user-select:none;">Postal Charters v1.0 — Sincronización Cloud</div>
+      <div id="versionText" onclick="handleVersionClick()" style="cursor:pointer;user-select:none;">Nymara Estilistas v1.0 — Sincronización Cloud</div>
     </div>
   </div>
 </div>
@@ -1639,7 +1639,7 @@ function handleVersionClick() {
   versionClicks++;
   if (versionClicks >= 5) {
     versionClicks = 0;
-    alert('Postal Charters v1.0 — Los datos se sincronizan con el servidor configurado');
+    alert('Nymara Estilistas v1.0 — Los datos se sincronizan con el servidor configurado');
   }
   setTimeout(() => { if (versionClicks > 0) versionClicks = 0; }, 3000);
 }

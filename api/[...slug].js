@@ -268,7 +268,7 @@ module.exports = async (req, res) => {
   }
 
   // === SYNC ===
-  if (url === '/sync' || url === '/sync/') {
+  if (url === '/sync' || url === '/sync/' || url === '/api/sync' || url === '/api/sync/') {
     if (req.method === 'GET') {
       const data = await readData();
       res.setHeader('Content-Type', 'application/json');
@@ -294,6 +294,44 @@ module.exports = async (req, res) => {
           }
         });
         await writeData(merged);
+
+        // Notificar por email al salón si llegan nuevas citas pendientes por WhatsApp
+        if (Array.isArray(remote.appointments)) {
+          const salonEmail = process.env.SALON_EMAIL || '';
+          if (salonEmail && transporter) {
+            for (const appt of remote.appointments) {
+              if (appt.pendingSalonConfirm && appt.source === 'whatsapp') {
+                const client = (Array.isArray(remote.clients) ? remote.clients : []).find(c => c.id === appt.clientId);
+                const service = (Array.isArray(merged.services) ? merged.services : []).find(s => s.id === appt.serviceId);
+                const employee = (Array.isArray(merged.employees) ? merged.employees : []).find(e => e.id === appt.employeeId);
+                const msg = {
+                  from: SMTP_FROM, to: salonEmail,
+                  subject: 'Nueva cita pendiente - WhatsApp - ' + BUSINESS_NAME,
+                  html: `<div style="font-family:Arial;max-width:500px;margin:0 auto;">
+                    <h2 style="color:#6C3483;">Nueva cita por WhatsApp</h2>
+                    <p>Tienes una nueva solicitud de cita pendiente de confirmar:</p>
+                    <table style="background:#f5f2f7;border-radius:8px;padding:15px;margin:15px 0;width:100%;">
+                      <tr><td style="padding:4px 10px;color:#666;">Cliente</td><td><strong>${(client&&client.name)||''}</strong></td></tr>
+                      ${client&&client.phone ? `<tr><td style="padding:4px 10px;color:#666;">Teléfono</td><td><strong>${client.phone}</strong></td></tr>` : ''}
+                      <tr><td style="padding:4px 10px;color:#666;">Servicio</td><td><strong>${(service&&service.name)||''}</strong></td></tr>
+                      <tr><td style="padding:4px 10px;color:#666;">Fecha</td><td><strong>${appt.date}</strong></td></tr>
+                      <tr><td style="padding:4px 10px;color:#666;">Hora</td><td><strong>${appt.time}</strong></td></tr>
+                      ${employee ? `<tr><td style="padding:4px 10px;color:#666;">Profesional</td><td><strong>${employee.name}</strong></td></tr>` : ''}
+                    </table>
+                    <p style="color:#999;font-size:12px;">Confirma la cita desde el TPV.<br>${BUSINESS_NAME}</p>
+                  </div>`
+                };
+                try {
+                  await transporter.sendMail(msg);
+                  console.log('Email notification sent to salon for appointment', appt.id);
+                } catch (e) {
+                  console.error('Email notification error:', e.message);
+                }
+              }
+            }
+          }
+        }
+
         console.log('POST /sync: stored',
           (remote.products||[]).length, 'products,',
           (remote.appointments||[]).length, 'appointments,',

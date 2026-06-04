@@ -1476,7 +1476,7 @@ function loadOnlineOpeningForDay(dateStr) {
 }
 
 // ============ SYNC ============
-function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: true, url: 'https://tpv-peluqueria.vercel.app' } }
+function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: true, url: 'https://nymaraestilistas.es/api' } }
 
 function syncPush() {
   const c = getSyncCfg();
@@ -2778,16 +2778,26 @@ function confirmWhatsAppAppt(id) {
   saveAll();
   syncWebNow();
   renderAgenda();
-  const c = getSyncCfg();
-  if (c.enabled && c.url && client) {
-    fetch(c.url.replace(/\/+$/,'') + '/api/send-confirmation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ appointmentId: id })
-    }).then(r => r.json()).then(d => {
-      if (d.sent) console.log('WhatsApp confirmation sent to', d.phone);
-      else console.warn('WhatsApp send failed:', d.error);
-    }).catch(e => console.error('WhatsApp send error:', e));
+  if (!client) return;
+  const dateFmt = a.date ? a.date.split('-').reverse().join('-') : '';
+  const confirmText = `✅ Tu cita en Nymara Estilistas ha sido CONFIRMADA:\n\n📅 ${dateFmt}\n⏰ ${a.time}${a.endTime ? ' - '+a.endTime : ''}\n💇 ${(svc&&svc.name)||'Servicio'}\n${emp ? '👤 '+emp.name : ''}\n\n¡Te esperamos!`;
+  if (window.electronAPI) {
+    window.electronAPI.sendWhatsApp(client.phone, confirmText).then(d => {
+      if (d.sent) console.log('WhatsApp confirmation sent via bridge to', client.phone);
+      else console.warn('Bridge send failed:', d.error);
+    });
+  } else {
+    console.warn('electronAPI not available, trying cloud...');
+    const c = getSyncCfg();
+    if (c.enabled && c.url) {
+      fetch(c.url.replace(/\/+$/,'') + '/api/send-confirmation', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId: id })
+      }).then(r => r.json()).then(d => {
+        if (d.sent) console.log('WhatsApp confirmation sent via cloud to', d.phone);
+        else console.warn('Cloud send failed:', d.error);
+      }).catch(e => console.error('Cloud send error:', e));
+    }
   }
 }
 

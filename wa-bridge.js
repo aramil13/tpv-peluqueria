@@ -2,6 +2,7 @@ const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whis
 const qrcode = require('qrcode-terminal');
 const qrcodeImg = require('qrcode');
 const path = require('path');
+const http = require('http');
 const pino = require('pino');
 
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
@@ -12,10 +13,12 @@ const AUTH_DIR = path.join(__dirname, 'wa_auth');
 const RECONNECT_DELAY = 15000;
 
 let currentSock = null;
+let isConnected = false;
 let processing = false;
 let processedIds = new Set();
 const messageQueue = [];
 let queueProcessing = false;
+const phoneJidMap = new Map(); // teléfono (sin +) → jid real (ej: 34678092305 → 58300003553300@lid)
 
 const { processWhatsAppMessage } = require('./lib/ai-assistant');
 const { loadConversation, clearConversation } = require('./lib/conversation');
@@ -97,6 +100,7 @@ async function start() {
       console.log('QR guardado como qr.png');
     }
     if (connection === 'close') {
+      isConnected = false;
       const logout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
       if (logout) { console.log('Sesión cerrada. Elimina wa_auth/ y ejecuta de nuevo.'); return; }
       processing = false;
@@ -104,8 +108,13 @@ async function start() {
       setTimeout(start, RECONNECT_DELAY);
     }
     if (connection === 'open') {
+      isConnected = true;
+      const myId = sock.user?.id || 'desconocido';
       console.log(' WhatsApp conectado como asistente AI');
+      console.log(' [CONECTADO COMO] ' + myId);
       processing = false;
+      // Revisar citas confirmadas inmediatamente al conectar
+      setTimeout(checkConfirmedAppointments, 2000);
     }
   });
 
@@ -116,13 +125,31 @@ async function start() {
       if (m.key.id && processedIds.has(m.key.id)) continue;
       if (m.key.id) processedIds.add(m.key.id);
 
+      if (m.key.fromMe) {
+        console.log(' [SKIP] mensaje enviado por el propio bot (fromMe=true), ignorando');
+        continue;
+      }
+
       let jid = m.key.remoteJid || '';
       if (!isNormalChat(jid)) continue;
+
+      const realJid = m.key.remoteJidAlt || jid;
+      const phone = realJid.split('@')[0];
+      const normPhone = phone.replace(/[^0-9]/g, '').slice(-9);
+      const fullPhone = phone.replace(/[^0-9]/g, '');
+
+      phoneJidMap.set(fullPhone, jid);
+      phoneJidMap.set(normPhone, jid);
+      console.log(` [MAP] ${fullPhone} / ${normPhone} → ${jid}`);
 
       const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
       if (!text.trim()) continue;
 
-      const phone = jid.split('@')[0];
+      console.log(` [DEBUG] JID=${jid} | realJid=${realJid} -> phone=${phone} -> +${phone}`);
+      console.log(` [DEBUG] BUSINESS_PHONE=${BUSINESS_PHONE}`);
+      if ('+' + phone !== BUSINESS_PHONE) {
+        console.log(` [WARN] El teléfono del WhatsApp (+${phone}) NO coincide con BUSINESS_PHONE (${BUSINESS_PHONE}). Borra wa_auth/ y escanea con el número correcto.`);
+      }
 
       const normalized = text.trim().toLowerCase();
       const history = await loadConversation('+' + phone);
@@ -152,3 +179,99 @@ start().catch(e => {
   console.log('Reconectando en ' + (RECONNECT_DELAY/1000) + 's...');
   setTimeout(start, RECONNECT_DELAY);
 });
+
+// Servidor HTTP local para que el TPV envíe WhatsApps a través del bridge
+const BRIDGE_PORT = parseInt(process.env.BRIDGE_PORT) || 3457;
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type'
+};
+const server = http.createServer((req, res) => {
+  console.log(` [BRIDGE-HTTP] ${req.method} ${req.url}`);
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, CORS_HEADERS);
+    res.end();
+    return;
+  }
+  const setCors = (status, body) => {
+    res.writeHead(status, { 'Content-Type': 'application/json', ...CORS_HEADERS });
+    res.end(JSON.stringify(body));
+  };
+  if (req.method === 'POST' && (req.url === '/send' || req.url === '/api/send')) {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try {
+        const { phone, text } = JSON.parse(body);
+        if (!phone || !text) {
+          setCors(400, { error: 'phone and text required' });
+          return;
+        }
+        if (!currentSock) {
+          setCors(503, { error: 'Bridge no conectado' });
+          return;
+        }
+        const jid = phone.includes('@') ? phone : phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+        currentSock.sendMessage(jid, { text }).then(() => {
+          console.log(` [BRIDGE-SEND] Enviado a ${phone}: ${text.slice(0,60)}`);
+          setCors(200, { sent: true });
+        }).catch(e => {
+          console.error(` [BRIDGE-SEND] Error enviando a ${phone}:`, e.message);
+          setCors(500, { error: e.message });
+        });
+      } catch (e) {
+        setCors(400, { error: e.message });
+      }
+    });
+  } else if (req.method === 'GET' && (req.url === '/ping' || req.url === '/api/ping')) {
+    setCors(200, { ok: true, connected: !!currentSock });
+  } else {
+    setCors(404, { error: 'not found' });
+  }
+});
+server.on('error', e => {
+  console.error(` [BRIDGE-HTTP] Error al iniciar servidor en puerto ${BRIDGE_PORT}: ${e.message}`);
+});
+server.listen(BRIDGE_PORT, () => {
+  console.log(` Bridge HTTP server escuchando en http://localhost:${BRIDGE_PORT}`);
+});
+
+// Polling para detectar citas WhatsApp confirmadas y enviar WhatsApp
+const SYNC_API_URL = (process.env.VERCEL_SYNC_URL || 'https://nymaraestilistas.es/api').replace(/\/+$/, '') + '/sync';
+async function checkConfirmedAppointments() {
+  if (!isConnected || !currentSock) return;
+  try {
+    const resp = await fetch(SYNC_API_URL);
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const whatsAppAppts = (data.appointments||[]).filter(a => 
+      a.source === 'whatsapp' && !a.pendingSalonConfirm && !a._whatsappConfirmed && !a._deleted
+    );
+    for (const appt of whatsAppAppts) {
+      const client = (data.clients||[]).find(c => c.id === appt.clientId);
+      const svc = (data.services||[]).find(s => s.id === (appt.serviceId||''));
+      const emp = (data.employees||[]).find(e => e.id === appt.employeeId);
+      if (!client) continue;
+      const dateFmt = appt.date ? appt.date.split('-').reverse().join('-') : '';
+      const text = `✅ Tu cita en Nymara Estilistas ha sido CONFIRMADA:\n\n📅 ${dateFmt}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${(svc&&svc.name)||'Servicio'}\n${emp ? '👤 '+emp.name : ''}\n\n¡Te esperamos!`;
+      const cleanPhone = client.phone.replace(/[^0-9]/g, '');
+      const mappedJid = phoneJidMap.get(cleanPhone);
+      const jid = mappedJid || cleanPhone + '@s.whatsapp.net';
+      console.log(` [AUTO-CONFIRM] Intentando enviar a ${client.phone}: cleanPhone=${cleanPhone}, en mapa=${!!mappedJid}, jid=${jid}`);
+      try {
+        await currentSock.sendMessage(jid, { text });
+        console.log(` [AUTO-CONFIRM] Enviado OK a ${client.phone} (jid=${jid}) para cita ${appt.date} ${appt.time}`);
+        // Marcar como confirmado en el cloud
+        await fetch(SYNC_API_URL, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ appointments: [{ ...appt, _whatsappConfirmed: true, _modified: Date.now() }] })
+        });
+      } catch (e) {
+        console.error(` [AUTO-CONFIRM] Error enviando a ${client.phone}: ${e.message}`);
+      }
+    }
+  } catch (e) { /* ignore polling errors */ }
+}
+setInterval(checkConfirmedAppointments, 10000);
+console.log(' Polling de citas confirmadas cada 10s');

@@ -1,5 +1,6 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+const http = require('http');
 const { fork } = require('child_process');
 
 let mainWindow;
@@ -12,12 +13,13 @@ function createWindow() {
     title: "TPV Agenda Peluquería",
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js')
     }
   });
 
   mainWindow.loadFile('electron-app.html');
-  // mainWindow.webContents.openDevTools();
+  mainWindow.webContents.openDevTools();
 
   mainWindow.on('closed', function () {
     mainWindow = null;
@@ -48,6 +50,25 @@ function startSyncHelper() {
     console.error('Failed to start sync-helper:', err);
   });
 }
+
+ipcMain.handle('send-whatsapp', async (event, { phone, text }) => {
+  return new Promise((resolve) => {
+    const data = JSON.stringify({ phone, text });
+    const req = http.request('http://localhost:3457/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
+    }, res => {
+      let body = '';
+      res.on('data', c => body += c);
+      res.on('end', () => {
+        try { resolve(JSON.parse(body)); } catch { resolve({ sent: false, error: body }); }
+      });
+    });
+    req.on('error', e => resolve({ sent: false, error: e.message }));
+    req.write(data);
+    req.end();
+  });
+});
 
 app.on('ready', () => {
   startSyncHelper();

@@ -1,4 +1,4 @@
-const API = window.location.origin;
+compilame const API = window.location.origin;
 let services = [], sections = [], employees = [], allClients = [];
 let selectedService = null, selectedDate = '', selectedSlot = null;
 let currentClient = null, currentAppointments = [];
