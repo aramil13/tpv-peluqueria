@@ -6,7 +6,8 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder"
+    "build": "electron-builder",
+    "build:android": "cd android-agenda && npx cap copy android && cd android && ./gradlew assembleDebug && cp app/build/outputs/apk/debug/app-debug.apk ../agendaTPV.apk"
   },
   "devDependencies": {
     "electron": "^31.0.0",

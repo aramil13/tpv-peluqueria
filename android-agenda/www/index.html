@@ -563,15 +563,15 @@ function showDayAppts(dateStr) {
         const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
         const services = svcIds.map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
         const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
-        const isPendingWa = !!appt.pendingSalonConfirm;
-        const isPending = appt.salonModified || appt.clientModified || isPendingWa;
+        const isPending = appt.salonModified || appt.clientModified;
         const colorKey = appt.blockGroupId || appt.id;
-        const cellColor = isPendingWa ? '#95a5a1' : ((isPending && appt.source === 'online') ? '#8a8a8a' : colorMap[colorKey]);
-        const pendingNote = isPendingWa ? ' | 📱 Pendiente WhatsApp' : (appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : ''));
+        const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : colorMap[colorKey];
+        const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '');
         const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
         const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
         const blockLabel = isBlock ? ` | Bloque ${appt.blockNum}` : '';
         const detail = `Cliente: ${client?client.name:'?'} | Servicio: ${svcNames}${blockLabel} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${pendingNote}`;
+        const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isBlock ? `editApptBlock('${appt.id}','${appt.blockNum}')` : `editAppt('${appt.id}')`);
         let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
         if (appt.clientModified) {
           cellContent = `${esc(appt.time)}→${esc(appt.pendingTime||'')}`;
@@ -616,56 +616,6 @@ function acceptClientMod(id) {
   delete a.pendingTime;
   delete a.pendingEmployeeId;
   a._modified = Date.now();
-}
-
-function confirmWhatsAppAppt(id) {
-  const a = data.appointments.find(x => x.id === id);
-  if (!a) return;
-  const client = data.clients.find(c => c.id === a.clientId);
-  const svc = data.services.find(s => s.id === a.serviceId);
-  const emp = data.employees.find(e => e.id === a.employeeId);
-  const isMod = !!a.clientModified;
-
-  let msg;
-  if (isMod) {
-    const pendEmp = a.pendingEmployeeId ? (data.employees.find(e=>e.id===a.pendingEmployeeId)?.name||'') : '';
-    msg = `El cliente solicita MODIFICAR:\n\nOriginal: ${a.date} ${a.time}\nSolicitado: ${a.pendingDate||a.date} ${a.pendingTime||a.time} ${pendEmp}\n\n¿Confirmar?`;
-  } else {
-    msg = `¿Confirmar cita WhatsApp?\n\nCliente: ${client?client.name:'?'}\nServicio: ${svc?svc.name:'?'}\nFecha: ${a.date} ${a.time}\nEmpleado: ${emp?emp.name:'Sin asignar'}`;
-  }
-  if (!confirm(msg)) return;
-
-  if (isMod) {
-    a.date = a.pendingDate || a.date;
-    a.time = a.pendingTime || a.time;
-    if (a.pendingEmployeeId) a.employeeId = a.pendingEmployeeId;
-    if (a.pendingDate || a.pendingTime) {
-      const srv2 = data.services.find(s => s.id === a.serviceId);
-      const dur = srv2 ? srv2.duration : 30;
-      const reqEnd = timeToMinutes(a.time) + dur;
-      a.endTime = String(Math.floor(reqEnd/60)).padStart(2,'0')+':'+String(reqEnd%60).padStart(2,'0');
-    }
-    delete a.pendingDate; delete a.pendingTime; delete a.pendingEmployeeId;
-    a.clientModified = false;
-  }
-  a.pendingSalonConfirm = false;
-  a.status = 'confirmed';
-  a._modified = Date.now();
-  saveAll();
-  syncWebNow();
-  renderAgenda();
-
-  // Send WhatsApp confirmation via cloud API
-  if (client) {
-    const c = getSyncCfg();
-    if (c.enabled && c.url) {
-      fetch(c.url.replace(/\/+$/,'') + '/api/send-confirmation', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId: id })
-      }).catch(() => {});
-    }
-  }
-}
   saveAll();
   syncWebNow();
   renderAgenda();
@@ -1446,9 +1396,9 @@ function getSyncCfg() {
     if (url && port && !/^https?:\/\//i.test(url) && !url.includes('://')) {
       url = 'http://' + url + ':' + (parseInt(port) || 3456);
     }
-    return { enabled, url: normalizeUrl(url) || 'https://nymaraestilistas.es/api' } 
+    return { enabled, url: normalizeUrl(url) || 'https://postal-charters.vercel.app' } 
   }
-  catch(e) { return { enabled: true, url: 'https://nymaraestilistas.es/api' } }
+  catch(e) { return { enabled: true, url: 'https://postal-charters.vercel.app' } }
 }
 function setSyncCfg(c) { localStorage.setItem('agenda_syncEnabled', c.enabled); localStorage.setItem('agenda_syncUrl', c.url) }
 function syncBase() { return getSyncCfg().url }
