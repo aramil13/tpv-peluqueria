@@ -2765,12 +2765,46 @@ function confirmWhatsAppAppt(id) {
   const client = data.clients.find(c => c.id === a.clientId);
   const svc = data.services.find(s => s.id === a.serviceId);
   const emp = data.employees.find(e => e.id === a.employeeId);
-  const msg = `¿Confirmar esta cita de WhatsApp?\n\n`+
-    `Cliente: ${client?client.name:'?'}\n`+
-    `Servicio: ${svc?svc.name:'?'}\n`+
-    `Fecha: ${a.date} ${a.time}\n`+
-    `Empleado: ${emp?emp.name:'Sin asignar'}`;
+  const isModification = !!a.clientModified;
+
+  let msg;
+  if (isModification) {
+    const pendEmp = a.pendingEmployeeId ? (data.employees.find(e=>e.id===a.pendingEmployeeId)?.name||'') : '';
+    msg = `El cliente solicita MODIFICAR esta cita:\n\n`+
+      `Cliente: ${client?client.name:'?'}\n`+
+      `Servicio: ${svc?svc.name:'?'}\n`+
+      `Original: ${a.date} ${a.time} ${emp?emp.name:''}\n`+
+      `Solicitado: ${a.pendingDate||a.date} ${a.pendingTime||a.time} ${pendEmp||''}\n\n`+
+      `¿Confirmar la modificación?`;
+  } else {
+    msg = `¿Confirmar esta cita de WhatsApp?\n\n`+
+      `Cliente: ${client?client.name:'?'}\n`+
+      `Servicio: ${svc?svc.name:'?'}\n`+
+      `Fecha: ${a.date} ${a.time}\n`+
+      `Empleado: ${emp?emp.name:'Sin asignar'}`;
+  }
   if (!confirm(msg)) return;
+
+  // Apply modification changes if any
+  if (isModification) {
+    a.date = a.pendingDate || a.date;
+    a.time = a.pendingTime || a.time;
+    if (a.pendingEmployeeId) a.employeeId = a.pendingEmployeeId;
+    if (a.pendingDate || a.pendingTime) {
+      const srv2 = data.services.find(s => s.id === a.serviceId);
+      const dur = srv2 ? srv2.duration : 30;
+      const reqStart = timeToMinutes(a.time);
+      const reqEnd = reqStart + dur;
+      const newEndH = Math.floor(reqEnd/60);
+      const newEndM = reqEnd % 60;
+      a.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
+    }
+    delete a.pendingDate;
+    delete a.pendingTime;
+    delete a.pendingEmployeeId;
+    a.clientModified = false;
+  }
+
   a.pendingSalonConfirm = false;
   a.status = 'confirmed';
   a.notes = (a.notes||'').replace('PENDIENTE - ', '');
@@ -2778,6 +2812,7 @@ function confirmWhatsAppAppt(id) {
   saveAll();
   syncWebNow();
   renderAgenda();
+
   if (!client) return;
   const dateFmt = a.date ? a.date.split('-').reverse().join('-') : '';
   const confirmText = `✅ Tu cita en Nymara Estilistas ha sido CONFIRMADA:\n\n📅 ${dateFmt}\n⏰ ${a.time}${a.endTime ? ' - '+a.endTime : ''}\n💇 ${(svc&&svc.name)||'Servicio'}\n${emp ? '👤 '+emp.name : ''}\n\n¡Te esperamos!`;
