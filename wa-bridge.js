@@ -19,9 +19,11 @@ let processedIds = new Set();
 const messageQueue = [];
 let queueProcessing = false;
 const phoneJidMap = new Map(); // teléfono (sin +) → jid real (ej: 34678092305 → 58300003553300@lid)
+let outgoingMessageIds = new Set(); // IDs de mensajes enviados por el bot (para evitar bucles)
 
 const { processWhatsAppMessage } = require('./lib/ai-assistant');
 const { loadConversation, clearConversation } = require('./lib/conversation');
+const { writeData } = require('./lib/kv-data');
 
 const useDeepSeek = !!process.env.DEEPSEEK_API_KEY;
 const useGroq = !!process.env.GROQ_API_KEY;
@@ -45,7 +47,8 @@ async function processQueue() {
     try {
       const reply = await processWhatsAppMessage(item.phone, item.text);
       if (item.jid && currentSock) {
-        await currentSock.sendMessage(item.jid, { text: reply });
+        const sent = await currentSock.sendMessage(item.jid, { text: reply });
+        if (sent?.key?.id) outgoingMessageIds.add(sent.key.id);
         console.log(` [OUT] ${item.phone.replace('+','')}: ${reply.slice(0, 60)}`);
       }
     } catch (e) {
@@ -57,7 +60,6 @@ async function processQueue() {
       }
     }
     await new Promise(r => setTimeout(r, 3000));
-    messageQueue.shift();
   }
   queueProcessing = false;
 }
@@ -69,6 +71,7 @@ function queueMessage(phone, text, jid) {
 
 setInterval(() => {
   if (processedIds.size > 1000) processedIds = new Set();
+  if (outgoingMessageIds.size > 500) outgoingMessageIds = new Set();
 }, 60000);
 
 function isNormalChat(jid) {
@@ -126,8 +129,12 @@ async function start() {
       if (m.key.id) processedIds.add(m.key.id);
 
       if (m.key.fromMe) {
-        console.log(' [SKIP] mensaje enviado por el propio bot (fromMe=true), ignorando');
-        continue;
+        if (outgoingMessageIds.has(m.key.id)) {
+          outgoingMessageIds.delete(m.key.id);
+          console.log(' [SKIP] mensaje enviado por el bot vía bridge (fromMe + ID conocido), ignorando');
+          continue;
+        }
+        console.log(' [PROCESS-SELF] mensaje desde el propio teléfono, procesando');
       }
 
       let jid = m.key.remoteJid || '';
@@ -159,7 +166,8 @@ async function start() {
       if (isGoodbye && currentSock) {
         console.log(` [BYE] ${phone}: "${text.slice(0,40)}"`);
         await clearConversation('+' + phone);
-        await currentSock.sendMessage(jid, { text: '¡Hasta luego! 👋 Si necesitas algo, aquí estaré. ¡Cuídate!' });
+        const sent = await currentSock.sendMessage(jid, { text: '¡Hasta luego! 👋 Si necesitas algo, aquí estaré. ¡Cuídate!' });
+        if (sent?.key?.id) outgoingMessageIds.add(sent.key.id);
         continue;
       }
       if (!hasHistory && !isTrigger) {
@@ -213,7 +221,8 @@ const server = http.createServer((req, res) => {
           return;
         }
         const jid = phone.includes('@') ? phone : phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-        currentSock.sendMessage(jid, { text }).then(() => {
+        currentSock.sendMessage(jid, { text }).then(sent => {
+          if (sent?.key?.id) outgoingMessageIds.add(sent.key.id);
           console.log(` [BRIDGE-SEND] Enviado a ${phone}: ${text.slice(0,60)}`);
           setCors(200, { sent: true });
         }).catch(e => {
@@ -237,41 +246,89 @@ server.listen(BRIDGE_PORT, () => {
   console.log(` Bridge HTTP server escuchando en http://localhost:${BRIDGE_PORT}`);
 });
 
-// Polling para detectar citas WhatsApp confirmadas y enviar WhatsApp
+// Sincronizar todos los datos desde la nube al archivo local
 const SYNC_API_URL = (process.env.VERCEL_SYNC_URL || 'https://nymaraestilistas.es/api').replace(/\/+$/, '') + '/sync';
+async function syncAllFromCloud() {
+  try {
+    const resp = await fetch(SYNC_API_URL);
+    if (!resp.ok) { console.log('[SYNC] Error fetching from cloud:', resp.status); return; }
+    const data = await resp.json();
+    const hasData = (data.clients && data.clients.length) || (data.services && data.services.length) || (data.appointments && data.appointments.length);
+    if (!hasData) { console.log('[SYNC] Cloud data is empty, skipping local write'); return; }
+    writeData(data);
+    console.log('[SYNC] Full data synced from cloud: ' +
+      (data.clients||[]).length + ' clients, ' +
+      (data.services||[]).length + ' services, ' +
+      (data.employees||[]).length + ' employees, ' +
+      (data.products||[]).length + ' products, ' +
+      (data.sections||[]).length + ' sections, ' +
+      (data.providers||[]).length + ' providers, ' +
+      (data.appointments||[]).length + ' appointments' +
+      (data.settings ? ', settings: yes' : ', settings: no'));
+  } catch (e) { console.log('[SYNC] Error syncing from cloud:', e.message); }
+}
+// Sincronizar al arrancar y cada 5 minutos
+syncAllFromCloud();
+setInterval(syncAllFromCloud, 300000);
+
+// Polling para detectar citas WhatsApp y enviar notificaciones
 async function checkConfirmedAppointments() {
   if (!isConnected || !currentSock) return;
   try {
     const resp = await fetch(SYNC_API_URL);
     if (!resp.ok) return;
     const data = await resp.json();
-    const whatsAppAppts = (data.appointments||[]).filter(a => 
+    const appts = (data.appointments||[]);
+
+    // Confirmaciones de citas nuevas
+    for (const appt of appts.filter(a =>
       a.source === 'whatsapp' && !a.pendingSalonConfirm && !a._whatsappConfirmed && !a._deleted
-    );
-    for (const appt of whatsAppAppts) {
-      const client = (data.clients||[]).find(c => c.id === appt.clientId);
-      const svc = (data.services||[]).find(s => s.id === (appt.serviceId||''));
-      const emp = (data.employees||[]).find(e => e.id === appt.employeeId);
-      if (!client) continue;
-      const dateFmt = appt.date ? appt.date.split('-').reverse().join('-') : '';
-      const text = `✅ Tu cita en Nymara Estilistas ha sido CONFIRMADA:\n\n📅 ${dateFmt}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${(svc&&svc.name)||'Servicio'}\n${emp ? '👤 '+emp.name : ''}\n\n¡Te esperamos!`;
-      const cleanPhone = client.phone.replace(/[^0-9]/g, '');
-      const mappedJid = phoneJidMap.get(cleanPhone);
-      const jid = mappedJid || cleanPhone + '@s.whatsapp.net';
-      console.log(` [AUTO-CONFIRM] Intentando enviar a ${client.phone}: cleanPhone=${cleanPhone}, en mapa=${!!mappedJid}, jid=${jid}`);
-      try {
-        await currentSock.sendMessage(jid, { text });
-        console.log(` [AUTO-CONFIRM] Enviado OK a ${client.phone} (jid=${jid}) para cita ${appt.date} ${appt.time}`);
-        // Marcar como confirmado en el cloud
-        await fetch(SYNC_API_URL, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ appointments: [{ ...appt, _whatsappConfirmed: true, _modified: Date.now() }] })
-        });
-      } catch (e) {
-        console.error(` [AUTO-CONFIRM] Error enviando a ${client.phone}: ${e.message}`);
-      }
+    )) {
+      await sendApptNotification(appt, data, {
+        text: `✅ Tu cita en Nymara Estilistas ha sido CONFIRMADA:\n\n📅 ${appt.date.split('-').reverse().join('-')}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${((data.services||[]).find(s=>s.id===(appt.serviceId||''))||{}).name||'Servicio'}\n👤 ${((data.employees||[]).find(e=>e.id===appt.employeeId)||{}).name||''}\n\n¡Te esperamos!`,
+        clearFlag: '_whatsappConfirmed',
+        setFlag: '_whatsappConfirmed'
+      });
+    }
+
+    // Cancelaciones ACEPTADAS por el salón
+    for (const appt of appts.filter(a => a._whatsappCancelledPending && !a._whatsappCancelledSent)) {
+      await sendApptNotification(appt, data, {
+        text: `✅ Tu solicitud de cancelación ha sido ACEPTADA. La cita del ${appt.date.split('-').reverse().join('-')} a las ${appt.time} ha sido cancelada.`,
+        clearFlag: '_whatsappCancelledPending',
+        setFlag: '_whatsappCancelledSent'
+      });
+    }
+
+    // Cancelaciones RECHAZADAS por el salón
+    for (const appt of appts.filter(a => a._whatsappCancelRejectedPending && !a._whatsappCancelRejectedSent)) {
+      await sendApptNotification(appt, data, {
+        text: `ℹ️ Tu solicitud de cancelación ha sido RECHAZADA. La cita del ${appt.date.split('-').reverse().join('-')} a las ${appt.time} sigue activa. Si necesitas ayuda, contacta con el salón.`,
+        clearFlag: '_whatsappCancelRejectedPending',
+        setFlag: '_whatsappCancelRejectedSent'
+      });
     }
   } catch (e) { /* ignore polling errors */ }
+}
+
+async function sendApptNotification(appt, data, opts) {
+  const client = (data.clients||[]).find(c => c.id === appt.clientId);
+  if (!client) return;
+  const cleanPhone = client.phone.replace(/[^0-9]/g, '');
+  const mappedJid = phoneJidMap.get(cleanPhone);
+  const jid = mappedJid || cleanPhone + '@s.whatsapp.net';
+  console.log(` [AUTO-NOTIF] Intentando enviar a ${client.phone}: jid=${jid}`);
+  try {
+    const sent = await currentSock.sendMessage(jid, { text: opts.text });
+    if (sent?.key?.id) outgoingMessageIds.add(sent.key.id);
+    console.log(` [AUTO-NOTIF] Enviado OK a ${client.phone} para cita ${appt.date} ${appt.time}`);
+    await fetch(SYNC_API_URL, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointments: [{ ...appt, [opts.clearFlag]: false, [opts.setFlag]: true, _modified: Date.now() }] })
+    });
+  } catch (e) {
+    console.error(` [AUTO-NOTIF] Error enviando a ${client.phone}: ${e.message}`);
+  }
 }
 setInterval(checkConfirmedAppointments, 10000);
 console.log(' Polling de citas confirmadas cada 10s');

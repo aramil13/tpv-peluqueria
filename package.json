@@ -17,6 +17,7 @@
   "files": [
     "electron-app.html",
     "main.js",
+    "preload.js",
     "sync-helper.js",
     "package.json",
     "booking/**",

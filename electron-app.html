@@ -76,6 +76,7 @@ tr:hover td { background: #f8f9fa; }
 .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.5); z-index: 1000; justify-content: center; align-items: center; }
 .modal.show { display: flex; }
 .modal-content { background: var(--card); border-radius: 12px; padding: 25px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
+.modal-content.maximized { max-width: 98vw; max-height: 98vh; width: 98vw; height: 98vh; }
 .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 2px solid var(--bg); }
 .modal-header h3 { font-size: 18px; font-weight: 600; }
 .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-light); padding: 0 5px; }
@@ -161,6 +162,8 @@ tr:hover td { background: #f8f9fa; }
 .appt-grid-sq:hover { transform: scale(1.15); box-shadow: 0 2px 8px rgba(0,0,0,.2); border-color: #fff; }
 .appt-grid-free { background: #fff; border: 2px dashed #ccc; }
 .appt-grid-free:hover { background: #e8f5e9; border-color: #27ae60; }
+.appt-grid-break { background: #f0f0f0; border: 2px dashed #d0d0d0; cursor: default; }
+.appt-grid-break:hover { transform: none; box-shadow: none; border-color: #d0d0d0; }
 .appt-online-grid::after { content: '🌐'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 28px; opacity: .2; pointer-events: none; }
 .appt-pending-mod { opacity: .6; }
 .appt-pending-whatsapp { position: relative; opacity: .7; background: #95a5a1 !important; }
@@ -638,8 +641,8 @@ tr:hover td { background: #f8f9fa; }
 </div>
 
 <div class="modal" id="settingsModal">
-  <div class="modal-content" style="max-width:550px;">
-    <div class="modal-header"><h3>Configuración</h3><button class="modal-close" onclick="closeModal('settingsModal')">&times;</button></div>
+  <div class="modal-content" style="max-width:750px;">
+     <div class="modal-header"><h3>Configuración</h3><div><button class="modal-close" onclick="toggleSettingsMaximize()" style="font-size:18px;margin-right:8px;" title="Maximizar">⛶</button><button class="modal-close" onclick="closeModal('settingsModal')">&times;</button></div></div>
     <div class="tabs" style="margin-bottom:15px;">
       <div class="tab active" onclick="switchSettingsTab('business',this)">Empresa</div>
       <div class="tab" onclick="switchSettingsTab('ticket',this)">Ticket</div>
@@ -699,6 +702,27 @@ tr:hover td { background: #f8f9fa; }
           📖 Usa una URL local (<code>http://192.168.1.100:3456</code>) para sync en red local,<br>
           o una URL cloud (<code>https://tuservidor.onrender.com</code>) para sync desde cualquier lugar.<br>
           Compatible con app Android AgendaTPV.
+        </div>
+      </div>
+      <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">⏰ Horarios de sincronización</div>
+        <div class="form-group" style="margin-bottom:6px;"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;"><input type="checkbox" id="syncTimeWindowsEnabled" style="width:auto;" onchange="toggleSyncTimeWindows()"> Limitar sync a franjas horarias</label></div>
+        <div id="syncTimeWindowsFields" style="display:none;margin-top:8px;padding:10px;background:var(--bg);border-radius:8px;">
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Mañana</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;">
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;"><input type="checkbox" id="syncMorningEnabled" style="width:auto;" checked> Activar</label>
+            <input type="time" id="syncMorningStart" value="09:00" style="width:100px;font-size:13px;">
+            <span style="font-size:13px;">a</span>
+            <input type="time" id="syncMorningEnd" value="13:00" style="width:100px;font-size:13px;">
+          </div>
+          <div style="font-size:12px;font-weight:600;margin-bottom:6px;">Tarde</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;"><input type="checkbox" id="syncAfternoonEnabled" style="width:auto;" checked> Activar</label>
+            <input type="time" id="syncAfternoonStart" value="16:00" style="width:100px;font-size:13px;">
+            <span style="font-size:13px;">a</span>
+            <input type="time" id="syncAfternoonEnd" value="20:00" style="width:100px;font-size:13px;">
+          </div>
+          <div style="font-size:11px;color:var(--text-light);margin-top:8px;">El sync automático solo se ejecutará dentro de las franjas horarias activas. Fuera de ellas se pausa hasta la siguiente franja.</div>
         </div>
       </div>
       <div>
@@ -794,13 +818,13 @@ let data = {
     webSync: { enabled: false, interval: 10 },
     onlineOpening: {},
     openingHours: {
-      "0": { open: "09:00", close: "14:00", closed: true },
-      "1": { open: "09:00", close: "14:00", closed: true },
-      "2": { open: "09:00", close: "20:30", closed: false },
-      "3": { open: "09:00", close: "20:30", closed: false },
-      "4": { open: "09:00", close: "20:30", closed: false },
-      "5": { open: "09:00", close: "20:30", closed: false },
-      "6": { open: "09:00", close: "13:30", closed: false }
+      "0": { open: "09:00", close: "14:00", morningOpen: "09:00", morningClose: "14:00", afternoonOpen: "16:00", afternoonClose: "20:00", closed: true },
+      "1": { open: "09:00", close: "20:00", morningOpen: "09:00", morningClose: "13:00", afternoonOpen: "16:00", afternoonClose: "20:00", closed: true },
+      "2": { open: "09:00", close: "20:00", morningOpen: "09:00", morningClose: "13:00", afternoonOpen: "16:00", afternoonClose: "20:30", closed: false },
+      "3": { open: "09:00", close: "20:00", morningOpen: "09:00", morningClose: "13:00", afternoonOpen: "16:00", afternoonClose: "20:30", closed: false },
+      "4": { open: "09:00", close: "20:00", morningOpen: "09:00", morningClose: "13:00", afternoonOpen: "16:00", afternoonClose: "20:30", closed: false },
+      "5": { open: "09:00", close: "20:00", morningOpen: "09:00", morningClose: "13:00", afternoonOpen: "16:00", afternoonClose: "20:30", closed: false },
+      "6": { open: "09:00", close: "14:00", morningOpen: "09:00", morningClose: "14:00", afternoonOpen: "16:00", afternoonClose: "20:00", closed: false }
     }
   })
 }
@@ -825,6 +849,34 @@ let cleaned = 0;
   }
 });
 if (cleaned) { DB.set('appointments', data.appointments); console.log('Auto-cleaned', cleaned, 'appointments'); }
+
+// Migrate openingHours from old format (open/close) to new format (morningOpen/morningClose/afternoonOpen/afternoonClose)
+if (data.settings && data.settings.openingHours) {
+  let migrated = false;
+  for (let d = 0; d <= 6; d++) {
+    const day = data.settings.openingHours[d];
+    if (day && !day.morningOpen && day.open) {
+      const closeMin = parseFloat(day.close.split(':')[0]) * 60 + parseFloat(day.close.split(':')[1] || 0);
+      const openMin = parseFloat(day.open.split(':')[0]) * 60 + parseFloat(day.open.split(':')[1] || 0);
+      const totalMin = closeMin - openMin;
+      // Si cierra antes de las 14:00 o abre menos de 7h → solo mañana
+      if (closeMin <= 14 * 60 || totalMin <= 7 * 60) {
+        day.morningOpen = day.open;
+        day.morningClose = day.close;
+        day.afternoonOpen = day.close;
+        day.afternoonClose = day.close;
+      } else {
+        // Dividir en mañana (hasta 13:30) y tarde (desde 15:00)
+        day.morningOpen = day.open;
+        day.morningClose = "13:30";
+        day.afternoonOpen = "15:00";
+        day.afternoonClose = day.close;
+      }
+      migrated = true;
+    }
+  }
+  if (migrated) { DB.set('settings', data.settings); console.log('Migrated openingHours to split format'); }
+}
 
 // Clean up any corrupted entries in main entities (caused by importing binary files as CSV)
 ['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'].forEach(k => {
@@ -1179,6 +1231,17 @@ function openSettings() {
   const sync = s.sync || {};
   document.getElementById('syncEnabled').checked = sync.enabled || false;
   document.getElementById('syncUrl').value = sync.url || 'https://tpv-peluqueria.vercel.app';
+  const tw = sync.timeWindows || {};
+  document.getElementById('syncTimeWindowsEnabled').checked = tw.enabled || false;
+  document.getElementById('syncTimeWindowsFields').style.display = tw.enabled ? 'block' : 'none';
+  const morning = tw.morning || {};
+  document.getElementById('syncMorningEnabled').checked = morning.enabled !== false;
+  document.getElementById('syncMorningStart').value = morning.start || '09:00';
+  document.getElementById('syncMorningEnd').value = morning.end || '13:00';
+  const afternoon = tw.afternoon || {};
+  document.getElementById('syncAfternoonEnabled').checked = afternoon.enabled !== false;
+  document.getElementById('syncAfternoonStart').value = afternoon.start || '16:00';
+  document.getElementById('syncAfternoonEnd').value = afternoon.end || '20:00';
   const webSync = s.webSync || {};
   document.getElementById('webSyncEnabled').checked = webSync.enabled || false;
   document.getElementById('webSyncInterval').value = webSync.interval || 10;
@@ -1195,36 +1258,71 @@ function openSettings() {
 
 const DAY_NAMES = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
 
+function normalizeDayHours(day) {
+  if (!day) return { morningOpen: '09:00', morningClose: '13:00', afternoonOpen: '16:00', afternoonClose: '20:00', closed: false };
+  if (day.morningOpen) return day;
+  return {
+    morningOpen: day.open || '09:00',
+    morningClose: day.close || '13:00',
+    afternoonOpen: '16:00',
+    afternoonClose: '20:00',
+    closed: day.closed === true
+  };
+}
+
 function renderHoursSettings() {
   const h = data.settings.openingHours || {};
   let html = '';
   for (let d = 0; d <= 6; d++) {
-    const day = h[d] || { open: '09:00', close: '20:00', closed: false };
+    const day = normalizeDayHours(h[d]);
     const checked = day.closed ? 'checked' : '';
-    html += `<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);">
-      <div style="width:100px;font-weight:600;font-size:13px;">${DAY_NAMES[d]}</div>
-      <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;cursor:pointer;">
-        <input type="checkbox" id="hoursClosed${d}" ${checked} onchange="toggleHoursDay(${d})" style="width:auto;"> Cerrado
-      </label>
-      <input type="time" id="hoursOpen${d}" value="${day.open}" style="width:110px;font-size:13px;">
-      <span style="font-size:13px;">a</span>
-      <input type="time" id="hoursClose${d}" value="${day.close}" style="width:110px;font-size:13px;">
+    html += `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <div style="width:100px;font-weight:600;font-size:13px;">${DAY_NAMES[d]}</div>
+        <label style="display:flex;align-items:center;gap:4px;font-size:12px;white-space:nowrap;cursor:pointer;">
+          <input type="checkbox" id="hoursClosed${d}" ${checked} onchange="toggleHoursDay(${d})" style="width:auto;"> Cerrado
+        </label>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-left:100px;flex-wrap:wrap;">
+        <span style="font-size:12px;font-weight:600;width:50px;">Mañana</span>
+        <input type="time" id="hoursMorningOpen${d}" value="${day.morningOpen}" style="width:100px;font-size:13px;">
+        <span style="font-size:13px;">a</span>
+        <input type="time" id="hoursMorningClose${d}" value="${day.morningClose}" style="width:100px;font-size:13px;">
+        <span style="font-size:12px;font-weight:600;width:50px;margin-left:8px;">Tarde</span>
+        <input type="time" id="hoursAfternoonOpen${d}" value="${day.afternoonOpen}" style="width:100px;font-size:13px;">
+        <span style="font-size:13px;">a</span>
+        <input type="time" id="hoursAfternoonClose${d}" value="${day.afternoonClose}" style="width:100px;font-size:13px;">
+      </div>
     </div>`;
   }
   document.getElementById('hoursContainer').innerHTML = html;
+  for (let d = 0; d <= 6; d++) toggleHoursDay(d);
 }
 
 function toggleHoursDay(d) {
   const closed = document.getElementById('hoursClosed' + d).checked;
-  document.getElementById('hoursOpen' + d).disabled = closed;
-  document.getElementById('hoursClose' + d).disabled = closed;
+  document.getElementById('hoursMorningOpen' + d).disabled = closed;
+  document.getElementById('hoursMorningClose' + d).disabled = closed;
+  document.getElementById('hoursAfternoonOpen' + d).disabled = closed;
+  document.getElementById('hoursAfternoonClose' + d).disabled = closed;
 }
 
 function getOpeningHoursForDay(dateStr, settings) {
   const h = (settings && settings.openingHours) || data.settings.openingHours || {};
   const d = new Date(dateStr + 'T12:00:00').getDay();
-  const day = h[d] || { open: '09:00', close: '20:00', closed: false };
-  return day;
+  const raw = h[d] || {};
+  if (raw.morningOpen) {
+    return {
+      morning: { open: raw.morningOpen, close: raw.morningClose },
+      afternoon: { open: raw.afternoonOpen, close: raw.afternoonClose },
+      closed: raw.closed === true
+    };
+  }
+  return {
+    morning: { open: raw.open || '09:00', close: raw.close || '13:00' },
+    afternoon: { open: raw.open || '16:00', close: raw.close || '20:00' },
+    closed: raw.closed === true
+  };
 }
 
 function saveSettings() {
@@ -1234,9 +1332,14 @@ function saveSettings() {
   const prev = data.settings || {};
   const hours = {};
   for (let d = 0; d <= 6; d++) {
+    const mOpen = document.getElementById('hoursMorningOpen' + d).value || '09:00';
+    const mClose = document.getElementById('hoursMorningClose' + d).value || '13:00';
+    const aOpen = document.getElementById('hoursAfternoonOpen' + d).value || '16:00';
+    const aClose = document.getElementById('hoursAfternoonClose' + d).value || '20:00';
     hours[d] = {
-      open: document.getElementById('hoursOpen' + d).value || '09:00',
-      close: document.getElementById('hoursClose' + d).value || '20:00',
+      open: mOpen, close: aClose,
+      morningOpen: mOpen, morningClose: mClose,
+      afternoonOpen: aOpen, afternoonClose: aClose,
       closed: document.getElementById('hoursClosed' + d).checked
     };
   }
@@ -1255,7 +1358,20 @@ function saveSettings() {
     invoiceFooter: document.getElementById('setInvoiceFooter').value.trim(),
     sync: {
       enabled: document.getElementById('syncEnabled').checked,
-      url: document.getElementById('syncUrl').value.trim() || 'https://tpv-peluqueria.vercel.app'
+      url: document.getElementById('syncUrl').value.trim() || 'https://tpv-peluqueria.vercel.app',
+      timeWindows: {
+        enabled: document.getElementById('syncTimeWindowsEnabled').checked,
+        morning: {
+          enabled: document.getElementById('syncMorningEnabled').checked,
+          start: document.getElementById('syncMorningStart').value || '09:00',
+          end: document.getElementById('syncMorningEnd').value || '13:00'
+        },
+        afternoon: {
+          enabled: document.getElementById('syncAfternoonEnabled').checked,
+          start: document.getElementById('syncAfternoonStart').value || '16:00',
+          end: document.getElementById('syncAfternoonEnd').value || '20:00'
+        }
+      }
     },
     webSync: {
       enabled: document.getElementById('webSyncEnabled').checked,
@@ -1478,6 +1594,37 @@ function loadOnlineOpeningForDay(dateStr) {
 // ============ SYNC ============
 function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: true, url: 'https://nymaraestilistas.es/api' } }
 
+function toggleSyncTimeWindows() {
+  const enabled = document.getElementById('syncTimeWindowsEnabled').checked;
+  document.getElementById('syncTimeWindowsFields').style.display = enabled ? 'block' : 'none';
+}
+
+function isInSyncTimeWindow() {
+  const tw = (data.settings && data.settings.sync && data.settings.sync.timeWindows);
+  if (!tw || !tw.enabled) return true;
+  const now = new Date();
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  if (tw.morning && tw.morning.enabled !== false) {
+    const mStart = tw.morning.start || '09:00';
+    const mEnd = tw.morning.end || '13:00';
+    const [mSH, mSM] = mStart.split(':').map(Number);
+    const [mEH, mEM] = mEnd.split(':').map(Number);
+    const mStartMin = mSH * 60 + mSM;
+    const mEndMin = mEH * 60 + mEM;
+    if (minutes >= mStartMin && minutes < mEndMin) return true;
+  }
+  if (tw.afternoon && tw.afternoon.enabled !== false) {
+    const aStart = tw.afternoon.start || '16:00';
+    const aEnd = tw.afternoon.end || '20:00';
+    const [aSH, aSM] = aStart.split(':').map(Number);
+    const [aEH, aEM] = aEnd.split(':').map(Number);
+    const aStartMin = aSH * 60 + aSM;
+    const aEndMin = aEH * 60 + aEM;
+    if (minutes >= aStartMin && minutes < aEndMin) return true;
+  }
+  return false;
+}
+
 function syncPush() {
   const c = getSyncCfg();
   if (!c.enabled) return;
@@ -1596,7 +1743,18 @@ function syncPull() {
 
 let syncTimer = null;
 let webSyncTimer = null;
-function startSyncPoller() { stopSyncPoller(); if (getSyncCfg().enabled) syncTimer = setInterval(syncPull, 30000) }
+function startSyncPoller() {
+  stopSyncPoller();
+  if (!getSyncCfg().enabled) return;
+  if (!isInSyncTimeWindow()) {
+    syncTimer = setTimeout(startSyncPoller, 60000);
+    return;
+  }
+  syncTimer = setInterval(function syncInterval() {
+    syncPull();
+    if (!isInSyncTimeWindow()) { stopSyncPoller(); startSyncPoller(); }
+  }, 30000);
+}
 function stopSyncPoller() { if (syncTimer) { clearInterval(syncTimer); syncTimer = null } }
 function startWebSyncPoller() {
   stopWebSyncPoller();
@@ -1697,6 +1855,10 @@ updateClock(); setInterval(updateClock, 1000);
 // ============ MODALS ============
 function openModal(id) { document.getElementById(id).classList.add('show'); }
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function toggleSettingsMaximize() {
+  const content = document.querySelector('#settingsModal .modal-content');
+  content.classList.toggle('maximized');
+}
 document.querySelectorAll('.modal').forEach(m => {
   m.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
 });
@@ -2618,11 +2780,34 @@ function showDayAppts(dateStr) {
     colorMap[a.id] = colorMap[colorKey];
   });
 
-  // Todos los slots de 9:00 a 20:30 cada 15 min
+  // Todos los slots del horario laboral (mañana + tarde), los de descanso se marcan aparte
+  const dayHours = getOpeningHoursForDay(dateStr, data.settings);
+  const allWindows = dayHours.closed ? [] : [
+    ...(dayHours.morning ? [dayHours.morning] : []),
+    ...(dayHours.afternoon ? [dayHours.afternoon] : [])
+  ];
+  let firstSlot = 540, lastSlot = 1230;
+  if (allWindows.length) {
+    const [fh, fm] = allWindows[0].open.split(':').map(Number);
+    firstSlot = fh * 60 + fm;
+    const [lh, lm] = allWindows[allWindows.length - 1].close.split(':').map(Number);
+    lastSlot = lh * 60 + lm;
+  }
   const slots = [];
-  for (let h = 9; h <= 20; h++) {
-    if (h < 20) { slots.push(String(h).padStart(2,'0')+':00'); slots.push(String(h).padStart(2,'0')+':15'); slots.push(String(h).padStart(2,'0')+':30'); slots.push(String(h).padStart(2,'0')+':45'); }
-    else { slots.push('20:00'); slots.push('20:15'); slots.push('20:30'); }
+  const breakSlots = new Set();
+  for (let m = firstSlot; m < lastSlot; m += 15) {
+    const h = Math.floor(m / 60);
+    const min = m % 60;
+    const ts = String(h).padStart(2,'0')+':'+String(min).padStart(2,'0');
+    const inWindow = allWindows.some(w => {
+      const [wh, wm] = w.open.split(':').map(Number);
+      const [wh2, wm2] = w.close.split(':').map(Number);
+      const wStart = wh * 60 + wm;
+      const wEnd = wh2 * 60 + wm2;
+      return m >= wStart && m < wEnd;
+    });
+    if (!inWindow) breakSlots.add(ts);
+    slots.push(ts);
   }
 
   // Todos los empleados como columnas + columna "Sin asignar"
@@ -2668,7 +2853,11 @@ function showDayAppts(dateStr) {
             const slotEndMin = slotStartMin + 15;
             if (slotStartMin >= block1EndMin && slotEndMin <= block2StartMin) {
               const empId = e ? e.id : '';
-              html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
+              if (breakSlots.has(t)) {
+                html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-break" title="Descanso"></div></td>`;
+              } else {
+                html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
+              }
               return;
             }
           }
@@ -2684,15 +2873,16 @@ function showDayAppts(dateStr) {
         const svcNames = services.map(s => s.name).join(', ') || (data.services.find(s => s.id === appt.serviceId)?.name || '?');
         const isPending = appt.salonModified || appt.clientModified;
         const isPendingWhatsApp = !!appt.pendingSalonConfirm;
+        const isPendingCancelWhatsApp = !!appt.pendingCancelWhatsApp;
         const colorKey = appt.blockGroupId || appt.id;
-        const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : (isPendingWhatsApp ? '#95a5a1' : colorMap[colorKey]);
-        const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : '');
+        const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : (isPendingCancelWhatsApp ? '#d4a5a5' : (isPendingWhatsApp ? '#95a5a1' : colorMap[colorKey]));
+        const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingCancelWhatsApp ? ' | ❌ Cancelación pendiente (WhatsApp)' : (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : ''));
         const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
         const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
         const clientPhone = appt.clientPhone || client?.phone || '';
         const blockLabel = isBlock ? ` | Bloque ${appt.blockNum}` : '';
         const detail = `Cliente: ${client?client.name:'?'}${clientPhone?' 📱'+clientPhone:''} | Servicio: ${svcNames}${blockLabel} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${appt.source==='whatsapp'?' | 📱 WhatsApp':''}${pendingNote}`;
-        const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : (isBlock ? `editApptBlock('${appt.id}','${appt.blockNum}')` : `editAppt('${appt.id}')`));
+        const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingCancelWhatsApp ? `confirmCancelWhatsApp('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : (isBlock ? `editApptBlock('${appt.id}','${appt.blockNum}')` : `editAppt('${appt.id}')`)));
         let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
         if (appt.source === 'whatsapp' && clientPhone) {
           cellContent += `<br><span style="font-size:10px;color:#555;">📱${esc(clientPhone)}</span>`;
@@ -2703,12 +2893,16 @@ function showDayAppts(dateStr) {
             cellContent += `<br><span style="font-size:9px">${esc(oldEmp||'?')}→${esc(pendEmp||'?')}</span>`;
           }
         }
-        const extraClass = isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : '');
-        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">📱</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+        const extraClass = isPendingCancelWhatsApp ? ' appt-pending-cancel-whatsapp' : (isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : ''));
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">📱</span>' : ''}${isPendingCancelWhatsApp ? '<span class="pending-watermark">❌</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       }
       if (!appt) {
         const empId = e ? e.id : '';
-        html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
+        if (breakSlots.has(t)) {
+          html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-break" title="Descanso"></div></td>`;
+        } else {
+          html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
+        }
       }
     });
     html += '</tr>';
@@ -2813,27 +3007,43 @@ function confirmWhatsAppAppt(id) {
   syncWebNow();
   renderAgenda();
 
-  if (!client) return;
-  const dateFmt = a.date ? a.date.split('-').reverse().join('-') : '';
-  const confirmText = `✅ Tu cita en Nymara Estilistas ha sido CONFIRMADA:\n\n📅 ${dateFmt}\n⏰ ${a.time}${a.endTime ? ' - '+a.endTime : ''}\n💇 ${(svc&&svc.name)||'Servicio'}\n${emp ? '👤 '+emp.name : ''}\n\n¡Te esperamos!`;
-  if (window.electronAPI) {
-    window.electronAPI.sendWhatsApp(client.phone, confirmText).then(d => {
-      if (d.sent) console.log('WhatsApp confirmation sent via bridge to', client.phone);
-      else console.warn('Bridge send failed:', d.error);
-    });
-  } else {
-    console.warn('electronAPI not available, trying cloud...');
-    const c = getSyncCfg();
-    if (c.enabled && c.url) {
-      fetch(c.url.replace(/\/+$/,'') + '/api/send-confirmation', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ appointmentId: id })
-      }).then(r => r.json()).then(d => {
-        if (d.sent) console.log('WhatsApp confirmation sent via cloud to', d.phone);
-        else console.warn('Cloud send failed:', d.error);
-      }).catch(e => console.error('Cloud send error:', e));
-    }
+}
+
+function confirmCancelWhatsApp(id) {
+  const a = data.appointments.find(x => x.id === id);
+  if (!a) return;
+  const client = data.clients.find(c => c.id === a.clientId);
+  const svc = data.services.find(s => s.id === a.serviceId);
+  const emp = data.employees.find(e => e.id === a.employeeId);
+  const msg = `El cliente solicita CANCELAR esta cita de WhatsApp:\n\n`+
+    `Cliente: ${client?client.name:'?'}\n`+
+    `Servicio: ${svc?svc.name:'?'}\n`+
+    `Fecha: ${a.date} ${a.time}\n`+
+    `Empleado: ${emp?emp.name:'Sin asignar'}\n\n`+
+    `¿Aceptar la cancelación?`;
+  if (!confirm(msg)) {
+    if (!confirm('¿RECHAZAR la cancelación? La cita seguirá activa.')) return;
+    a.pendingCancelWhatsApp = false;
+    a.pendingSalonConfirm = false;
+    a.cancelledBy = '';
+    a._whatsappCancelRejectedPending = true;
+    a.notes = (a.notes||'') + ' [Cancelación rechazada por el salón]';
+    a._modified = Date.now();
+    saveAll();
+    syncWebNow();
+    renderAgenda();
+    return;
   }
+  a._deleted = true;
+  a.cancelledBy = 'client';
+  a.pendingCancelWhatsApp = false;
+  a.pendingSalonConfirm = false;
+  a._whatsappCancelledPending = true;
+  a.notes = (a.notes||'') + ' [Cancelada por cliente vía WhatsApp]';
+  a._modified = Date.now();
+  saveAll();
+  syncWebNow();
+  renderAgenda();
 }
 
 function editAppt(id) {
@@ -3249,27 +3459,40 @@ function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
 }
 
 function findFreeSlots(date, empId, duration) {
-  const WORK_START = 9;
-  const WORK_END = 19;
-  const SLOT_INTERVAL = 15;
+  const dayHours = getOpeningHoursForDay(date, data.settings);
+  if (dayHours.closed) return [];
+  const windows = [];
+  if (dayHours.morning) {
+    const [mSH,mSM] = dayHours.morning.open.split(':').map(Number);
+    const [mEH,mEM] = dayHours.morning.close.split(':').map(Number);
+    windows.push({ start: mSH + mSM/60, end: mEH + mEM/60 });
+  }
+  if (dayHours.afternoon) {
+    const [aSH,aSM] = dayHours.afternoon.open.split(':').map(Number);
+    const [aEH,aEM] = dayHours.afternoon.close.split(':').map(Number);
+    windows.push({ start: aSH + aSM/60, end: aEH + aEM/60 });
+  }
   const appts = data.appointments.filter(a => a.date === date && a.employeeId === empId && !a._deleted && a.endTime).sort((a,b) => a.time.localeCompare(b.time));
   const slots = [];
   const neededMins = duration || 30;
-  for (let h = WORK_START; h < WORK_END; h += 0.25) {
-    const timeStr = String(Math.floor(h)).padStart(2,'0')+':'+String((h % 1) * 60).padStart(2,'0');
-    const timeEnd = h + neededMins/60;
-    if (timeEnd > WORK_END) break;
-    const conflict = appts.some(a => {
-      const as = parseFloat(a.time.split(':')[0]) + parseFloat(a.time.split(':')[1])/60;
-      const ae = parseFloat(a.endTime.split(':')[0]) + parseFloat(a.endTime.split(':')[1])/60;
-      return h < ae && timeEnd > as;
-    });
-    if (!conflict) {
-      const endH = Math.floor(timeEnd);
-      const endM = Math.round((timeEnd % 1) * 60);
-      slots.push(timeStr + '-' + String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0'));
-      if (slots.length >= 3) break;
+  for (const w of windows) {
+    for (let h = w.start; h < w.end; h += 0.25) {
+      const timeStr = String(Math.floor(h)).padStart(2,'0')+':'+String((h % 1) * 60).padStart(2,'0');
+      const timeEnd = h + neededMins/60;
+      if (timeEnd > w.end) break;
+      const conflict = appts.some(a => {
+        const as = parseFloat(a.time.split(':')[0]) + parseFloat(a.time.split(':')[1])/60;
+        const ae = parseFloat(a.endTime.split(':')[0]) + parseFloat(a.endTime.split(':')[1])/60;
+        return h < ae && timeEnd > as;
+      });
+      if (!conflict) {
+        const endH = Math.floor(timeEnd);
+        const endM = Math.round((timeEnd % 1) * 60);
+        slots.push(timeStr + '-' + String(endH).padStart(2,'0')+':'+String(endM).padStart(2,'0'));
+        if (slots.length >= 3) break;
+      }
     }
+    if (slots.length >= 3) break;
   }
   return slots;
 }
@@ -3282,12 +3505,12 @@ function deleteAppt(id) {
     const relatedAppts = data.appointments.filter(x => x.blockGroupId === a.blockGroupId);
     relatedAppts.forEach(ra => {
       ra._modified = Date.now();
-      if (ra.source === 'online') { ra.cancelledBy = 'salon'; delete ra._deleted; }
+      if (ra.source === 'online' || ra.source === 'whatsapp') { ra.cancelledBy = 'salon'; delete ra._deleted; }
       else { ra._deleted = true; }
     });
   } else {
     a._modified = Date.now();
-    if (a.source === 'online') { a.cancelledBy = 'salon'; delete a._deleted; }
+    if (a.source === 'online' || a.source === 'whatsapp') { a.cancelledBy = 'salon'; delete a._deleted; }
     else { a._deleted = true; }
   }
   saveKey('appointments'); renderAgenda(); syncPush();
