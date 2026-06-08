@@ -424,6 +424,7 @@ tr:hover td { background: #f8f9fa; }
           <div class="tab" onclick="switchReportTab('clients',this)">Clientes</div>
           <div class="tab" onclick="switchReportTab('services',this)">Servicios</div>
           <div class="tab" onclick="switchReportTab('products',this)">Productos</div>
+          <div class="tab" onclick="switchReportTab('employees',this)">Empleados</div>
         </div>
         <div class="search-bar" style="margin-top:10px;">
           <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;">Desde: <input type="date" id="reportFrom" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></label>
@@ -476,6 +477,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Duración (min)</label><input type="number" id="serviceDuration" placeholder="30" min="0"></div>
       <div class="form-group"><label>Sección</label><select id="serviceSection"><option value="">Sin sección</option></select></div>
       <div class="form-group"><label>Bloque</label><select id="serviceBloque"><option value="">Sin clasificar</option><option value="bloque1">Bloque 1</option><option value="bloque2">Bloque 2</option></select></div>
+      <div class="form-group"><label>Empleados</label><div id="serviceEmployees" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;"></div></div>
     </div>
     <div class="form-group"><label>Descripción</label><textarea id="serviceDesc" placeholder="Descripción..."></textarea></div>
     <div class="form-group-inline"><input type="checkbox" id="serviceShowPos" checked> <label for="serviceShowPos">Mostrar en caja (TPV)</label></div>
@@ -650,6 +652,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="tab" onclick="switchSettingsTab('iva',this)">IVA</div>
       <div class="tab" onclick="switchSettingsTab('sync',this)">Sync</div>
       <div class="tab" onclick="switchSettingsTab('whatsapp',this)">Recordatorios WAS</div>
+      <div class="tab" onclick="switchSettingsTab('ia',this)">IA y WhatsApp</div>
       <div class="tab" onclick="switchSettingsTab('hours',this)">Horarios</div>
       <div class="tab" onclick="switchSettingsTab('bloques',this)">Bloques</div>
     </div>
@@ -736,6 +739,35 @@ tr:hover td { background: #f8f9fa; }
     </div>
     <div id="settingsWhatsApp" style="display:none;">
       <div id="waReminderList" style="max-height:400px;overflow-y:auto;"></div>
+    </div>
+    <div id="settingsIA" style="display:none;">
+      <div class="card" style="box-shadow:none;padding:0;margin-bottom:20px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">🧠 Agente IA (DeepSeek)</div>
+        <div class="form-group"><label>API Key de DeepSeek</label>
+          <div style="display:flex;gap:8px;">
+            <input type="password" id="deepseekApiKey" placeholder="sk-..." style="flex:1;font-family:monospace;">
+            <button class="btn btn-secondary btn-sm" onclick="toggleDeepSeekKeyVisibility()" title="Mostrar/Ocultar">👁️</button>
+          </div>
+        </div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:-6px;">Obtén tu API key en <a href="https://platform.deepseek.com" target="_blank">platform.deepseek.com</a></div>
+      </div>
+      <div class="card" style="box-shadow:none;padding:0;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">📱 WhatsApp Bridge</div>
+        <div id="waBridgeStatus" style="font-size:13px;margin-bottom:10px;padding:8px 12px;border-radius:6px;background:var(--bg);">
+          Estado: <span id="waBridgeStatusText">No iniciado</span>
+        </div>
+        <div id="waBridgeQrContainer" style="display:none;text-align:center;margin-bottom:12px;">
+          <div style="font-size:12px;color:var(--text-light);margin-bottom:8px;">Escanea este QR con WhatsApp (Ajustes > Dispositivos vinculados)</div>
+          <img id="waBridgeQr" src="" style="width:220px;height:220px;border:2px solid var(--border);border-radius:8px;background:#fff;padding:8px;">
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-success btn-sm" id="waBridgeStartBtn" onclick="startWaBridge()">🔗 Vincular WhatsApp</button>
+          <button class="btn btn-danger btn-sm" id="waBridgeStopBtn" onclick="stopWaBridge()" style="display:none;">⛔ Desvincular</button>
+        </div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:8px;line-height:1.5;">
+          El bridge permite que la IA (DeepSeek) converse con los clientes vía WhatsApp y gestione citas automáticamente.
+        </div>
+      </div>
     </div>
     <div id="settingsHours" style="display:none;">
       <div style="font-size:13px;margin-bottom:10px;color:var(--text-light);">Define el horario habitual del negocio. Los días cerrados no mostrarán disponibilidad en reservas online ni en la IA.</div>
@@ -1207,6 +1239,7 @@ function switchSettingsTab(tab, el) {
   document.getElementById('settingsIva').style.display = tab === 'iva' ? 'block' : 'none';
   document.getElementById('settingsSync').style.display = tab === 'sync' ? 'block' : 'none';
   document.getElementById('settingsWhatsApp').style.display = tab === 'whatsapp' ? 'block' : 'none';
+  document.getElementById('settingsIA').style.display = tab === 'ia' ? 'block' : 'none';
   document.getElementById('settingsHours').style.display = tab === 'hours' ? 'block' : 'none';
   document.getElementById('settingsBloques').style.display = tab === 'bloques' ? 'block' : 'none';
   if (tab === 'ticket') { populateBackupLists('ticket'); document.getElementById('currentTicketNum').textContent = lastTicketNum(); }
@@ -1252,6 +1285,8 @@ function openSettings() {
   document.getElementById('bloque1Duration').value = bloques.bloque1Duration || 60;
   document.getElementById('bloque2Duration').value = bloques.bloque2Duration || 60;
   document.getElementById('bloqueGap').value = bloques.bloqueGap || 45;
+  document.getElementById('deepseekApiKey').value = s.deepseekApiKey || '';
+  updateBridgeStatusUI();
   switchSettingsTab('business', document.querySelector('#settingsModal .tab'));
   openModal('settingsModal');
 }
@@ -1382,8 +1417,13 @@ function saveSettings() {
       bloque1Duration: parseInt(document.getElementById('bloque1Duration').value) || 60,
       bloque2Duration: parseInt(document.getElementById('bloque2Duration').value) || 60,
       bloqueGap: parseInt(document.getElementById('bloqueGap').value) || 45
-    }
+    },
+    deepseekApiKey: document.getElementById('deepseekApiKey').value.trim()
   };
+  const dsk = document.getElementById('deepseekApiKey').value.trim();
+  if (window.electronAPI && window.electronAPI.setDeepSeekKey) {
+    window.electronAPI.setDeepSeekKey(dsk);
+  }
   saveKey('ivaRate'); saveKey('settings');
   updateAppHeader();
   if (data.settings.sync.enabled) { syncPush(); startSyncPoller(); }
@@ -1392,6 +1432,99 @@ function saveSettings() {
   else stopWebSyncPoller();
   closeModal('settingsModal');
   updateTicket();
+}
+
+// ---- IA y WhatsApp Bridge ----
+function updateBridgeStatusUI() {
+  if (!window.electronAPI) return;
+  window.electronAPI.getBridgeStatus().then(status => {
+    const text = document.getElementById('waBridgeStatusText');
+    const startBtn = document.getElementById('waBridgeStartBtn');
+    const stopBtn = document.getElementById('waBridgeStopBtn');
+    const qrContainer = document.getElementById('waBridgeQrContainer');
+    if (!status.connected) {
+      text.textContent = status.state === 'starting' || status.state === 'connecting'
+        ? 'Conectando...' : 'No conectado';
+      text.style.color = 'var(--text-light)';
+      startBtn.style.display = '';
+      stopBtn.style.display = 'none';
+      qrContainer.style.display = 'none';
+    } else {
+      text.textContent = '✅ Conectado como ' + (status.phone || 'WhatsApp');
+      text.style.color = 'var(--success)';
+      startBtn.style.display = 'none';
+      stopBtn.style.display = '';
+      qrContainer.style.display = 'none';
+    }
+  }).catch(() => {});
+}
+
+function startWaBridge() {
+  if (!window.electronAPI) return;
+  document.getElementById('waBridgeStatusText').textContent = 'Iniciando...';
+  document.getElementById('waBridgeStatusText').style.color = 'var(--text-light)';
+  window.electronAPI.startBridge();
+}
+
+function stopWaBridge() {
+  if (!window.electronAPI) return;
+  document.getElementById('waBridgeStatusText').textContent = 'Deteniendo...';
+  document.getElementById('waBridgeStatusText').style.color = 'var(--text-light)';
+  window.electronAPI.stopBridge();
+}
+
+function toggleDeepSeekKeyVisibility() {
+  const el = document.getElementById('deepseekApiKey');
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+
+if (window.electronAPI) {
+  window.electronAPI.onBridgeStatus((status) => {
+    const text = document.getElementById('waBridgeStatusText');
+    const startBtn = document.getElementById('waBridgeStartBtn');
+    const stopBtn = document.getElementById('waBridgeStopBtn');
+    const qrContainer = document.getElementById('waBridgeQrContainer');
+    if (status.connected) {
+      text.textContent = '✅ Conectado como ' + (status.phone || 'WhatsApp');
+      text.style.color = 'var(--success)';
+      startBtn.style.display = 'none';
+      stopBtn.style.display = '';
+      qrContainer.style.display = 'none';
+    } else if (status.state === 'starting' || status.state === 'connecting') {
+      text.textContent = 'Conectando...';
+      text.style.color = 'var(--text-light)';
+      startBtn.style.display = 'none';
+      stopBtn.style.display = 'none';
+      qrContainer.style.display = 'none';
+    } else if (status.state === 'error') {
+      text.textContent = '❌ Error: ' + (status.error || 'Error al iniciar. Revisa la consola.');
+      text.style.color = 'var(--danger)';
+      startBtn.style.display = '';
+      stopBtn.style.display = 'none';
+      qrContainer.style.display = 'none';
+    } else {
+      text.textContent = 'No conectado';
+      text.style.color = 'var(--text-light)';
+      startBtn.style.display = '';
+      stopBtn.style.display = 'none';
+      qrContainer.style.display = 'none';
+    }
+    if (status.state === 'stopped' && status.error === 'logged_out') {
+      text.textContent = 'Sesión cerrada. Haz clic en Vincular WhatsApp para escanear de nuevo.';
+      text.style.color = 'var(--danger)';
+      startBtn.style.display = '';
+    }
+  });
+
+  window.electronAPI.onBridgeQr((qrDataUrl) => {
+    const qrContainer = document.getElementById('waBridgeQrContainer');
+    const qrImg = document.getElementById('waBridgeQr');
+    qrImg.src = qrDataUrl;
+    qrContainer.style.display = 'block';
+    document.getElementById('waBridgeStatusText').textContent = 'Escanea el QR con WhatsApp';
+    document.getElementById('waBridgeStatusText').style.color = 'var(--warning)';
+    document.getElementById('waBridgeStartBtn').style.display = 'none';
+  });
 }
 
 // ---- Counter backup/restore ----
@@ -2052,8 +2185,20 @@ function populateSectionSelect() {
   sel.innerHTML = '<option value="">Sin sección</option>'+data.sections.filter(s => !s._deleted).sort((a,b) => a.name.localeCompare(b.name)).map(s => `<option value="${s.id}" style="color:${s.color||'#000'};">⬤ ${esc(s.name)}</option>`).join('');
 }
 
+function populateServiceEmployees(selectedIds) {
+  const div = document.getElementById('serviceEmployees');
+  const emps = data.employees.filter(e => !e._deleted);
+  if (!emps.length) { div.innerHTML = '<span style="font-size:12px;color:var(--text-light);">No hay empleados. Créalos primero.</span>'; return; }
+  div.innerHTML = emps.map(e => {
+    const checked = selectedIds && selectedIds.includes(e.id) ? 'checked' : '';
+    return `<label style="display:flex;align-items:center;gap:4px;font-size:13px;padding:4px 8px;background:var(--bg);border-radius:4px;cursor:pointer;">
+      <input type="checkbox" value="${e.id}" ${checked}> ${esc(e.name)}</label>`;
+  }).join('');
+}
+
 function openServiceModal() {
   populateSectionSelect();
+  populateServiceEmployees();
   openModal('serviceModal');
 }
 
@@ -2102,6 +2247,8 @@ function saveService() {
   const name = document.getElementById('serviceName').value.trim();
   const price = parseFloat(document.getElementById('servicePrice').value);
   if (!name || isNaN(price) || price<=0) { alert('Nombre y precio válido son obligatorios'); return; }
+  const empCheckboxes = document.querySelectorAll('#serviceEmployees input:checked');
+  const employeeIds = Array.from(empCheckboxes).map(cb => cb.value);
   const obj = {
     name, price,
     duration: parseInt(document.getElementById('serviceDuration').value)||0,
@@ -2109,6 +2256,7 @@ function saveService() {
     sectionId: document.getElementById('serviceSection').value || '',
     bloque: document.getElementById('serviceBloque').value || '',
     showInPos: document.getElementById('serviceShowPos').checked,
+    employeeIds,
     _modified: Date.now(),
     _deleted: false
   };
@@ -2124,6 +2272,7 @@ function saveService() {
 function editService(id) {
   const s = data.services.find(x => x.id === id); if (!s) return;
   populateSectionSelect();
+  populateServiceEmployees(s.employeeIds);
   document.getElementById('serviceEditId').value = id;
   document.getElementById('serviceName').value = s.name;
   document.getElementById('servicePrice').value = s.price;
@@ -2147,6 +2296,7 @@ function clearServiceForm() {
   document.getElementById('serviceSection').value = '';
   document.getElementById('serviceBloque').value = '';
   document.getElementById('serviceShowPos').checked = true;
+  populateServiceEmployees();
   document.getElementById('serviceModalTitle').textContent = 'Nuevo Servicio';
 }
 
@@ -3685,9 +3835,38 @@ function addToTicket(type, id, name, price) {
     const prod = data.products.find(p => p.id === id);
     if (prod && prod.stock === 0) { if (!confirm('⚠️ Stock 0 - Producto sin existencias.\n¿Agregarlo de todos modos?')) return; }
   }
+  let employeeId = '';
+  if (type === 'service') {
+    const svc = data.services.find(s => s.id === id);
+    if (svc && svc.employeeIds && svc.employeeIds.length) {
+      if (svc.employeeIds.length === 1) {
+        employeeId = svc.employeeIds[0];
+      } else {
+        const emps = data.employees.filter(e => svc.employeeIds.includes(e.id) && !e._deleted);
+        const empNames = emps.map((e, i) => `${i+1}. ${e.name}`).join('\n');
+        const choice = prompt(`Selecciona empleado para "${name}":\n${empNames}`, '1');
+        const idx = parseInt(choice) - 1;
+        if (!isNaN(idx) && emps[idx]) employeeId = emps[idx].id;
+        else if (emps.length > 0) employeeId = emps[0].id;
+      }
+    }
+  }
   const existing = ticket.items.find(i => i.type === type && i.id === id);
-  if (existing) { existing.qty++; }
-  else { ticket.items.push({type, id, name, price, qty: 1}); }
+  if (existing) { existing.qty++; if (employeeId) existing.employeeId = employeeId; }
+  else { ticket.items.push({type, id, name, price, qty: 1, employeeId}); }
+  updateTicket();
+}
+
+function changeItemEmployee(idx) {
+  const item = ticket.items[idx];
+  if (!item) return;
+  const emps = data.employees.filter(e => !e._deleted);
+  if (!emps.length) { alert('No hay empleados disponibles'); return; }
+  const empNames = emps.map((e, i) => `${i+1}. ${e.name}`).join('\n');
+  const defaultIdx = item.employeeId ? emps.findIndex(e => e.id === item.employeeId) + 1 : 1;
+  const choice = prompt(`Selecciona empleado para "${item.name}":\n${empNames}`, String(defaultIdx > 0 ? defaultIdx : 1));
+  const idx2 = parseInt(choice) - 1;
+  if (!isNaN(idx2) && emps[idx2]) item.employeeId = emps[idx2].id;
   updateTicket();
 }
 
@@ -3718,9 +3897,12 @@ function updateTicket() {
       const removed = item._removed;
       const displayQty = removed ? -item.qty : item.qty;
       const displayTotal = removed ? -(item.price * item.qty) : item.price * item.qty;
+      const empName = item.employeeId ? (data.employees.find(e => e.id === item.employeeId)||{}).name || '' : '';
+      const empBadge = empName ? `<span style="font-size:11px;color:var(--text-light);margin-left:4px;">👤 ${esc(empName)}</span>` : '';
+      const empBtn = `<button style="font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;background:var(--bg);cursor:pointer;margin-left:4px;" onclick="changeItemEmployee(${idx})" title="${empName?'Cambiar empleado':'Asignar empleado'}">${empName?'🔄':'👤'}</button>`;
       return `<div class="ticket-item" style="${removed?'opacity:.7;text-decoration:line-through;color:var(--danger);':''}">
       <span class="qty">${displayQty}x</span>
-      <span class="name">${esc(item.name)}</span>
+      <span class="name">${esc(item.name)}${empBadge}${empBtn}</span>
       <span class="price">${cur(displayTotal)}</span>
       <button class="remove-item" onclick="removeTicketItem(${idx})">${removed ? '↩' : '×'}</button>
     </div>`;
@@ -4306,6 +4488,25 @@ function renderReports() {
         const prod = data.products.find(p => p.id === id);
         return `<tr><td>${i+1}</td><td>${esc(o.name)}</td><td>${o.qty}</td><td>${cur(o.total)}</td><td>${prod?prod.stock:0}</td></tr>`;
       }).join('') + '</tbody></table></div>';
+  } else if (reportTab === 'employees') {
+    let sales = data.sales.filter(s => !isSaleArchived(s));
+    if (from) sales = sales.filter(s => s.date >= from);
+    if (to) sales = sales.filter(s => s.date <= to+'T23:59:59');
+    const empData = {};
+    sales.forEach(s => s.items.forEach(i => {
+      if (i.type !== 'service' || !i.employeeId) return;
+      const eid = i.employeeId;
+      if (!empData[eid]) empData[eid] = { name: (data.employees.find(e => e.id === eid)||{}).name||'Desconocido', qty: 0, total: 0, sales: 0 };
+      empData[eid].qty += i.qty;
+      empData[eid].total += i.price * i.qty;
+      empData[eid].sales++;
+    }));
+    const list = Object.values(empData).sort((a,b) => b.total - a.total);
+    if (!list.length) { div.innerHTML = '<div class="empty-state"><p>Sin datos de empleados en este período</p></div>'; return; }
+    const totalEmp = list.reduce((s, e) => s + e.total, 0);
+    div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${list.length} empleados · Total facturado: <strong>${cur(totalEmp)}</strong></p>
+      <div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Empleado</th><th>Servicios Realizados</th><th>Ventas</th><th>Total Facturado</th></tr></thead><tbody>` +
+      list.map((e,i) => `<tr><td>${i+1}</td><td><strong>${esc(e.name)}</strong></td><td>${e.qty}</td><td>${e.sales}</td><td><strong>${cur(e.total)}</strong></td></tr>`).join('') + '</tbody></table></div>';
   }
 }
 

@@ -1,6 +1,6 @@
 {
   "name": "tpv-peluqueria",
-  "version": "1.10.0",
+  "version": "1.11.0",
   "description": "TPV Agenda para Peluquería",
   "author": "Nymara",
   "main": "main.js",
@@ -18,11 +18,13 @@
     "electron-app.html",
     "main.js",
     "preload.js",
+    "wa-bridge.js",
     "sync-helper.js",
     "package.json",
     "booking/**",
     "lib/**",
-    "website/**"
+    "website/**",
+    "conversations/"
   ],
   "win": {
     "target": "portable",
@@ -31,6 +33,7 @@
   "dependencies": {
     "@upstash/redis": "^1.38.0",
     "@whiskeysockets/baileys": "^7.0.0-rc13",
+    "dotenv": "^16.4.0",
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0"
   }

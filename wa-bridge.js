@@ -23,7 +23,7 @@ let outgoingMessageIds = new Set(); // IDs de mensajes enviados por el bot (para
 
 const { processWhatsAppMessage } = require('./lib/ai-assistant');
 const { loadConversation, clearConversation } = require('./lib/conversation');
-const { writeData } = require('./lib/kv-data');
+const { readData, writeData, mergeArray } = require('./lib/kv-data');
 
 const useDeepSeek = !!process.env.DEEPSEEK_API_KEY;
 const useGroq = !!process.env.GROQ_API_KEY;
@@ -246,25 +246,31 @@ server.listen(BRIDGE_PORT, () => {
   console.log(` Bridge HTTP server escuchando en http://localhost:${BRIDGE_PORT}`);
 });
 
-// Sincronizar todos los datos desde la nube al archivo local
+// Sincronizar datos desde la nube MERGEANDO con local (no sobrescribir)
 const SYNC_API_URL = (process.env.VERCEL_SYNC_URL || 'https://nymaraestilistas.es/api').replace(/\/+$/, '') + '/sync';
 async function syncAllFromCloud() {
   try {
     const resp = await fetch(SYNC_API_URL);
     if (!resp.ok) { console.log('[SYNC] Error fetching from cloud:', resp.status); return; }
-    const data = await resp.json();
-    const hasData = (data.clients && data.clients.length) || (data.services && data.services.length) || (data.appointments && data.appointments.length);
+    const cloud = await resp.json();
+    const hasData = (cloud.clients && cloud.clients.length) || (cloud.services && cloud.services.length) || (cloud.appointments && cloud.appointments.length);
     if (!hasData) { console.log('[SYNC] Cloud data is empty, skipping local write'); return; }
-    writeData(data);
-    console.log('[SYNC] Full data synced from cloud: ' +
-      (data.clients||[]).length + ' clients, ' +
-      (data.services||[]).length + ' services, ' +
-      (data.employees||[]).length + ' employees, ' +
-      (data.products||[]).length + ' products, ' +
-      (data.sections||[]).length + ' sections, ' +
-      (data.providers||[]).length + ' providers, ' +
-      (data.appointments||[]).length + ' appointments' +
-      (data.settings ? ', settings: yes' : ', settings: no'));
+    const local = readData();
+    const merged = { ...local };
+    const LIST_KEYS = ['appointments', 'clients', 'services', 'employees', 'products', 'sections', 'providers', 'projects', 'movements'];
+    LIST_KEYS.forEach(k => {
+      if (Array.isArray(cloud[k])) {
+        merged[k] = mergeArray(Array.isArray(local[k]) ? local[k] : [], cloud[k]);
+      }
+    });
+    if (cloud.settings && typeof cloud.settings === 'object') {
+      merged.settings = { ...(local.settings || {}), ...cloud.settings };
+    }
+    merged.lastModified = Date.now();
+    writeData(merged);
+    console.log('[SYNC] Cloud merged into local: ' +
+      (merged.appointments||[]).length + ' appointments, ' +
+      (merged.clients||[]).length + ' clients');
   } catch (e) { console.log('[SYNC] Error syncing from cloud:', e.message); }
 }
 // Sincronizar al arrancar y cada 5 minutos

@@ -1,16 +1,22 @@
 {
   "appId": "com.peluqueria.tpv",
+  "asar": false,
   "files": [
+    ".env.local",
     "electron-app.html",
     "main.js",
+    "preload.js",
+    "wa-bridge.js",
     "sync-helper.js",
     "package.json",
     "booking/**",
     "lib/**",
-    "website/**"
+    "website/**",
+    "conversations/"
   ],
   "win": {
     "target": "portable",
-    "icon": "icon.png"
+    "icon": "icon.png",
+    "artifactName": "TPV-Builder2-portable-${version}.${ext}"
   }
 }
