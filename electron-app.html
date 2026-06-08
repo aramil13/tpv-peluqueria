@@ -608,6 +608,32 @@ tr:hover td { background: #f8f9fa; }
   </div>
 </div>
 
+<div id="empPickerOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:2000;justify-content:center;align-items:center;">
+  <div style="background:var(--card);border-radius:12px;padding:25px;max-width:400px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.2);">
+    <div style="font-size:16px;font-weight:600;margin-bottom:15px;">Seleccionar empleada</div>
+    <div id="empPickerList" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <button class="btn btn-secondary" style="margin-top:12px;width:100%;" onclick="hideEmpPicker()">Cancelar</button>
+  </div>
+</div>
+
+<script>
+let empPickerCallback = null;
+function showEmpPicker(title, employees, callback) {
+  const list = document.getElementById('empPickerList');
+  list.innerHTML = employees.map(e => `<button class="btn btn-primary" style="width:100%;text-align:left;" onclick="selectEmp('${escAttr(e.id)}')">👤 ${esc(e.name)}</button>`).join('');
+  document.getElementById('empPickerOverlay').style.display = 'flex';
+  empPickerCallback = callback;
+}
+function selectEmp(id) {
+  hideEmpPicker();
+  if (empPickerCallback) empPickerCallback(id);
+}
+function hideEmpPicker() {
+  document.getElementById('empPickerOverlay').style.display = 'none';
+  empPickerCallback = null;
+}
+</script>
+
 <div class="modal" id="employeeModal">
   <div class="modal-content">
     <div class="modal-header"><h3 id="employeeModalTitle">Nuevo Empleado</h3><button class="modal-close" onclick="closeModal('employeeModal')">&times;</button></div>
@@ -3830,7 +3856,7 @@ function renderPosSectionTabs() {
   span.innerHTML = active.map(s => `<button class="btn btn-secondary" onclick="filterPosItems('sec-${s.id}')" data-section="sec-${s.id}" style="${s.color ? 'border-color:'+s.color+';color:'+s.color+';' : ''}">${s.color ? '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+s.color+';margin-right:4px;vertical-align:middle;"></span>' : ''}${esc(s.name)}</button>`).join('');
 }
 
-function addToTicket(type, id, name, price) {
+async function addToTicket(type, id, name, price) {
   if (type === 'product') {
     const prod = data.products.find(p => p.id === id);
     if (prod && prod.stock === 0) { if (!confirm('⚠️ Stock 0 - Producto sin existencias.\n¿Agregarlo de todos modos?')) return; }
@@ -3843,11 +3869,11 @@ function addToTicket(type, id, name, price) {
         employeeId = svc.employeeIds[0];
       } else {
         const emps = data.employees.filter(e => svc.employeeIds.includes(e.id) && !e._deleted);
-        const empNames = emps.map((e, i) => `${i+1}. ${e.name}`).join('\n');
-        const choice = prompt(`Selecciona empleado para "${name}":\n${empNames}`, '1');
-        const idx = parseInt(choice) - 1;
-        if (!isNaN(idx) && emps[idx]) employeeId = emps[idx].id;
-        else if (emps.length > 0) employeeId = emps[0].id;
+        if (emps.length > 0) {
+          employeeId = await new Promise(resolve => {
+            showEmpPicker('Seleccionar empleada para ' + name, emps, (eid) => resolve(eid || ''));
+          });
+        }
       }
     }
   }
@@ -3857,17 +3883,18 @@ function addToTicket(type, id, name, price) {
   updateTicket();
 }
 
+function removeItemEmployee(idx) {
+  if (ticket.items[idx]) { ticket.items[idx].employeeId = ''; updateTicket(); }
+}
+
 function changeItemEmployee(idx) {
   const item = ticket.items[idx];
   if (!item) return;
   const emps = data.employees.filter(e => !e._deleted);
   if (!emps.length) { alert('No hay empleados disponibles'); return; }
-  const empNames = emps.map((e, i) => `${i+1}. ${e.name}`).join('\n');
-  const defaultIdx = item.employeeId ? emps.findIndex(e => e.id === item.employeeId) + 1 : 1;
-  const choice = prompt(`Selecciona empleado para "${item.name}":\n${empNames}`, String(defaultIdx > 0 ? defaultIdx : 1));
-  const idx2 = parseInt(choice) - 1;
-  if (!isNaN(idx2) && emps[idx2]) item.employeeId = emps[idx2].id;
-  updateTicket();
+  showEmpPicker('Seleccionar empleada para ' + item.name, emps, (eid) => {
+    if (eid) { item.employeeId = eid; updateTicket(); }
+  });
 }
 
 function updateTicket() {
@@ -3900,9 +3927,10 @@ function updateTicket() {
       const empName = item.employeeId ? (data.employees.find(e => e.id === item.employeeId)||{}).name || '' : '';
       const empBadge = empName ? `<span style="font-size:11px;color:var(--text-light);margin-left:4px;">👤 ${esc(empName)}</span>` : '';
       const empBtn = `<button style="font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;background:var(--bg);cursor:pointer;margin-left:4px;" onclick="changeItemEmployee(${idx})" title="${empName?'Cambiar empleado':'Asignar empleado'}">${empName?'🔄':'👤'}</button>`;
+      const removeEmpBtn = empName ? `<button style="font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;background:var(--bg);cursor:pointer;margin-left:2px;color:var(--danger);" onclick="removeItemEmployee(${idx})" title="Quitar empleado">✕</button>` : '';
       return `<div class="ticket-item" style="${removed?'opacity:.7;text-decoration:line-through;color:var(--danger);':''}">
       <span class="qty">${displayQty}x</span>
-      <span class="name">${esc(item.name)}${empBadge}${empBtn}</span>
+      <span class="name">${esc(item.name)}${empBadge}${empBtn}${removeEmpBtn}</span>
       <span class="price">${cur(displayTotal)}</span>
       <button class="remove-item" onclick="removeTicketItem(${idx})">${removed ? '↩' : '×'}</button>
     </div>`;
