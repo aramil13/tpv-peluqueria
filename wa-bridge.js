@@ -306,6 +306,15 @@ async function checkConfirmedAppointments() {
       });
     }
 
+    // Modificaciones ACEPTADAS por el salón
+    for (const appt of appts.filter(a => a._whatsappModificationPending && !a._whatsappModificationSent)) {
+      await sendApptNotification(appt, data, {
+        text: `✅ Tu solicitud de modificación ha sido ACEPTADA:\n\n📅 ${(appt.date||'').split('-').reverse().join('-')}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${((data.services||[]).find(s=>s.id===(appt.serviceId||''))||{}).name||'Servicio'}\n👤 ${((data.employees||[]).find(e=>e.id===appt.employeeId)||{}).name||''}\n\n¡Te esperamos!`,
+        clearFlag: '_whatsappModificationPending',
+        setFlag: '_whatsappModificationSent'
+      });
+    }
+
     // Cancelaciones RECHAZADAS por el salón
     for (const appt of appts.filter(a => a._whatsappCancelRejectedPending && !a._whatsappCancelRejectedSent)) {
       await sendApptNotification(appt, data, {

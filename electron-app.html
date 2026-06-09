@@ -625,8 +625,9 @@ function showEmpPicker(title, employees, callback) {
   empPickerCallback = callback;
 }
 function selectEmp(id) {
+  const cb = empPickerCallback;
   hideEmpPicker();
-  if (empPickerCallback) empPickerCallback(id);
+  if (cb) cb(id);
 }
 function hideEmpPicker() {
   document.getElementById('empPickerOverlay').style.display = 'none';
@@ -2923,9 +2924,9 @@ function renderAgenda() {
   }
   
   grid.innerHTML = html;
-  // Show today's appointments
+  // Show selected day (or today by default)
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  showDayAppts(todayStr);
+  showDayAppts(agendaSelectedDate || todayStr);
 }
 
 function changeMonth(delta) {
@@ -2942,7 +2943,11 @@ function showDayAppts(dateStr) {
   agendaSelectedDate = dateStr;
   loadOnlineOpeningForDay(dateStr);
   const div = document.getElementById('dayAppointments');
-  const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted && a.cancelledBy !== 'salon').sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  const appts = data.appointments.filter(a => {
+    if (a._deleted || a.cancelledBy === 'salon') return false;
+    if (a.clientModified) return a.pendingDate === dateStr;
+    return a.date === dateStr;
+  }).sort((a,b) => (a.clientModified ? a.pendingTime||a.time : a.time).localeCompare(b.clientModified ? b.pendingTime||b.time : b.time));
   const d = new Date(dateStr);
   const title = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const employees = data.employees.filter(e => !e._deleted).sort((a,b) => a.name.localeCompare(b.name));
@@ -2996,8 +3001,9 @@ function showDayAppts(dateStr) {
     cols.forEach((e, ci) => {
       const list = e ? appts.filter(a => a.employeeId === e.id) : appts.filter(a => !a.employeeId);
       apptGrid[t][ci] = list.find(a => {
-        const aEnd = a.endTime || addMinutes(a.time, 30);
-        return t >= a.time && t < aEnd;
+        const time = a.clientModified ? (a.pendingTime || a.time) : a.time;
+        const end = a.clientModified ? (a.pendingEndTime || addMinutes(a.pendingTime || a.time, 30)) : (a.endTime || addMinutes(a.time, 30));
+        return t >= time && t < end;
       }) || null;
     });
   });
@@ -3039,8 +3045,9 @@ function showDayAppts(dateStr) {
           }
         }
         drawnAppts.add(appt.id);
-        const aEnd = appt.endTime || addMinutes(appt.time, 30);
-        const durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
+        const aEnd = (appt.clientModified && appt.pendingTime) ? (appt.pendingEndTime || addMinutes(appt.pendingTime, 30)) : (appt.endTime || addMinutes(appt.time, 30));
+        const refTime = appt.clientModified && appt.pendingTime ? appt.pendingTime : appt.time;
+        const durMins = timeToMinutes(aEnd) - timeToMinutes(refTime);
         const rowspan = Math.max(1, Math.ceil(durMins / 15));
         if (rowspan > 1) skipRow[ci] = rowspan - 1;
         const client = data.clients.find(c => c.id === appt.clientId);
@@ -3091,14 +3098,15 @@ function acceptClientMod(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   const client = data.clients.find(c => c.id === a.clientId);
+  const srv = (data.services||[]).find(s => s.id === a.serviceId);
+  const emp = data.employees.find(e => e.id === a.employeeId);
   const msg = `El cliente ${client?client.name:'?'} solicita modificar esta cita:\n\n`+
-    `Original: ${a.date} ${a.time}\n`+
+    `Original: ${a.date} ${a.time}${emp?' ('+emp.name+')':''}\n`+
     `Solicitado: ${a.pendingDate||a.date} ${a.pendingTime||a.time}\n\n`+
     `¿Aceptar la modificación?`;
   if (!confirm(msg)) return;
   a.date = a.pendingDate || a.date;
   a.time = a.pendingTime || a.time;
-  const srv = (data.services||[]).find(s => s.id === a.serviceId);
   const dur = srv ? srv.duration : 30;
   const reqStart = timeToMinutes(a.time);
   const reqEnd = reqStart + dur;
@@ -3108,6 +3116,9 @@ function acceptClientMod(id) {
   a.employeeId = a.pendingEmployeeId || a.employeeId;
   a.notes = (a.notes||'') + ' [Modificación aceptada por el salón]';
   a.clientModified = false;
+  a.pendingSalonConfirm = false;
+  a.status = 'confirmed';
+  a._whatsappModificationPending = true;
   delete a.pendingDate;
   delete a.pendingTime;
   delete a.pendingEmployeeId;
@@ -3115,18 +3126,6 @@ function acceptClientMod(id) {
   saveAll();
   syncWebNow();
   renderAgenda();
-  const c = getSyncCfg();
-  if (c.enabled && c.url && client) {
-    const dateFmt = (a.pendingDate || a.date).split('-').reverse().join('-');
-    const text = `✅ Tu solicitud de modificación ha sido ACEPTADA:\n\n📅 ${dateFmt}\n⏰ ${a.pendingTime || a.time}\n💇 ${srv?.name || 'Servicio'}\n\n¡Te esperamos!`;
-    fetch(c.url.replace(/\/+$/,'') + '/api/send-whatsapp', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ phone: client.phone, text })
-    }).then(r => r.json()).then(d => {
-      if (d.sent) console.log('Modification accepted WhatsApp sent to', d.phone);
-    }).catch(e => console.error('WhatsApp send error:', e));
-  }
 }
 
 function confirmWhatsAppAppt(id) {
@@ -3864,16 +3863,19 @@ async function addToTicket(type, id, name, price) {
   let employeeId = '';
   if (type === 'service') {
     const svc = data.services.find(s => s.id === id);
-    if (svc && svc.employeeIds && svc.employeeIds.length) {
-      if (svc.employeeIds.length === 1) {
-        employeeId = svc.employeeIds[0];
+    if (svc) {
+      let emps;
+      if (svc.employeeIds && svc.employeeIds.length) {
+        emps = data.employees.filter(e => svc.employeeIds.includes(e.id) && !e._deleted);
       } else {
-        const emps = data.employees.filter(e => svc.employeeIds.includes(e.id) && !e._deleted);
-        if (emps.length > 0) {
-          employeeId = await new Promise(resolve => {
-            showEmpPicker('Seleccionar empleada para ' + name, emps, (eid) => resolve(eid || ''));
-          });
-        }
+        emps = data.employees.filter(e => !e._deleted);
+      }
+      if (emps.length === 1) {
+        employeeId = emps[0].id;
+      } else if (emps.length > 1) {
+        employeeId = await new Promise(resolve => {
+          showEmpPicker('Seleccionar empleada para ' + name, emps, (eid) => resolve(eid || ''));
+        });
       }
     }
   }
@@ -3924,9 +3926,9 @@ function updateTicket() {
       const removed = item._removed;
       const displayQty = removed ? -item.qty : item.qty;
       const displayTotal = removed ? -(item.price * item.qty) : item.price * item.qty;
-      const empName = item.employeeId ? (data.employees.find(e => e.id === item.employeeId)||{}).name || '' : '';
+      const empName = item.type === 'service' && item.employeeId ? (data.employees.find(e => e.id === item.employeeId)||{}).name || '' : '';
       const empBadge = empName ? `<span style="font-size:11px;color:var(--text-light);margin-left:4px;">👤 ${esc(empName)}</span>` : '';
-      const empBtn = `<button style="font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;background:var(--bg);cursor:pointer;margin-left:4px;" onclick="changeItemEmployee(${idx})" title="${empName?'Cambiar empleado':'Asignar empleado'}">${empName?'🔄':'👤'}</button>`;
+      const empBtn = item.type === 'service' ? `<button style="font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;background:var(--bg);cursor:pointer;margin-left:4px;" onclick="changeItemEmployee(${idx})" title="${empName?'Cambiar empleado':'Asignar empleado'}">${empName?'🔄':'👤'}</button>` : '';
       const removeEmpBtn = empName ? `<button style="font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;background:var(--bg);cursor:pointer;margin-left:2px;color:var(--danger);" onclick="removeItemEmployee(${idx})" title="Quitar empleado">✕</button>` : '';
       return `<div class="ticket-item" style="${removed?'opacity:.7;text-decoration:line-through;color:var(--danger);':''}">
       <span class="qty">${displayQty}x</span>
@@ -4561,10 +4563,11 @@ function showSaleDetail(id) {
     <p><strong>${s.total < 0 ? 'A devolver' : 'Total'}:</strong> ${cur(Math.abs(s.total))}</p>
     <hr style="margin:10px 0;border:none;border-top:1px solid var(--border);">
     ${isRectifying ? '<p style="font-size:12px;font-weight:500;margin-bottom:4px;">Diferencias:</p>' : ''}
-    <table><thead><tr><th>Item</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>`;
+    <table><thead><tr><th>Item</th><th>Cant.</th><th>Precio</th><th>Subtotal</th><th>Empleada</th></tr></thead><tbody>`;
   s.items.forEach(i => {
     const isNeg = i.qty < 0;
-    html += `<tr${isNeg ? ' style="color:var(--danger);"' : ''}><td>${esc(i.name)}</td><td>${isNeg ? '− ' : ''}${Math.abs(i.qty)}</td><td>${cur(i.price)}</td><td>${cur(i.price*i.qty)}</td></tr>`;
+    const empName = i.employeeId ? (data.employees.find(e => e.id === i.employeeId)||{}).name || '' : '';
+    html += `<tr${isNeg ? ' style="color:var(--danger);"' : ''}><td>${esc(i.name)}</td><td>${isNeg ? '− ' : ''}${Math.abs(i.qty)}</td><td>${cur(i.price)}</td><td>${cur(i.price*i.qty)}</td><td>${empName ? esc(empName) : '-'}</td></tr>`;
   });
   html += '</tbody></table>';
   document.getElementById('saleDetailContent').innerHTML = html;
