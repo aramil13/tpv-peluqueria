@@ -608,33 +608,6 @@ tr:hover td { background: #f8f9fa; }
   </div>
 </div>
 
-<div id="empPickerOverlay" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.5);z-index:2000;justify-content:center;align-items:center;">
-  <div style="background:var(--card);border-radius:12px;padding:25px;max-width:400px;width:90%;box-shadow:0 10px 40px rgba(0,0,0,.2);">
-    <div style="font-size:16px;font-weight:600;margin-bottom:15px;">Seleccionar empleada</div>
-    <div id="empPickerList" style="display:flex;flex-direction:column;gap:8px;"></div>
-    <button class="btn btn-secondary" style="margin-top:12px;width:100%;" onclick="hideEmpPicker()">Cancelar</button>
-  </div>
-</div>
-
-<script>
-let empPickerCallback = null;
-function showEmpPicker(title, employees, callback) {
-  const list = document.getElementById('empPickerList');
-  list.innerHTML = employees.map(e => `<button class="btn btn-primary" style="width:100%;text-align:left;" onclick="selectEmp('${escAttr(e.id)}')">👤 ${esc(e.name)}</button>`).join('');
-  document.getElementById('empPickerOverlay').style.display = 'flex';
-  empPickerCallback = callback;
-}
-function selectEmp(id) {
-  const cb = empPickerCallback;
-  hideEmpPicker();
-  if (cb) cb(id);
-}
-function hideEmpPicker() {
-  document.getElementById('empPickerOverlay').style.display = 'none';
-  empPickerCallback = null;
-}
-</script>
-
 <div class="modal" id="employeeModal">
   <div class="modal-content">
     <div class="modal-header"><h3 id="employeeModalTitle">Nuevo Empleado</h3><button class="modal-close" onclick="closeModal('employeeModal')">&times;</button></div>
@@ -2924,9 +2897,9 @@ function renderAgenda() {
   }
   
   grid.innerHTML = html;
-  // Show selected day (or today by default)
+  // Show today's appointments
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  showDayAppts(agendaSelectedDate || todayStr);
+  showDayAppts(todayStr);
 }
 
 function changeMonth(delta) {
@@ -2943,11 +2916,7 @@ function showDayAppts(dateStr) {
   agendaSelectedDate = dateStr;
   loadOnlineOpeningForDay(dateStr);
   const div = document.getElementById('dayAppointments');
-  const appts = data.appointments.filter(a => {
-    if (a._deleted || a.cancelledBy === 'salon') return false;
-    if (a.clientModified) return a.pendingDate === dateStr;
-    return a.date === dateStr;
-  }).sort((a,b) => (a.clientModified ? a.pendingTime||a.time : a.time).localeCompare(b.clientModified ? b.pendingTime||b.time : b.time));
+  const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted && a.cancelledBy !== 'salon').sort((a,b) => (a.time||'').localeCompare(b.time||''));
   const d = new Date(dateStr);
   const title = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   const employees = data.employees.filter(e => !e._deleted).sort((a,b) => a.name.localeCompare(b.name));
@@ -3001,9 +2970,8 @@ function showDayAppts(dateStr) {
     cols.forEach((e, ci) => {
       const list = e ? appts.filter(a => a.employeeId === e.id) : appts.filter(a => !a.employeeId);
       apptGrid[t][ci] = list.find(a => {
-        const time = a.clientModified ? (a.pendingTime || a.time) : a.time;
-        const end = a.clientModified ? (a.pendingEndTime || addMinutes(a.pendingTime || a.time, 30)) : (a.endTime || addMinutes(a.time, 30));
-        return t >= time && t < end;
+        const aEnd = a.endTime || addMinutes(a.time, 30);
+        return t >= a.time && t < aEnd;
       }) || null;
     });
   });
@@ -3045,9 +3013,8 @@ function showDayAppts(dateStr) {
           }
         }
         drawnAppts.add(appt.id);
-        const aEnd = (appt.clientModified && appt.pendingTime) ? (appt.pendingEndTime || addMinutes(appt.pendingTime, 30)) : (appt.endTime || addMinutes(appt.time, 30));
-        const refTime = appt.clientModified && appt.pendingTime ? appt.pendingTime : appt.time;
-        const durMins = timeToMinutes(aEnd) - timeToMinutes(refTime);
+        const aEnd = appt.endTime || addMinutes(appt.time, 30);
+        const durMins = timeToMinutes(aEnd) - timeToMinutes(appt.time);
         const rowspan = Math.max(1, Math.ceil(durMins / 15));
         if (rowspan > 1) skipRow[ci] = rowspan - 1;
         const client = data.clients.find(c => c.id === appt.clientId);
@@ -3098,15 +3065,14 @@ function acceptClientMod(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   const client = data.clients.find(c => c.id === a.clientId);
-  const srv = (data.services||[]).find(s => s.id === a.serviceId);
-  const emp = data.employees.find(e => e.id === a.employeeId);
   const msg = `El cliente ${client?client.name:'?'} solicita modificar esta cita:\n\n`+
-    `Original: ${a.date} ${a.time}${emp?' ('+emp.name+')':''}\n`+
+    `Original: ${a.date} ${a.time}\n`+
     `Solicitado: ${a.pendingDate||a.date} ${a.pendingTime||a.time}\n\n`+
     `¿Aceptar la modificación?`;
   if (!confirm(msg)) return;
   a.date = a.pendingDate || a.date;
   a.time = a.pendingTime || a.time;
+  const srv = (data.services||[]).find(s => s.id === a.serviceId);
   const dur = srv ? srv.duration : 30;
   const reqStart = timeToMinutes(a.time);
   const reqEnd = reqStart + dur;
@@ -3116,9 +3082,6 @@ function acceptClientMod(id) {
   a.employeeId = a.pendingEmployeeId || a.employeeId;
   a.notes = (a.notes||'') + ' [Modificación aceptada por el salón]';
   a.clientModified = false;
-  a.pendingSalonConfirm = false;
-  a.status = 'confirmed';
-  a._whatsappModificationPending = true;
   delete a.pendingDate;
   delete a.pendingTime;
   delete a.pendingEmployeeId;
@@ -3126,6 +3089,18 @@ function acceptClientMod(id) {
   saveAll();
   syncWebNow();
   renderAgenda();
+  const c = getSyncCfg();
+  if (c.enabled && c.url && client) {
+    const dateFmt = (a.pendingDate || a.date).split('-').reverse().join('-');
+    const text = `✅ Tu solicitud de modificación ha sido ACEPTADA:\n\n📅 ${dateFmt}\n⏰ ${a.pendingTime || a.time}\n💇 ${srv?.name || 'Servicio'}\n\n¡Te esperamos!`;
+    fetch(c.url.replace(/\/+$/,'') + '/api/send-whatsapp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: client.phone, text })
+    }).then(r => r.json()).then(d => {
+      if (d.sent) console.log('Modification accepted WhatsApp sent to', d.phone);
+    }).catch(e => console.error('WhatsApp send error:', e));
+  }
 }
 
 function confirmWhatsAppAppt(id) {
@@ -3855,7 +3830,7 @@ function renderPosSectionTabs() {
   span.innerHTML = active.map(s => `<button class="btn btn-secondary" onclick="filterPosItems('sec-${s.id}')" data-section="sec-${s.id}" style="${s.color ? 'border-color:'+s.color+';color:'+s.color+';' : ''}">${s.color ? '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+s.color+';margin-right:4px;vertical-align:middle;"></span>' : ''}${esc(s.name)}</button>`).join('');
 }
 
-async function addToTicket(type, id, name, price) {
+function addToTicket(type, id, name, price) {
   if (type === 'product') {
     const prod = data.products.find(p => p.id === id);
     if (prod && prod.stock === 0) { if (!confirm('⚠️ Stock 0 - Producto sin existencias.\n¿Agregarlo de todos modos?')) return; }
@@ -3863,19 +3838,16 @@ async function addToTicket(type, id, name, price) {
   let employeeId = '';
   if (type === 'service') {
     const svc = data.services.find(s => s.id === id);
-    if (svc) {
-      let emps;
-      if (svc.employeeIds && svc.employeeIds.length) {
-        emps = data.employees.filter(e => svc.employeeIds.includes(e.id) && !e._deleted);
+    if (svc && svc.employeeIds && svc.employeeIds.length) {
+      if (svc.employeeIds.length === 1) {
+        employeeId = svc.employeeIds[0];
       } else {
-        emps = data.employees.filter(e => !e._deleted);
-      }
-      if (emps.length === 1) {
-        employeeId = emps[0].id;
-      } else if (emps.length > 1) {
-        employeeId = await new Promise(resolve => {
-          showEmpPicker('Seleccionar empleada para ' + name, emps, (eid) => resolve(eid || ''));
-        });
+        const emps = data.employees.filter(e => svc.employeeIds.includes(e.id) && !e._deleted);
+        const empNames = emps.map((e, i) => `${i+1}. ${e.name}`).join('\n');
+        const choice = prompt(`Selecciona empleado para "${name}":\n${empNames}`, '1');
+        const idx = parseInt(choice) - 1;
+        if (!isNaN(idx) && emps[idx]) employeeId = emps[idx].id;
+        else if (emps.length > 0) employeeId = emps[0].id;
       }
     }
   }
@@ -3885,18 +3857,17 @@ async function addToTicket(type, id, name, price) {
   updateTicket();
 }
 
-function removeItemEmployee(idx) {
-  if (ticket.items[idx]) { ticket.items[idx].employeeId = ''; updateTicket(); }
-}
-
 function changeItemEmployee(idx) {
   const item = ticket.items[idx];
   if (!item) return;
   const emps = data.employees.filter(e => !e._deleted);
   if (!emps.length) { alert('No hay empleados disponibles'); return; }
-  showEmpPicker('Seleccionar empleada para ' + item.name, emps, (eid) => {
-    if (eid) { item.employeeId = eid; updateTicket(); }
-  });
+  const empNames = emps.map((e, i) => `${i+1}. ${e.name}`).join('\n');
+  const defaultIdx = item.employeeId ? emps.findIndex(e => e.id === item.employeeId) + 1 : 1;
+  const choice = prompt(`Selecciona empleado para "${item.name}":\n${empNames}`, String(defaultIdx > 0 ? defaultIdx : 1));
+  const idx2 = parseInt(choice) - 1;
+  if (!isNaN(idx2) && emps[idx2]) item.employeeId = emps[idx2].id;
+  updateTicket();
 }
 
 function updateTicket() {
@@ -3926,13 +3897,12 @@ function updateTicket() {
       const removed = item._removed;
       const displayQty = removed ? -item.qty : item.qty;
       const displayTotal = removed ? -(item.price * item.qty) : item.price * item.qty;
-      const empName = item.type === 'service' && item.employeeId ? (data.employees.find(e => e.id === item.employeeId)||{}).name || '' : '';
+      const empName = item.employeeId ? (data.employees.find(e => e.id === item.employeeId)||{}).name || '' : '';
       const empBadge = empName ? `<span style="font-size:11px;color:var(--text-light);margin-left:4px;">👤 ${esc(empName)}</span>` : '';
-      const empBtn = item.type === 'service' ? `<button style="font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;background:var(--bg);cursor:pointer;margin-left:4px;" onclick="changeItemEmployee(${idx})" title="${empName?'Cambiar empleado':'Asignar empleado'}">${empName?'🔄':'👤'}</button>` : '';
-      const removeEmpBtn = empName ? `<button style="font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;background:var(--bg);cursor:pointer;margin-left:2px;color:var(--danger);" onclick="removeItemEmployee(${idx})" title="Quitar empleado">✕</button>` : '';
+      const empBtn = `<button style="font-size:10px;padding:1px 5px;border:1px solid var(--border);border-radius:3px;background:var(--bg);cursor:pointer;margin-left:4px;" onclick="changeItemEmployee(${idx})" title="${empName?'Cambiar empleado':'Asignar empleado'}">${empName?'🔄':'👤'}</button>`;
       return `<div class="ticket-item" style="${removed?'opacity:.7;text-decoration:line-through;color:var(--danger);':''}">
       <span class="qty">${displayQty}x</span>
-      <span class="name">${esc(item.name)}${empBadge}${empBtn}${removeEmpBtn}</span>
+      <span class="name">${esc(item.name)}${empBadge}${empBtn}</span>
       <span class="price">${cur(displayTotal)}</span>
       <button class="remove-item" onclick="removeTicketItem(${idx})">${removed ? '↩' : '×'}</button>
     </div>`;
@@ -4563,11 +4533,10 @@ function showSaleDetail(id) {
     <p><strong>${s.total < 0 ? 'A devolver' : 'Total'}:</strong> ${cur(Math.abs(s.total))}</p>
     <hr style="margin:10px 0;border:none;border-top:1px solid var(--border);">
     ${isRectifying ? '<p style="font-size:12px;font-weight:500;margin-bottom:4px;">Diferencias:</p>' : ''}
-    <table><thead><tr><th>Item</th><th>Cant.</th><th>Precio</th><th>Subtotal</th><th>Empleada</th></tr></thead><tbody>`;
+    <table><thead><tr><th>Item</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>`;
   s.items.forEach(i => {
     const isNeg = i.qty < 0;
-    const empName = i.employeeId ? (data.employees.find(e => e.id === i.employeeId)||{}).name || '' : '';
-    html += `<tr${isNeg ? ' style="color:var(--danger);"' : ''}><td>${esc(i.name)}</td><td>${isNeg ? '− ' : ''}${Math.abs(i.qty)}</td><td>${cur(i.price)}</td><td>${cur(i.price*i.qty)}</td><td>${empName ? esc(empName) : '-'}</td></tr>`;
+    html += `<tr${isNeg ? ' style="color:var(--danger);"' : ''}><td>${esc(i.name)}</td><td>${isNeg ? '− ' : ''}${Math.abs(i.qty)}</td><td>${cur(i.price)}</td><td>${cur(i.price*i.qty)}</td></tr>`;
   });
   html += '</tbody></table>';
   document.getElementById('saleDetailContent').innerHTML = html;
