@@ -8,7 +8,16 @@ const pino = require('pino');
 const fs = require('fs');
 try { require('dotenv').config({ path: require('path').join(__dirname, '.env.local') }); } catch (e) { /* Render usa env vars del dashboard */ }
 const logger = pino({ level: 'warn' });
-const DATA_DIR = process.env.DATA_DIR || '/data';
+let DATA_DIR = process.env.DATA_DIR || '/data';
+try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e) {
+  console.log('[RENDER] No se pudo crear ' + DATA_DIR + ' (' + e.message + '). Usando /tmp en su lugar.');
+  DATA_DIR = '/tmp';
+  try { fs.mkdirSync(DATA_DIR, { recursive: true }); } catch (e2) {
+    console.log('[RENDER] Tampoco /tmp funciona. Usando directorio local.');
+    DATA_DIR = __dirname;
+  }
+}
+process.env.DATA_DIR = DATA_DIR;
 const AUTH_DIR = path.join(DATA_DIR, 'wa_auth');
 const CONV_DIR = path.join(DATA_DIR, 'conversations');
 const RECONNECT_DELAY = 15000;
