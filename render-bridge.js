@@ -50,6 +50,8 @@ console.log('AUTH_DIR:', AUTH_DIR);
 console.log('CONV_DIR:', CONV_DIR);
 
 const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '';
+const BRIDGE_API_KEY = process.env.BRIDGE_API_KEY || 'tpv-secret-2026';
+let bridgeEnabled = true; // Control remoto desde el EXE
 
 async function processQueue() {
   if (queueProcessing || messageQueue.length === 0) return;
@@ -152,6 +154,7 @@ async function start() {
 
   sock.ev.on('messages.upsert', async ({ messages, type }) => {
     if (type !== 'notify') return;
+    if (!bridgeEnabled) { console.log(' [SKIP] Bridge desactivado por el EXE'); return; }
     let delay = 0;
     for (const m of messages) {
       if (m.key.id && processedIds.has(m.key.id)) continue;
@@ -229,6 +232,21 @@ const server = http.createServer((req, res) => {
       } else {
         setJson(404, { error: 'QR no disponible. Espera a que se genere (puede tardar unos segundos).' });
       }
+      return;
+    }
+    if (req.method === 'POST' && (req.url === '/disable' || req.url === '/enable')) {
+      const isEnable = req.url === '/enable';
+      let body = '';
+      req.on('data', c => body += c);
+      req.on('end', () => {
+        try {
+          const { key } = JSON.parse(body || '{}');
+          if (key !== BRIDGE_API_KEY) { setJson(403, { error: 'API key incorrecta' }); return; }
+          bridgeEnabled = isEnable;
+          console.log('[BRIDGE] ' + (isEnable ? 'ACTIVADO' : 'DESACTIVADO') + ' por el EXE');
+          setJson(200, { ok: true, enabled: bridgeEnabled });
+        } catch (e) { setJson(400, { error: e.message }); }
+      });
       return;
     }
     if (req.method === 'POST' && req.url === '/send') {
