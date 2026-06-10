@@ -1,20 +1,5 @@
 services:
   - type: web
-    name: tpv-peluqueria-sync
-    env: node
-    buildCommand: npm install
-    startCommand: node sync-helper.js
-    envVars:
-      - key: CORS_ORIGIN
-        value: "*"
-      - key: SYNC_DATA_DIR
-        value: /data
-    disk:
-      name: data
-      mountPath: /data
-      sizeGB: 1
-
-  - type: web
     name: tpv-peluqueria-whatsapp
     env: node
     buildCommand: npm install
@@ -23,10 +8,6 @@ services:
       - key: DATA_DIR
         value: /data
       - key: DEEPSEEK_API_KEY
-        sync: false
-      - key: GROQ_API_KEY
-        sync: false
-      - key: GEMINI_API_KEY
         sync: false
       - key: BUSINESS_NAME
         value: "Nymara Estilistas"

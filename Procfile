@@ -1,1 +1,1 @@
-web: node sync-helper.js
+web: node render-bridge.js

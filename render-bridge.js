@@ -6,6 +6,7 @@ const http = require('http');
 const pino = require('pino');
 
 const fs = require('fs');
+try { require('dotenv').config({ path: require('path').join(__dirname, '.env.local') }); } catch (e) { /* Render usa env vars del dashboard */ }
 const logger = pino({ level: 'warn' });
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const AUTH_DIR = path.join(DATA_DIR, 'wa_auth');
