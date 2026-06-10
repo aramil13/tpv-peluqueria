@@ -189,52 +189,59 @@ async function start() {
   });
 }
 
-console.log(' Iniciando bridge WhatsApp en Render...');
-start().catch(e => {
-  console.error('FATAL', e);
-  console.log('Reconectando en ' + (RECONNECT_DELAY/1000) + 's...');
-  setTimeout(start, RECONNECT_DELAY);
-});
-
 const PORT = parseInt(process.env.PORT) || 3457;
 const server = http.createServer((req, res) => {
-  console.log(` [BRIDGE-HTTP] ${req.method} ${req.url}`);
   const setJson = (status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify(body));
   };
-  if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*' }); res.end(); return; }
-  if (req.method === 'GET' && (req.url === '/' || req.url === '/health' || req.url === '/ping')) {
-    setJson(200, { ok: true, connected: !!currentSock, uptime: process.uptime() });
-  } else if (req.method === 'GET' && req.url === '/qr') {
-    const qrPath = path.join(DATA_DIR, 'qr.png');
-    if (fs.existsSync(qrPath)) {
-      res.writeHead(200, { 'Content-Type': 'image/png' });
-      res.end(fs.readFileSync(qrPath));
-    } else {
-      setJson(404, { error: 'QR no disponible aún. Espera a que se genere.' });
+  try {
+    if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*' }); res.end(); return; }
+    if (req.method === 'GET' && (req.url === '/' || req.url === '/health' || req.url === '/ping')) {
+      setJson(200, { ok: true, connected: !!currentSock, uptime: process.uptime() });
+      return;
     }
-  } else if (req.method === 'POST' && req.url === '/send') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      try {
-        const { phone, text } = JSON.parse(body);
-        if (!phone || !text) { setJson(400, { error: 'phone and text required' }); return; }
-        if (!currentSock) { setJson(503, { error: 'Bridge no conectado' }); return; }
-        const jid = phone.includes('@') ? phone : phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
-        currentSock.sendMessage(jid, { text }).then(sent => {
-          if (sent?.key?.id) outgoingMessageIds.add(sent.key.id);
-          setJson(200, { sent: true });
-        }).catch(e => setJson(500, { error: e.message }));
-      } catch (e) { setJson(400, { error: e.message }); }
-    });
-  } else {
+    if (req.method === 'GET' && req.url === '/qr') {
+      const qrPath = path.join(DATA_DIR, 'qr.png');
+      if (fs.existsSync(qrPath)) {
+        res.writeHead(200, { 'Content-Type': 'image/png' });
+        res.end(fs.readFileSync(qrPath));
+      } else {
+        setJson(404, { error: 'QR no disponible. Espera a que se genere (puede tardar unos segundos).' });
+      }
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/send') {
+      let body = '';
+      req.on('data', c => body += c);
+      req.on('end', () => {
+        try {
+          const { phone, text } = JSON.parse(body);
+          if (!phone || !text) { setJson(400, { error: 'phone and text required' }); return; }
+          if (!currentSock) { setJson(503, { error: 'Bridge no conectado' }); return; }
+          const jid = phone.includes('@') ? phone : phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+          currentSock.sendMessage(jid, { text }).then(sent => {
+            if (sent?.key?.id) outgoingMessageIds.add(sent.key.id);
+            setJson(200, { sent: true });
+          }).catch(e => setJson(500, { error: e.message }));
+        } catch (e) { setJson(400, { error: e.message }); }
+      });
+      return;
+    }
     setJson(404, { error: 'not found' });
+  } catch (e) {
+    console.error('[HTTP ERROR]', e.message);
+    try { res.writeHead(500); res.end('Internal error'); } catch {}
   }
 });
 server.listen(PORT, '0.0.0.0', () => {
   console.log(` Bridge HTTP server en puerto ${PORT}`);
+});
+
+console.log(' Iniciando bridge WhatsApp en Render...');
+start().catch(e => {
+  console.error('[FATAL START]', e?.message || e);
+  setTimeout(start, RECONNECT_DELAY);
 });
 
 const SYNC_API_URL = (process.env.VERCEL_SYNC_URL || 'https://nymaraestilistas.es/api').replace(/\/+$/, '') + '/sync';
