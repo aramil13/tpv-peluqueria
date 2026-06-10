@@ -161,8 +161,8 @@ async function start() {
       const normalized = text.trim().toLowerCase();
       const history = await loadConversation('+' + phone);
       const hasHistory = history.length > 0;
-      const isTrigger = normalized.includes('hola nymara');
-      const isGoodbye = normalized.includes('adios nymara') || normalized.includes('bye nymara');
+      const isTrigger = normalized === 'hola nymara';
+      const isGoodbye = normalized === 'adios nymara' || normalized === 'bye nymara';
       if (isGoodbye && currentSock) {
         console.log(` [BYE] ${phone}: "${text.slice(0,40)}"`);
         await clearConversation('+' + phone);

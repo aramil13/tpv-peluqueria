@@ -3830,44 +3830,56 @@ function renderPosSectionTabs() {
   span.innerHTML = active.map(s => `<button class="btn btn-secondary" onclick="filterPosItems('sec-${s.id}')" data-section="sec-${s.id}" style="${s.color ? 'border-color:'+s.color+';color:'+s.color+';' : ''}">${s.color ? '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+s.color+';margin-right:4px;vertical-align:middle;"></span>' : ''}${esc(s.name)}</button>`).join('');
 }
 
+function showEmployeeSelector(title, callback) {
+  const emps = data.employees.filter(e => !e._deleted);
+  if (!emps.length) { alert('No hay empleados disponibles'); return; }
+  const div = document.createElement('div');
+  div.innerHTML = `<div style="padding:10px;"><h3 style="margin:0 0 10px;font-size:15px;">${esc(title)}</h3>
+    <div style="display:flex;flex-direction:column;gap:6px;">${emps.map(e =>
+      `<button class="btn btn-secondary" style="text-align:left;padding:8px 12px;font-size:14px;" data-id="${e.id}">👤 ${esc(e.name)}</button>`
+    ).join('')}
+    <button class="btn btn-secondary" style="text-align:left;padding:8px 12px;font-size:14px;opacity:.7;" data-id="">❌ Ninguna</button></div></div>`;
+  const modal = document.createElement('div');
+  modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center;';
+  modal.appendChild(div);
+  div.style.cssText = 'background:#fff;border-radius:8px;max-width:300px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);';
+  modal.onclick = e => { if (e.target === modal) document.body.removeChild(modal); };
+  div.querySelectorAll('button').forEach(btn => {
+    btn.onclick = () => { callback(btn.dataset.id); document.body.removeChild(modal); };
+  });
+  document.body.appendChild(modal);
+}
+
 function addToTicket(type, id, name, price) {
   if (type === 'product') {
     const prod = data.products.find(p => p.id === id);
     if (prod && prod.stock === 0) { if (!confirm('⚠️ Stock 0 - Producto sin existencias.\n¿Agregarlo de todos modos?')) return; }
   }
-  let employeeId = '';
+  const doAdd = (employeeId) => {
+    const existing = ticket.items.find(i => i.type === type && i.id === id);
+    if (existing) { existing.qty++; if (employeeId) existing.employeeId = employeeId; }
+    else { ticket.items.push({type, id, name, price, qty: 1, employeeId}); }
+    updateTicket();
+  };
   if (type === 'service') {
     const svc = data.services.find(s => s.id === id);
     if (svc && svc.employeeIds && svc.employeeIds.length) {
-      if (svc.employeeIds.length === 1) {
-        employeeId = svc.employeeIds[0];
-      } else {
-        const emps = data.employees.filter(e => svc.employeeIds.includes(e.id) && !e._deleted);
-        const empNames = emps.map((e, i) => `${i+1}. ${e.name}`).join('\n');
-        const choice = prompt(`Selecciona empleado para "${name}":\n${empNames}`, '1');
-        const idx = parseInt(choice) - 1;
-        if (!isNaN(idx) && emps[idx]) employeeId = emps[idx].id;
-        else if (emps.length > 0) employeeId = emps[0].id;
-      }
+      if (svc.employeeIds.length === 1) { doAdd(svc.employeeIds[0]); return; }
+      const emps = data.employees.filter(e => svc.employeeIds.includes(e.id) && !e._deleted);
+      showEmployeeSelector(`Selecciona empleada para "${name}"`, (empId) => doAdd(empId));
+      return;
     }
   }
-  const existing = ticket.items.find(i => i.type === type && i.id === id);
-  if (existing) { existing.qty++; if (employeeId) existing.employeeId = employeeId; }
-  else { ticket.items.push({type, id, name, price, qty: 1, employeeId}); }
-  updateTicket();
+  doAdd('');
 }
 
 function changeItemEmployee(idx) {
   const item = ticket.items[idx];
   if (!item) return;
-  const emps = data.employees.filter(e => !e._deleted);
-  if (!emps.length) { alert('No hay empleados disponibles'); return; }
-  const empNames = emps.map((e, i) => `${i+1}. ${e.name}`).join('\n');
-  const defaultIdx = item.employeeId ? emps.findIndex(e => e.id === item.employeeId) + 1 : 1;
-  const choice = prompt(`Selecciona empleado para "${item.name}":\n${empNames}`, String(defaultIdx > 0 ? defaultIdx : 1));
-  const idx2 = parseInt(choice) - 1;
-  if (!isNaN(idx2) && emps[idx2]) item.employeeId = emps[idx2].id;
-  updateTicket();
+  showEmployeeSelector(`Empleada para "${item.name}"`, (empId) => {
+    item.employeeId = empId;
+    updateTicket();
+  });
 }
 
 function updateTicket() {
@@ -4533,10 +4545,11 @@ function showSaleDetail(id) {
     <p><strong>${s.total < 0 ? 'A devolver' : 'Total'}:</strong> ${cur(Math.abs(s.total))}</p>
     <hr style="margin:10px 0;border:none;border-top:1px solid var(--border);">
     ${isRectifying ? '<p style="font-size:12px;font-weight:500;margin-bottom:4px;">Diferencias:</p>' : ''}
-    <table><thead><tr><th>Item</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>`;
+    <table><thead><tr><th>Item</th><th>Empleada</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>`;
   s.items.forEach(i => {
     const isNeg = i.qty < 0;
-    html += `<tr${isNeg ? ' style="color:var(--danger);"' : ''}><td>${esc(i.name)}</td><td>${isNeg ? '− ' : ''}${Math.abs(i.qty)}</td><td>${cur(i.price)}</td><td>${cur(i.price*i.qty)}</td></tr>`;
+    const empName = i.employeeId ? (data.employees.find(e=>e.id===i.employeeId)||{}).name||'' : '';
+    html += `<tr${isNeg ? ' style="color:var(--danger);"' : ''}><td>${esc(i.name)}</td><td>${empName ? esc(empName) : '—'}</td><td>${isNeg ? '− ' : ''}${Math.abs(i.qty)}</td><td>${cur(i.price)}</td><td>${cur(i.price*i.qty)}</td></tr>`;
   });
   html += '</tbody></table>';
   document.getElementById('saleDetailContent').innerHTML = html;
