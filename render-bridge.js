@@ -107,19 +107,30 @@ async function start() {
   }
   processing = false;
 
+  const hasCreds = fs.existsSync(path.join(AUTH_DIR, 'creds.json'));
+  console.log('[AUTH] Sesión guardada:', hasCreds ? 'SI' : 'NO (se generará QR)');
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-  const uid = Math.random().toString(36).substr(2,8);
-  const sock = makeWASocket({ printQRInTerminal: false, auth: state, syncFullHistory: false, browser: ['WhatsApp/2.24.10', 'Windows', '10.0', uid], logger });
+  const sock = makeWASocket({
+    printQRInTerminal: false,
+    auth: state,
+    syncFullHistory: false,
+    browser: ['Chrome', 'Windows', '10.0.0'],
+    logger,
+    connectTimeoutMs: 30000,
+    keepAliveIntervalMs: 25000,
+    markOnlineOnConnect: false
+  });
   currentSock = sock;
 
   sock.ev.on('creds.update', saveCreds);
 
   sock.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
     if (qr) {
-      console.log('\nEscanea este código QR con WhatsApp (Ajustes > Dispositivos vinculados):');
+      console.log('\n[QR GENERADO] Escanea con WhatsApp (Ajustes > Dispositivos vinculados):');
       qrcode.generate(qr, { small: true });
-      qrcodeImg.toFile(path.join(DATA_DIR, 'qr.png'), qr, { width: 400, margin: 2 }, () => {});
-      console.log('QR guardado como qr.png en', DATA_DIR);
+      qrcodeImg.toFile(path.join(DATA_DIR, 'qr.png'), qr, { width: 400, margin: 2, errorCorrectionLevel: 'L' }, () => {
+        console.log(' [QR] Guardado en ' + path.join(DATA_DIR, 'qr.png'));
+      });
     }
     if (connection === 'close') {
       isConnected = false;
