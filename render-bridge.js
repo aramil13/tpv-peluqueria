@@ -5,6 +5,7 @@ const path = require('path');
 const http = require('http');
 const pino = require('pino');
 
+const fs = require('fs');
 const logger = pino({ level: 'warn' });
 const DATA_DIR = process.env.DATA_DIR || '/data';
 const AUTH_DIR = path.join(DATA_DIR, 'wa_auth');
@@ -204,6 +205,14 @@ const server = http.createServer((req, res) => {
   if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*' }); res.end(); return; }
   if (req.method === 'GET' && (req.url === '/' || req.url === '/health' || req.url === '/ping')) {
     setJson(200, { ok: true, connected: !!currentSock, uptime: process.uptime() });
+  } else if (req.method === 'GET' && req.url === '/qr') {
+    const qrPath = path.join(DATA_DIR, 'qr.png');
+    if (fs.existsSync(qrPath)) {
+      res.writeHead(200, { 'Content-Type': 'image/png' });
+      res.end(fs.readFileSync(qrPath));
+    } else {
+      setJson(404, { error: 'QR no disponible aún. Espera a que se genere.' });
+    }
   } else if (req.method === 'POST' && req.url === '/send') {
     let body = '';
     req.on('data', c => body += c);
