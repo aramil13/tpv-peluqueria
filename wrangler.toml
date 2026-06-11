@@ -1,9 +1,0 @@
-name = "tpv-peluqueria"
-pages_build_output_dir = "website"
-
-compatibility_date = "2024-12-01"
-compatibility_flags = ["nodejs_compat"]
-
-[vars]
-# Estas vars se usan en desarrollo local con `wrangler pages dev`
-# En producción, configúralas desde el dashboard de Cloudflare Pages
