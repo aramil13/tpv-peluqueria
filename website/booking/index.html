@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestión de reservas online</title>
+<link rel="stylesheet" href="/booking/style.css">
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div id="businessName" class="business-name">Nymara Estilistas</div>
+    <h1>Gestión de reservas online</h1>
+    <p id="businessSub">Gestiona tus citas online</p>
+  </div>
+
+  <div class="steps">
+    <div class="step-indicator" id="stepIndicator">
+      <div class="step active" id="step0ind"><span class="step-num">0</span> Acceso</div>
+      <div class="step" id="step1ind"><span class="step-num">1</span> Mis Citas</div>
+      <div class="step" id="step2ind"><span class="step-num">2</span> Servicio</div>
+      <div class="step" id="step3ind"><span class="step-num">3</span> Fecha/Hora</div>
+      <div class="step" id="step4ind"><span class="step-num">4</span> Confirmar</div>
+    </div>
+
+    <!-- STEP 0: Login / Register -->
+    <div class="step-content active" id="step0">
+      <h2>Accede a tu cuenta</h2>
+      <p style="text-align:center;margin-bottom:20px;">Identifícate para gestionar tus citas o reservar una nueva</p>
+      <div style="max-width:400px;margin:0 auto;">
+        <p><strong>¿Ya estás registrado?</strong></p>
+        <div class="form-group"><label>Teléfono</label><input type="tel" id="loginPhone" placeholder="Tu número de teléfono" onkeydown="if(event.key==='Enter')loginClient()"></div>
+        <button class="btn btn-primary btn-block" onclick="loginClient()">Entrar</button>
+        <hr style="margin:25px 0;">
+        <p><strong>¿Eres nuevo? Regístrate</strong></p>
+        <div class="form-group"><label>Nombre y Apellidos *</label><input type="text" id="regName" placeholder="Ej: María García López"></div>
+        <div class="form-group"><label>Teléfono *</label><input type="tel" id="regPhone" placeholder="Ej: 612345678"></div>
+        <button class="btn btn-secondary btn-block" onclick="registerClient()">Crear cuenta y reservar</button>
+      </div>
+    </div>
+
+    <!-- STEP 1: Mis Citas -->
+    <div class="step-content" id="step1">
+      <h2>Mis Citas</h2>
+      <div id="clientInfo" class="client-info"></div>
+      <div id="myApptsList"></div>
+      <div id="noApptsMsg" style="text-align:center;padding:30px;color:var(--text-light);display:none;">No tienes citas próximas</div>
+      <button class="btn btn-primary btn-block" onclick="startNewBooking()" style="margin-top:20px;">+ Nueva Reserva</button>
+      <button class="btn btn-secondary btn-block" onclick="logout()" style="margin-top:10px;">Cerrar sesión</button>
+    </div>
+
+    <!-- MODIFY APPOINTMENT MODAL -->
+    <div id="modifyModal" class="modal" style="display:none;">
+      <div class="modal-content">
+        <span class="modal-close" onclick="closeModify()">&times;</span>
+        <h3 id="modifyTitle">Modificar Cita</h3>
+        <div class="form-group"><label>Nueva fecha</label><input type="date" id="modifyDate"> <span id="modifyDateDisplay" style="font-size:13px;color:var(--text-light);margin-left:8px;"></span></div>
+        <div id="modifySlots" class="slots-grid" style="margin-top:15px;"></div>
+        <p id="modifyNoSlots" style="display:none;color:var(--text-light);">No hay horarios disponibles</p>
+        <div id="modifyError" style="color:#e74c3c;display:none;margin-top:10px;"></div>
+        <button class="btn btn-primary btn-block" onclick="confirmModify()" id="modifyBtn" disabled>Confirmar cambio</button>
+      </div>
+    </div>
+
+    <!-- STEP 2: Service -->
+    <div class="step-content" id="step2">
+      <h2>Elige un servicio</h2>
+      <div class="form-group">
+        <label>Sección</label>
+        <select id="apptSection" class="form-select" onchange="onSectionChange()">
+          <option value="">Todas las secciones</option>
+        </select>
+      </div>
+      <div class="service-combo">
+        <div class="search-box" style="margin-bottom:0;">
+          <input type="text" id="searchService" placeholder="Buscar servicio..." oninput="onSearchServiceInput()" onfocus="onSearchServiceFocus()" autocomplete="off">
+        </div>
+        <div id="serviceDropdown" class="service-dropdown" style="display:none;"></div>
+      </div>
+      <div id="selectedServicesList" class="selected-services-list" style="margin-top:12px;"></div>
+      <div class="btn-group" style="margin-top:15px;display:flex;gap:8px;">
+        <button class="btn btn-secondary btn-block" onclick="goStep(1)" style="flex:1;">Volver a mis citas</button>
+        <button class="btn btn-primary btn-block" id="continueToDateBtn" onclick="goToDateStep()" disabled style="flex:2;">Continuar</button>
+      </div>
+    </div>
+
+    <!-- STEP 3: Date & Time -->
+    <div class="step-content" id="step3">
+      <h2>Elige una fecha</h2>
+      <div class="date-picker"><input type="date" id="bookingDate" onchange="onDateChange()"></div>
+      <p id="selectedService" class="selected-info"></p>
+      <div id="slotsContainer" class="slots-grid" style="margin-top:15px;"></div>
+      <p id="noSlots" class="no-slots" style="display:none;">No hay horarios disponibles para esta fecha</p>
+      <p id="selectedSlot" class="selected-info"></p>
+      <button class="btn btn-secondary btn-block" style="margin-top:15px;" onclick="goStep(2)">Volver a servicios</button>
+    </div>
+
+    <!-- STEP 4: Confirm -->
+    <div class="step-content" id="step4">
+      <h2>Confirmar cita</h2>
+      <div class="form-group"><label>Nombre *</label><input type="text" id="clientName" placeholder="Tu nombre completo"></div>
+      <div class="form-group"><label>Teléfono *</label><input type="tel" id="clientPhone" placeholder="Ej: 612345678" readonly style="background:#f0f0f0;"></div>
+      <div class="form-group"><label>Email</label><input type="email" id="clientEmail" placeholder="email@ejemplo.com"></div>
+      <div class="form-group"><label>Notas</label><textarea id="bookingNotes" placeholder="Alguna observación..."></textarea></div>
+      <div class="summary" id="bookingSummary"></div>
+      <button class="btn btn-primary btn-block" onclick="confirmBooking()" id="confirmBtn">Confirmar Reserva</button>
+      <button class="btn btn-secondary btn-block" onclick="goStep(3)" style="margin-top:10px;">Volver</button>
+    </div>
+
+    <!-- STEP 5: Done -->
+    <div class="step-content" id="step5">
+      <div class="done-icon">✅</div>
+      <h2>Reserva Confirmada</h2>
+      <p id="doneMsg">Tu cita ha sido registrada. Te esperamos!</p>
+      <button class="btn btn-primary" onclick="goToMyAppts()">Ir a Mis Citas</button>
+    </div>
+  </div>
+
+  <div class="footer">
+    <p id="footerInfo">Gestión de reservas online</p>
+  </div>
+</div>
+
+<div class="loading" id="loadingOverlay" style="display:none;"><div class="spinner"></div><p>Cargando...</p></div>
+
+<div id="openingCountdown" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:var(--bg);z-index:2000;flex-direction:column;align-items:center;justify-content:center;">
+  <div style="text-align:center;padding:20px;">
+    <div id="countdownIcon" style="font-size:48px;margin-bottom:15px;">🕐</div>
+    <h2 id="countdownTitle" style="margin-bottom:8px;">Reservas Online cerradas</h2>
+    <p id="countdownSub" style="color:var(--text-light);margin-bottom:5px;">Las reservas online abrirán hoy a las <strong id="countdownTargetTime">18:00</strong></p>
+    <p style="color:var(--text-light);margin-bottom:25px;font-size:13px;">Disculpa las molestias, Nymara Estilistas</p>
+    <div id="countdownDisplay" style="font-size:56px;font-weight:700;color:var(--primary);font-family:monospace;letter-spacing:4px;">--:--:--</div>
+    <p id="countdownLabel" style="font-size:13px;color:var(--text-light);margin-top:8px;">horas : minutos : segundos</p>
+    <p style="margin-top:30px;font-size:14px;color:var(--text);">Puedes contactar con nosotros en el Teléfono: <strong>624 14 36 58</strong></p>
+  </div>
+</div>
+
+<script src="/booking/booking.js"></script>
+</body>
+</html>
