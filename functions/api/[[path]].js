@@ -86,10 +86,10 @@ export async function onRequest(context) {
 
   async function computeETag(data) {
     const encoder = new TextEncoder();
-    const hashBuffer = await crypto.subtle.digest('MD5', encoder.encode(JSON.stringify(data)));
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(JSON.stringify(data)));
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    return '"' + hashHex + '"';
+    return '"' + hashHex.slice(0, 16) + '"';
   }
 
   function sanitizeUrl(url) {
