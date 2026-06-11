@@ -318,7 +318,7 @@ async function syncAllFromCloud() {
   } catch (e) { console.log('[SYNC] Error:', e.message); }
 }
 syncAllFromCloud();
-setInterval(syncAllFromCloud, 300000);
+setInterval(syncAllFromCloud, 600000);
 
 async function checkConfirmedAppointments() {
   if (!isConnected || !currentSock) return;
@@ -358,5 +358,5 @@ async function sendNotif(appt, data, opts) {
     await fetch(SYNC_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointments: [{ ...appt, [opts.clearFlag]: false, [opts.setFlag]: true, _modified: Date.now() }] }) });
   } catch {}
 }
-setInterval(checkConfirmedAppointments, 10000);
-console.log(' Polling cada 10s');
+setInterval(checkConfirmedAppointments, 30000);
+console.log(' Sync cada 10min, polling cada 30s');
