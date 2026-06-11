@@ -294,7 +294,7 @@ start().catch(e => {
   setTimeout(start, RECONNECT_DELAY);
 });
 
-const SYNC_API_URL = (process.env.SYNC_URL || process.env.VERCEL_SYNC_URL || 'https://tpv-peluqueria.pages.dev/api').replace(/\/+$/, '') + '/sync';
+const SYNC_API_URL = (process.env.SYNC_URL || process.env.VERCEL_SYNC_URL || 'https://nymaraestilistas.es/api').replace(/\/+$/, '') + '/sync';
 async function syncAllFromCloud() {
   try {
     const resp = await fetch(SYNC_API_URL);
@@ -338,6 +338,12 @@ async function checkConfirmedAppointments() {
     }
     for (const appt of appts.filter(a => a._whatsappCancelRejectedPending && !a._whatsappCancelRejectedSent)) {
       await sendNotif(appt, data, { text: 'Cancelación RECHAZADA. La cita sigue activa.', clearFlag: '_whatsappCancelRejectedPending', setFlag: '_whatsappCancelRejectedSent' });
+    }
+    for (const appt of appts.filter(a => a.cancelledBy === 'salon' && (a.source === 'whatsapp' || a.source === 'online') && !a._cancelledBySalonSent)) {
+      await sendNotif(appt, data, {
+        text: '❌ Cita CANCELADA por el salón',
+        clearFlag: '_cancelledBySalonNotified', setFlag: '_cancelledBySalonSent'
+      });
     }
   } catch {}
 }
