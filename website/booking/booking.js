@@ -55,7 +55,7 @@ function goStep(n) {
 async function loadData() {
   showLoading(true);
   try {
-    const r = await fetch(API + '/sync');
+    const r = await fetch(API + '/api/sync');
     const d = await r.json();
     services = (d.services||[]).filter(s => !s._deleted);
     sections = (d.sections||[]).filter(s => !s._deleted);
