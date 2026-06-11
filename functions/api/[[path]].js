@@ -831,6 +831,15 @@ export async function onRequest(context) {
       }
     }
 
+    // === API: DEBUG PRODUCTS (muestra todos los productos crudos) ===
+    case '/api/debug-products': {
+      const d = await readData();
+      return json({
+        total: (d.products||[]).length,
+        sample: (d.products||[]).slice(0, 3).map(p => ({ id: p.id, name: p.name, showOnWeb: p.showOnWeb, showWeb: p.showWeb, _modified: p._modified }))
+      });
+    }
+
     // === API: WEB PRODUCTS ===
     case '/api/web-products': {
       if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405);
