@@ -1,0 +1,3 @@
+/sync /api/sync 200
+/health /api/health 200
+/debug /api/debug 200
