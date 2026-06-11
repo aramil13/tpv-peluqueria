@@ -153,6 +153,7 @@ ipcMain.handle('set-deepseek-key', async (event, key) => {
 
 ipcMain.handle('start-bridge', async () => { startBridge(); return { ok: true }; });
 ipcMain.handle('stop-bridge', async () => { stopBridge(true); return { ok: true }; });
+ipcMain.handle('get-render-bridge-url', async () => RENDER_BRIDGE_URL);
 
 app.on('ready', () => {
   ensureSyncEnv();
@@ -160,8 +161,12 @@ app.on('ready', () => {
   createWindow();
   const key = getDeepSeekKeyFromSettings() || process.env.DEEPSEEK_API_KEY;
   if (key) { process.env.DEEPSEEK_API_KEY = key; startBridge(); }
-  // Desactivar bridge de Render al arrancar el EXE
   renderFetch('/disable').then(r => console.log('[RENDER] Bridge desactivado:', r.ok ? 'OK' : 'FALLO'));
+
+  // Keepalive para evitar que Render duerma el bridge
+  setInterval(() => {
+    try { https.get(RENDER_BRIDGE_URL + '/ping', (res) => res.resume()); } catch {}
+  }, 300000);
 });
 
 app.on('window-all-closed', function () {

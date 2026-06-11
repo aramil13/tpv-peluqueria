@@ -234,6 +234,24 @@ const server = http.createServer((req, res) => {
       }
       return;
     }
+    if (req.method === 'GET' && req.url === '/sync') {
+      setJson(200, readData());
+      return;
+    }
+    if (req.method === 'POST' && req.url === '/sync') {
+      let body = '';
+      req.on('data', c => body += c);
+      req.on('end', () => {
+        try {
+          const incoming = JSON.parse(body);
+          const merged = mergeArray(Array.isArray(readData().services) ? readData().services : [], incoming.services || []);
+          writeData({ ...readData(), ...incoming, services: merged });
+          console.log('[SYNC] Datos recibidos del EXE');
+          setJson(200, { ok: true });
+        } catch (e) { setJson(400, { error: e.message }); }
+      });
+      return;
+    }
     if (req.method === 'POST' && (req.url === '/disable' || req.url === '/enable')) {
       const isEnable = req.url === '/enable';
       let body = '';

@@ -846,7 +846,7 @@ let data = {
     ticketFooter: '¡Gracias por su visita!',
     invoiceFooter: '¡Gracias por su visita!',
     invoicePrefix: 'FACT-',
-    sync: { enabled: true, url: 'https://tpv-peluqueria.pages.dev/api' },
+    sync: { enabled: true, url: 'https://nymaraestilistas.es/api' },
     webSync: { enabled: false, interval: 10 },
     onlineOpening: {},
     openingHours: {
@@ -914,7 +914,7 @@ if (data.settings && data.settings.openingHours) {
 if (data.settings && data.settings.sync && data.settings.sync.url) {
   const oldUrl = data.settings.sync.url;
   if (oldUrl.includes('vercel.app')) {
-    data.settings.sync.url = 'https://tpv-peluqueria.pages.dev/api';
+    data.settings.sync.url = 'https://nymaraestilistas.es/api';
     DB.set('settings', data.settings);
     console.log('Migrated sync URL:', oldUrl, '→', data.settings.sync.url);
   }
@@ -1273,7 +1273,7 @@ function openSettings() {
   document.getElementById('ivaRate').value = getIvaRate();
   const sync = s.sync || {};
   document.getElementById('syncEnabled').checked = sync.enabled || false;
-  document.getElementById('syncUrl').value = sync.url || 'https://tpv-peluqueria.pages.dev/api';
+  document.getElementById('syncUrl').value = sync.url || 'https://nymaraestilistas.es/api';
   const tw = sync.timeWindows || {};
   document.getElementById('syncTimeWindowsEnabled').checked = tw.enabled || false;
   document.getElementById('syncTimeWindowsFields').style.display = tw.enabled ? 'block' : 'none';
@@ -1403,7 +1403,7 @@ function saveSettings() {
     invoiceFooter: document.getElementById('setInvoiceFooter').value.trim(),
     sync: {
       enabled: document.getElementById('syncEnabled').checked,
-      url: document.getElementById('syncUrl').value.trim() || 'https://tpv-peluqueria.pages.dev/api',
+      url: document.getElementById('syncUrl').value.trim() || 'https://nymaraestilistas.es/api',
       timeWindows: {
         enabled: document.getElementById('syncTimeWindowsEnabled').checked,
         morning: {
@@ -1735,7 +1735,7 @@ function loadOnlineOpeningForDay(dateStr) {
 }
 
 // ============ SYNC ============
-function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: true, url: 'https://tpv-peluqueria.pages.dev/api' } }
+function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: true, url: 'https://nymaraestilistas.es/api' } }
 
 function toggleSyncTimeWindows() {
   const enabled = document.getElementById('syncTimeWindowsEnabled').checked;
@@ -1773,19 +1773,19 @@ function syncPush() {
   if (!c.enabled) return;
   const status = document.getElementById('syncStatus');
   if (status) status.textContent = '🔄 Sincronizando...';
+  const body = JSON.stringify({
+    appointments: Array.isArray(data.appointments) ? data.appointments : [],
+    clients: Array.isArray(data.clients) ? data.clients : [],
+    services: Array.isArray(data.services) ? data.services : [],
+    sections: Array.isArray(data.sections) ? data.sections : [],
+    employees: Array.isArray(data.employees) ? data.employees : [],
+    products: Array.isArray(data.products) ? data.products : [],
+    projects: Array.isArray(data.projects) ? data.projects : [],
+    providers: Array.isArray(data.providers) ? data.providers : [],
+    settings: data.settings || {}
+  });
   fetch(c.url.replace(/\/+$/,'') + '/sync', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      appointments: Array.isArray(data.appointments) ? data.appointments : [],
-      clients: Array.isArray(data.clients) ? data.clients : [],
-      services: Array.isArray(data.services) ? data.services : [],
-      sections: Array.isArray(data.sections) ? data.sections : [],
-      employees: Array.isArray(data.employees) ? data.employees : [],
-      products: Array.isArray(data.products) ? data.products : [],
-      projects: Array.isArray(data.projects) ? data.projects : [],
-      providers: Array.isArray(data.providers) ? data.providers : [],
-      settings: data.settings || {}
-    })
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body
   }).then(async r => {
     if (r.ok && status) status.textContent = '✅ Sincronizado';
     else if (status) {
@@ -1797,6 +1797,14 @@ function syncPush() {
     if (status) status.textContent = '❌ ' + e.message;
     setTimeout(() => { if (status) status.textContent = ''; }, 5000);
   });
+  // También enviar al bridge de Render
+  if (window.electronAPI) {
+    window.electronAPI.getRenderBridgeUrl().then(bridgeUrl => {
+      if (bridgeUrl) fetch(bridgeUrl.replace(/\/+$/,'') + '/sync', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body
+      }).catch(() => {});
+    }).catch(() => {});
+  }
 }
 
 function mergeRemote(type, remote) {
