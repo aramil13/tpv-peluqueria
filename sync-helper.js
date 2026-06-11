@@ -433,6 +433,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const BUSINESS_START = dayHours.open;
     const BUSINESS_END = dayHours.close;
     const SLOT_INTERVAL = 15;
+    const BREAK_START = dayHours.breakStart, BREAK_END = dayHours.breakEnd;
+    const isInBreak = (t) => BREAK_START !== null && BREAK_END !== null && t >= BREAK_START && t < BREAK_END;
 
     const slots = [];
     const availableEmps = employeesList.length ? employeesList : [{ id: '', name: 'Sin asignar' }];
@@ -445,7 +447,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         const startMin = (h === Math.floor(BUSINESS_START)) ? Math.round((BUSINESS_START - Math.floor(BUSINESS_START)) * 60) : 0;
         const endMin = (h === Math.ceil(BUSINESS_END) - 1) ? Math.round((BUSINESS_END - Math.floor(BUSINESS_END)) * 60) : 60;
         for (let m = startMin; m < endMin; m += SLOT_INTERVAL) {
-          allTimes.add(h * 60 + m);
+          const slotH = h + m / 60;
+          if (!isInBreak(slotH)) allTimes.add(h * 60 + m);
         }
       }
       empAppts.forEach(a => {
@@ -465,6 +468,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         const end = start + duration / 60;
         if (end > BUSINESS_END) return;
         if (isToday && start < currentHour) return;
+        if (isInBreak(start)) return;
+        if (BREAK_START !== null && BREAK_END !== null && start < BREAK_END && end > BREAK_START) return;
         const timeStr = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
         const occupied = empAppts.some(a => {
           const srv = (data.services||[]).find(s => s.id === a.serviceId);
@@ -517,6 +522,12 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         const srvDuration = srv ? srv.duration : 30;
         const reqStart = parseTime(b.time);
         const reqEnd = reqStart + srvDuration / 60;
+        const bkHours = getOpeningHoursForDay(b.date, data.settings);
+        if (bkHours.breakStart !== null && bkHours.breakEnd !== null && reqStart < bkHours.breakEnd && reqEnd > bkHours.breakStart) {
+          res.writeHead(409, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Esa hora cae en el horario de descanso del mediodía. Por favor, elige otra hora.' }));
+          return;
+        }
         const conflict = empAppts.find(a => {
           const as = (data.services||[]).find(s => s.id === a.serviceId);
           const aStart = parseTime(a.time);
@@ -1026,17 +1037,36 @@ function parseTime(t) {
 }
 
 function getOpeningHoursForDay(dateStr, settings) {
-  if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false };
+  if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false, breakStart: null, breakEnd: null };
   const d = new Date(dateStr + 'T12:00:00').getDay();
   const day = settings.openingHours[d] || { open: '09:00', close: '19:00', closed: false };
   const openH = parseInt(day.open) || 9;
   const closeH = parseInt(day.close) || 19;
   const openMin = parseInt((day.open || '09:00').split(':')[1]) || 0;
   const closeMin = parseInt((day.close || '19:00').split(':')[1]) || 0;
+  let breakStart = null, breakEnd = null;
+  if (day.breakStart && day.breakEnd) {
+    const bsH = parseInt(day.breakStart) || 0;
+    const bsM = parseInt((day.breakStart || '00:00').split(':')[1]) || 0;
+    const beH = parseInt(day.breakEnd) || 0;
+    const beM = parseInt((day.breakEnd || '00:00').split(':')[1]) || 0;
+    breakStart = bsH + bsM / 60;
+    breakEnd = beH + beM / 60;
+  } else if (day.morningClose && day.afternoonOpen) {
+    const mcH = parseInt(day.morningClose) || 0;
+    const mcM = parseInt((day.morningClose || '00:00').split(':')[1]) || 0;
+    const aoH = parseInt(day.afternoonOpen) || 0;
+    const aoM = parseInt((day.afternoonOpen || '00:00').split(':')[1]) || 0;
+    const mc = mcH + mcM / 60;
+    const ao = aoH + aoM / 60;
+    if (ao > mc) { breakStart = mc; breakEnd = ao; }
+  }
   return {
     open: openH + openMin / 60,
     close: closeH + closeMin / 60,
-    closed: day.closed === true
+    closed: day.closed === true,
+    breakStart,
+    breakEnd
   };
 }
 

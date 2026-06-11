@@ -846,17 +846,17 @@ let data = {
     ticketFooter: '¡Gracias por su visita!',
     invoiceFooter: '¡Gracias por su visita!',
     invoicePrefix: 'FACT-',
-    sync: { enabled: true, url: 'https://tpv-peluqueria.vercel.app' },
+    sync: { enabled: true, url: 'https://tpv-peluqueria.pages.dev/api' },
     webSync: { enabled: false, interval: 10 },
     onlineOpening: {},
     openingHours: {
       "0": { open: "09:00", close: "14:00", morningOpen: "09:00", morningClose: "14:00", afternoonOpen: "16:00", afternoonClose: "20:00", closed: true },
       "1": { open: "09:00", close: "20:00", morningOpen: "09:00", morningClose: "13:00", afternoonOpen: "16:00", afternoonClose: "20:00", closed: true },
-      "2": { open: "09:00", close: "20:00", morningOpen: "09:00", morningClose: "13:00", afternoonOpen: "16:00", afternoonClose: "20:30", closed: false },
-      "3": { open: "09:00", close: "20:00", morningOpen: "09:00", morningClose: "13:00", afternoonOpen: "16:00", afternoonClose: "20:30", closed: false },
-      "4": { open: "09:00", close: "20:00", morningOpen: "09:00", morningClose: "13:00", afternoonOpen: "16:00", afternoonClose: "20:30", closed: false },
-      "5": { open: "09:00", close: "20:00", morningOpen: "09:00", morningClose: "13:00", afternoonOpen: "16:00", afternoonClose: "20:30", closed: false },
-      "6": { open: "09:00", close: "14:00", morningOpen: "09:00", morningClose: "14:00", afternoonOpen: "16:00", afternoonClose: "20:00", closed: false }
+      "2": { open: "09:30", close: "20:30", morningOpen: "09:30", morningClose: "13:30", afternoonOpen: "15:00", afternoonClose: "20:30", closed: false },
+      "3": { open: "09:30", close: "20:30", morningOpen: "09:30", morningClose: "13:30", afternoonOpen: "15:00", afternoonClose: "20:30", closed: false },
+      "4": { open: "09:30", close: "20:30", morningOpen: "09:30", morningClose: "13:30", afternoonOpen: "15:00", afternoonClose: "20:30", closed: false },
+      "5": { open: "09:30", close: "20:30", morningOpen: "09:30", morningClose: "13:30", afternoonOpen: "15:00", afternoonClose: "20:30", closed: false },
+      "6": { open: "09:30", close: "14:00", morningOpen: "09:30", morningClose: "14:00", afternoonOpen: "16:00", afternoonClose: "20:00", closed: false }
     }
   })
 }
@@ -908,6 +908,16 @@ if (data.settings && data.settings.openingHours) {
     }
   }
   if (migrated) { DB.set('settings', data.settings); console.log('Migrated openingHours to split format'); }
+}
+
+// Migrate old Vercel sync URLs to Cloudflare
+if (data.settings && data.settings.sync && data.settings.sync.url) {
+  const oldUrl = data.settings.sync.url;
+  if (oldUrl.includes('vercel.app')) {
+    data.settings.sync.url = 'https://tpv-peluqueria.pages.dev/api';
+    DB.set('settings', data.settings);
+    console.log('Migrated sync URL:', oldUrl, '→', data.settings.sync.url);
+  }
 }
 
 // Clean up any corrupted entries in main entities (caused by importing binary files as CSV)
@@ -1263,7 +1273,7 @@ function openSettings() {
   document.getElementById('ivaRate').value = getIvaRate();
   const sync = s.sync || {};
   document.getElementById('syncEnabled').checked = sync.enabled || false;
-  document.getElementById('syncUrl').value = sync.url || 'https://tpv-peluqueria.vercel.app';
+  document.getElementById('syncUrl').value = sync.url || 'https://tpv-peluqueria.pages.dev/api';
   const tw = sync.timeWindows || {};
   document.getElementById('syncTimeWindowsEnabled').checked = tw.enabled || false;
   document.getElementById('syncTimeWindowsFields').style.display = tw.enabled ? 'block' : 'none';
@@ -1393,7 +1403,7 @@ function saveSettings() {
     invoiceFooter: document.getElementById('setInvoiceFooter').value.trim(),
     sync: {
       enabled: document.getElementById('syncEnabled').checked,
-      url: document.getElementById('syncUrl').value.trim() || 'https://tpv-peluqueria.vercel.app',
+      url: document.getElementById('syncUrl').value.trim() || 'https://tpv-peluqueria.pages.dev/api',
       timeWindows: {
         enabled: document.getElementById('syncTimeWindowsEnabled').checked,
         morning: {
@@ -1725,7 +1735,7 @@ function loadOnlineOpeningForDay(dateStr) {
 }
 
 // ============ SYNC ============
-function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: true, url: 'https://nymaraestilistas.es/api' } }
+function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: true, url: 'https://tpv-peluqueria.pages.dev/api' } }
 
 function toggleSyncTimeWindows() {
   const enabled = document.getElementById('syncTimeWindowsEnabled').checked;
@@ -3072,16 +3082,19 @@ function acceptClientMod(id) {
   if (!confirm(msg)) return;
   a.date = a.pendingDate || a.date;
   a.time = a.pendingTime || a.time;
-  const srv = (data.services||[]).find(s => s.id === a.serviceId);
-  const dur = srv ? srv.duration : 30;
+  const acSvcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+  const acSvcNames = acSvcIds.map(sid => (data.services||[]).find(s => s.id === sid)).filter(Boolean);
+  const acDur = acSvcNames.reduce((sum, s) => sum + (s.duration || 30), 0);
   const reqStart = timeToMinutes(a.time);
-  const reqEnd = reqStart + dur;
+  const reqEnd = reqStart + acDur;
   const newEndH = Math.floor(reqEnd/60);
   const newEndM = reqEnd % 60;
   a.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
   a.employeeId = a.pendingEmployeeId || a.employeeId;
   a.notes = (a.notes||'') + ' [Modificación aceptada por el salón]';
   a.clientModified = false;
+  a.pendingSalonConfirm = false;
+  a.status = 'confirmed';
   delete a.pendingDate;
   delete a.pendingTime;
   delete a.pendingEmployeeId;
@@ -3092,7 +3105,8 @@ function acceptClientMod(id) {
   const c = getSyncCfg();
   if (c.enabled && c.url && client) {
     const dateFmt = (a.pendingDate || a.date).split('-').reverse().join('-');
-    const text = `✅ Tu solicitud de modificación ha sido ACEPTADA:\n\n📅 ${dateFmt}\n⏰ ${a.pendingTime || a.time}\n💇 ${srv?.name || 'Servicio'}\n\n¡Te esperamos!`;
+    const acNamesStr = acSvcNames.map(s => s.name).join(', ');
+    const text = `✅ Tu solicitud de modificación ha sido ACEPTADA:\n\n📅 ${dateFmt}\n⏰ ${a.pendingTime || a.time}\n💇 ${acNamesStr || 'Servicio'}\n\n¡Te esperamos!`;
     fetch(c.url.replace(/\/+$/,'') + '/api/send-whatsapp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3107,7 +3121,8 @@ function confirmWhatsAppAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   const client = data.clients.find(c => c.id === a.clientId);
-  const svc = data.services.find(s => s.id === a.serviceId);
+  const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+  const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
   const emp = data.employees.find(e => e.id === a.employeeId);
   const isModification = !!a.clientModified;
 
@@ -3116,14 +3131,14 @@ function confirmWhatsAppAppt(id) {
     const pendEmp = a.pendingEmployeeId ? (data.employees.find(e=>e.id===a.pendingEmployeeId)?.name||'') : '';
     msg = `El cliente solicita MODIFICAR esta cita:\n\n`+
       `Cliente: ${client?client.name:'?'}\n`+
-      `Servicio: ${svc?svc.name:'?'}\n`+
+      `Servicio: ${svcNames}\n`+
       `Original: ${a.date} ${a.time} ${emp?emp.name:''}\n`+
       `Solicitado: ${a.pendingDate||a.date} ${a.pendingTime||a.time} ${pendEmp||''}\n\n`+
       `¿Confirmar la modificación?`;
   } else {
     msg = `¿Confirmar esta cita de WhatsApp?\n\n`+
       `Cliente: ${client?client.name:'?'}\n`+
-      `Servicio: ${svc?svc.name:'?'}\n`+
+      `Servicio: ${svcNames}\n`+
       `Fecha: ${a.date} ${a.time}\n`+
       `Empleado: ${emp?emp.name:'Sin asignar'}`;
   }
@@ -3135,8 +3150,8 @@ function confirmWhatsAppAppt(id) {
     a.time = a.pendingTime || a.time;
     if (a.pendingEmployeeId) a.employeeId = a.pendingEmployeeId;
     if (a.pendingDate || a.pendingTime) {
-      const srv2 = data.services.find(s => s.id === a.serviceId);
-      const dur = srv2 ? srv2.duration : 30;
+      const ids2 = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+      const dur = ids2.map(id => (data.services||[]).find(s => s.id === id)).reduce((sum, s) => sum + (s ? s.duration : 30), 0);
       const reqStart = timeToMinutes(a.time);
       const reqEnd = reqStart + dur;
       const newEndH = Math.floor(reqEnd/60);
@@ -3163,11 +3178,12 @@ function confirmCancelWhatsApp(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   const client = data.clients.find(c => c.id === a.clientId);
-  const svc = data.services.find(s => s.id === a.serviceId);
+  const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+  const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
   const emp = data.employees.find(e => e.id === a.employeeId);
   const msg = `El cliente solicita CANCELAR esta cita de WhatsApp:\n\n`+
     `Cliente: ${client?client.name:'?'}\n`+
-    `Servicio: ${svc?svc.name:'?'}\n`+
+    `Servicio: ${svcNames}\n`+
     `Fecha: ${a.date} ${a.time}\n`+
     `Empleado: ${emp?emp.name:'Sin asignar'}\n\n`+
     `¿Aceptar la cancelación?`;

@@ -7,7 +7,7 @@ echo  Bridge WhatsApp AI - Nymara Estilistas
 echo ============================================
 echo.
 echo Asegurate de tener el GROQ_API_KEY configurado
-echo en las variables de entorno o en .env.vercel
+echo en las variables de entorno o en .env
 echo.
 echo El bridge necesita el sync-helper corriendo
 echo en http://localhost:3456

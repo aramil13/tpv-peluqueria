@@ -16,7 +16,6 @@ android-agenda/AgendaTPV.apk
 sync/appointments.json
 /data/
 
-.vercel
 .env*
 
 wa_auth/

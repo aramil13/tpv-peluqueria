@@ -38,13 +38,13 @@ const { readData, writeData, mergeArray } = require('./lib/kv-data');
 const useDeepSeek = !!process.env.DEEPSEEK_API_KEY;
 const useGroq = !!process.env.GROQ_API_KEY;
 const useGemini = !!process.env.GEMINI_API_KEY;
-const vercelUrl = process.env.VERCEL_SYNC_URL || '';
+const syncUrl = process.env.SYNC_URL || process.env.VERCEL_SYNC_URL || '';
 let aiMode = 'Ninguna';
 if (useDeepSeek) aiMode = 'DeepSeek';
 else if (useGroq) aiMode = 'Groq';
 else if (useGemini) aiMode = 'Gemini';
 console.log('AI: DeepSeek='+useDeepSeek+', Groq='+useGroq+', Gemini='+useGemini+' → '+aiMode);
-console.log('VERCEL SYNC: '+(vercelUrl ? vercelUrl : 'NO CONFIGURADO'));
+console.log('SYNC URL: '+(syncUrl ? syncUrl : 'NO CONFIGURADO'));
 console.log('DATA_DIR:', DATA_DIR);
 console.log('AUTH_DIR:', AUTH_DIR);
 console.log('CONV_DIR:', CONV_DIR);
@@ -276,13 +276,25 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(` Bridge HTTP server en puerto ${PORT}`);
 });
 
+// Keepalive para evitar que Render duerma el servicio
+const RENDER_URL = process.env.RENDER_BRIDGE_URL || 'https://tpv-peluqueria-bridge-whatsapp.onrender.com';
+function keepAlive() {
+  const ac = new AbortController();
+  setTimeout(() => ac.abort(), 10000);
+  fetch(RENDER_URL + '/ping', { signal: ac.signal })
+    .then(r => r.json().then(d => console.log('[KEEPALIVE] ok, connected=' + d.connected)).catch(() => {}))
+    .catch(e => console.log('[KEEPALIVE] error: ' + e.message));
+}
+keepAlive();
+setInterval(keepAlive, 300000); // cada 5 minutos
+
 console.log(' Iniciando bridge WhatsApp en Render...');
 start().catch(e => {
   console.error('[FATAL START]', e?.message || e);
   setTimeout(start, RECONNECT_DELAY);
 });
 
-const SYNC_API_URL = (process.env.VERCEL_SYNC_URL || 'https://nymaraestilistas.es/api').replace(/\/+$/, '') + '/sync';
+const SYNC_API_URL = (process.env.SYNC_URL || process.env.VERCEL_SYNC_URL || 'https://tpv-peluqueria.pages.dev/api').replace(/\/+$/, '') + '/sync';
 async function syncAllFromCloud() {
   try {
     const resp = await fetch(SYNC_API_URL);
@@ -317,7 +329,7 @@ async function checkConfirmedAppointments() {
     const appts = (data.appointments||[]);
     for (const appt of appts.filter(a => a.source === 'whatsapp' && !a.pendingSalonConfirm && !a._whatsappConfirmed && !a._deleted)) {
       await sendNotif(appt, data, {
-        text: `Tu cita ha sido CONFIRMADA:\n📅 ${appt.date.split('-').reverse().join('-')}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${((data.services||[]).find(s=>s.id===(appt.serviceId||''))||{}).name||'Servicio'}\n¡Te esperamos!`,
+        text: `Tu cita ha sido CONFIRMADA:\n📅 ${appt.date.split('-').reverse().join('-')}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${(()=>{const ids=appt.serviceIds||(appt.serviceId?[appt.serviceId]:[]);return ids.map(sid=>((data.services||[]).find(s=>s.id===sid))?.name).filter(Boolean).join(', ')||'Servicio'})()}\n¡Te esperamos!`,
         clearFlag: '_whatsappConfirmed', setFlag: '_whatsappConfirmed'
       });
     }

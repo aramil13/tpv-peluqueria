@@ -25,17 +25,36 @@ function parseTime(t) {
 }
 
 function getOpeningHoursForDay(dateStr, settings) {
-  if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false };
+  if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false, breakStart: null, breakEnd: null };
   const d = new Date(dateStr + 'T12:00:00').getDay();
   const day = settings.openingHours[d] || { open: '09:00', close: '19:00', closed: false };
   const openH = parseInt(day.open) || 9;
   const closeH = parseInt(day.close) || 19;
   const openMin = parseInt((day.open || '09:00').split(':')[1]) || 0;
   const closeMin = parseInt((day.close || '19:00').split(':')[1]) || 0;
+  let breakStart = null, breakEnd = null;
+  if (day.breakStart && day.breakEnd) {
+    const bsH = parseInt(day.breakStart) || 0;
+    const bsM = parseInt((day.breakStart || '00:00').split(':')[1]) || 0;
+    const beH = parseInt(day.breakEnd) || 0;
+    const beM = parseInt((day.breakEnd || '00:00').split(':')[1]) || 0;
+    breakStart = bsH + bsM / 60;
+    breakEnd = beH + beM / 60;
+  } else if (day.morningClose && day.afternoonOpen) {
+    const mcH = parseInt(day.morningClose) || 0;
+    const mcM = parseInt((day.morningClose || '00:00').split(':')[1]) || 0;
+    const aoH = parseInt(day.afternoonOpen) || 0;
+    const aoM = parseInt((day.afternoonOpen || '00:00').split(':')[1]) || 0;
+    const mc = mcH + mcM / 60;
+    const ao = aoH + aoM / 60;
+    if (ao > mc) { breakStart = mc; breakEnd = ao; }
+  }
   return {
     open: openH + openMin / 60,
     close: closeH + closeMin / 60,
-    closed: day.closed === true
+    closed: day.closed === true,
+    breakStart,
+    breakEnd
   };
 }
 
@@ -356,7 +375,7 @@ module.exports = async (req, res) => {
   if (url === '/health') {
     const data = await readData();
     res.json({
-      status: 'ok', storage: 'vercel-kv',
+      status: 'ok', storage: 'upstash-redis',
       appointments: (data.appointments || []).length,
       clients: (data.clients || []).length,
       services: (data.services || []).length,
@@ -412,6 +431,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       return;
     }
     const BUSINESS_START = dayHours.open, BUSINESS_END = dayHours.close, SLOT_INTERVAL = 15;
+    const BREAK_START = dayHours.breakStart, BREAK_END = dayHours.breakEnd;
+    const isInBreak = (t) => BREAK_START !== null && BREAK_END !== null && t >= BREAK_START && t < BREAK_END;
     const rangeOccupied = (empAppts, rangeStart, rangeEnd) => {
       return empAppts.some(a => {
         const aS = parseTime(a.time);
@@ -441,7 +462,10 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       for (let h = Math.floor(BUSINESS_START); h < Math.ceil(BUSINESS_END); h++) {
         const startMin = (h === Math.floor(BUSINESS_START)) ? Math.round((BUSINESS_START - Math.floor(BUSINESS_START)) * 60) : 0;
         const endMin = (h === Math.ceil(BUSINESS_END) - 1) ? Math.round((BUSINESS_END - Math.floor(BUSINESS_END)) * 60) : 60;
-        for (let m = startMin; m < endMin; m += SLOT_INTERVAL) allTimes.add(h * 60 + m);
+        for (let m = startMin; m < endMin; m += SLOT_INTERVAL) {
+          const slotH = h + m / 60;
+          if (!isInBreak(slotH)) allTimes.add(h * 60 + m);
+        }
       }
       empAppts.forEach(a => {
         const t = parseTime(a.time);
@@ -455,16 +479,19 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         const start = h + m / 60;
         const timeStr = String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');
         if (isToday && start < currentHour) return;
+        if (isInBreak(start)) return;
         if (hasBlocks) {
           const b1Start = start, b1End = b1Start + bloque1Dur / 60;
           const b2Start = b1End + gap / 60, b2End = b2Start + bloque2Dur / 60;
           if (b2End > BUSINESS_END) return;
+          if (isInBreak(b1Start) || isInBreak(b1End) || isInBreak(b2Start) || isInBreak(b2End)) return;
           const b1Occ = rangeOccupied(empAppts, b1Start, b1End);
           const b2Occ = rangeOccupied(empAppts, b2Start, b2End);
           slots.push({ time: timeStr, employeeId: emp.id, employeeName: emp.name || '', available: !b1Occ && !b2Occ });
         } else {
           const end = start + totalDuration / 60;
           if (end > BUSINESS_END) return;
+          if (BREAK_START !== null && BREAK_END !== null && start < BREAK_END && end > BREAK_START) return;
           const occupied = rangeOccupied(empAppts, start, end);
           slots.push({ time: timeStr, employeeId: emp.id, employeeName: emp.name || '', available: !occupied });
         }
@@ -545,6 +572,16 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         return { s: parseTime(block.time), e: parseTime(block.time) + dur / 60 };
       };
       const empAppts = (data.appointments||[]).filter(a => a.date === b.date && !a._deleted && (!empId || a.employeeId === empId || !a.employeeId));
+      const bkHours = getOpeningHoursForDay(b.date, data.settings);
+      if (bkHours.breakStart !== null && bkHours.breakEnd !== null) {
+        const bkReqStart = parseTime(b.time);
+        const bkTotalDuration = svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+        const bkReqEnd = bkReqStart + bkTotalDuration / 60;
+        if (bkReqStart < bkHours.breakEnd && bkReqEnd > bkHours.breakStart) {
+          res.status(409).json({ error: 'Esa hora cae en el horario de descanso del mediodía. Por favor, elige otra hora.' });
+          return;
+        }
+      }
       if (hasBlocks) {
         const newAppts = makeBlockAppts(b.time);
         for (const newAppt of newAppts) {
@@ -929,7 +966,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
 
   // === API: SYNC PULL ===
   if (url === '/api/sync-pull' && req.method === 'POST') {
-    res.json({ ok: true, message: 'Sync pull triggered (Vercel)' });
+      res.json({ ok: true, message: 'Sync pull triggered' });
     return;
   }
 

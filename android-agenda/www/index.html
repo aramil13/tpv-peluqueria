@@ -1382,7 +1382,7 @@ function deleteProduct(id) {
 // ============ SYNC ============
 function normalizeUrl(url) {
   url = url.trim();
-  if (!url) return 'https://postal-charters.vercel.app';
+  if (!url) return 'https://tpv-peluqueria.pages.dev';
   if (!/^https?:\/\//i.test(url)) url = 'http://' + url;
   return url.replace(/\/+$/,'');
 }
@@ -1396,9 +1396,9 @@ function getSyncCfg() {
     if (url && port && !/^https?:\/\//i.test(url) && !url.includes('://')) {
       url = 'http://' + url + ':' + (parseInt(port) || 3456);
     }
-    return { enabled, url: normalizeUrl(url) || 'https://postal-charters.vercel.app' } 
+    return { enabled, url: normalizeUrl(url) || 'https://tpv-peluqueria.pages.dev' } 
   }
-  catch(e) { return { enabled: true, url: 'https://postal-charters.vercel.app' } }
+  catch(e) { return { enabled: true, url: 'https://tpv-peluqueria.pages.dev' } }
 }
 function setSyncCfg(c) { localStorage.setItem('agenda_syncEnabled', c.enabled); localStorage.setItem('agenda_syncUrl', c.url) }
 function syncBase() { return getSyncCfg().url }

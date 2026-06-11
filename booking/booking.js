@@ -538,7 +538,7 @@ function goToDateStep() {
     const gap = 45;
     const b1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
     info = '<strong>Primera cita:</strong> '+bloque1Svcs.map(s=>s.name).join(', ')+' ('+b1Dur+' min)<br>'+
-      '<strong>Descanso:</strong> '+gap+' min<br>'+
+      '<strong>Hueco entre servicios:</strong> '+gap+' min<br>'+
       '<strong>Segunda cita:</strong> '+bloque2Svcs.map(s=>s.name).join(', ')+' ('+bloque2Svcs.reduce((sum,s)=>sum+(s.duration||30),0)+' min)';
   }
   document.getElementById('selectedService').innerHTML = info;

@@ -13,7 +13,7 @@ services:
         value: "Nymara Estilistas"
       - key: BUSINESS_PHONE
         sync: false
-      - key: VERCEL_SYNC_URL
+      - key: SYNC_URL
         sync: false
       - key: TZ
         value: "Europe/Madrid"

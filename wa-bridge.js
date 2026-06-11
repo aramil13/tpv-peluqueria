@@ -28,13 +28,13 @@ const { readData, writeData, mergeArray } = require('./lib/kv-data');
 const useDeepSeek = !!process.env.DEEPSEEK_API_KEY;
 const useGroq = !!process.env.GROQ_API_KEY;
 const useGemini = !!process.env.GEMINI_API_KEY;
-const vercelUrl = process.env.VERCEL_SYNC_URL || '';
+const syncUrl = process.env.SYNC_URL || process.env.VERCEL_SYNC_URL || '';
 let aiMode = 'Ninguna';
 if (useDeepSeek) aiMode = 'DeepSeek';
 else if (useGroq) aiMode = 'Groq';
 else if (useGemini) aiMode = 'Gemini';
 console.log('AI: DeepSeek='+useDeepSeek+', Groq='+useGroq+', Gemini='+useGemini+' → '+aiMode);
-console.log('VERCEL SYNC: '+(vercelUrl ? vercelUrl : 'NO CONFIGURADO'));
+console.log('SYNC URL: '+(syncUrl ? syncUrl : 'NO CONFIGURADO'));
 
 const BUSINESS_PHONE = process.env.BUSINESS_PHONE || '';
 
@@ -247,7 +247,7 @@ server.listen(BRIDGE_PORT, () => {
 });
 
 // Sincronizar datos desde la nube MERGEANDO con local (no sobrescribir)
-const SYNC_API_URL = (process.env.VERCEL_SYNC_URL || 'https://nymaraestilistas.es/api').replace(/\/+$/, '') + '/sync';
+const SYNC_API_URL = (process.env.SYNC_URL || process.env.VERCEL_SYNC_URL || 'https://tpv-peluqueria.pages.dev/api').replace(/\/+$/, '') + '/sync';
 async function syncAllFromCloud() {
   try {
     const resp = await fetch(SYNC_API_URL);
@@ -291,7 +291,7 @@ async function checkConfirmedAppointments() {
       a.source === 'whatsapp' && !a.pendingSalonConfirm && !a._whatsappConfirmed && !a._deleted
     )) {
       await sendApptNotification(appt, data, {
-        text: `✅ Tu cita en Nymara Estilistas ha sido CONFIRMADA:\n\n📅 ${appt.date.split('-').reverse().join('-')}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${((data.services||[]).find(s=>s.id===(appt.serviceId||''))||{}).name||'Servicio'}\n👤 ${((data.employees||[]).find(e=>e.id===appt.employeeId)||{}).name||''}\n\n¡Te esperamos!`,
+        text: `✅ Tu cita en Nymara Estilistas ha sido CONFIRMADA:\n\n📅 ${appt.date.split('-').reverse().join('-')}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${(()=>{const ids=appt.serviceIds||(appt.serviceId?[appt.serviceId]:[]);return ids.map(sid=>((data.services||[]).find(s=>s.id===sid))?.name).filter(Boolean).join(', ')||'Servicio'})()}\n👤 ${((data.employees||[]).find(e=>e.id===appt.employeeId)||{}).name||''}\n\n¡Te esperamos!`,
         clearFlag: '_whatsappConfirmed',
         setFlag: '_whatsappConfirmed'
       });

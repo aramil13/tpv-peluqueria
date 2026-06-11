@@ -168,11 +168,12 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') {
     stopBridge();
     if (syncHelperProcess) syncHelperProcess.kill();
-    // Activar bridge de Render y abrir QR
+    // Activar bridge de Render y abrir QR, y SOLO entonces salir
     renderFetch('/enable').then(() => {
       shell.openExternal(RENDER_BRIDGE_URL + '/qr');
+    }).finally(() => {
+      app.quit();
     });
-    app.quit();
   }
 });
 
