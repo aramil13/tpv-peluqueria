@@ -3199,6 +3199,13 @@ function confirmWhatsAppAppt(id) {
   syncWebNow();
   renderAgenda();
 
+  // Notificar al cliente por WhatsApp
+  if (client && client.phone && window.electronAPI) {
+    const phone = client.phone.replace(/[^0-9]/g, '');
+    const svcNames2 = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
+    const text = `✅ Tu cita en Nymara Estilistas ha sido CONFIRMADA:\n📅 ${a.date}\n⏰ ${a.time}${a.endTime?' - '+a.endTime:''}\n💇 ${svcNames2}\n👤 ${emp?emp.name:''}\n\n¡Te esperamos!`;
+    window.electronAPI.sendWhatsApp(phone, text);
+  }
 }
 
 function confirmCancelWhatsApp(id) {
@@ -3707,8 +3714,9 @@ function deleteAppt(id) {
     if (isRemote) { a.cancelledBy = 'salon'; delete a._deleted; }
     else { a._deleted = true; }
   }
-  // Marcar como ya notificado para que el bridge no duplique
   if (isRemote) { a._cancelledBySalonSent = true; a._cancelledBySalonNotified = false; }
+  delete a.pendingSalonConfirm;
+  delete a.pendingCancelWhatsApp;
   saveKey('appointments'); renderAgenda(); syncPush();
   // Notificar al cliente por WhatsApp si la cita era online/whatsapp
   if (isRemote) {

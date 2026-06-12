@@ -15,8 +15,15 @@
     "conversations/"
   ],
   "win": {
-    "target": "portable",
+    "target": ["portable", "nsis"],
     "icon": "icon.png",
-    "artifactName": "TPV-Builder2-portable-${version}.${ext}"
+    "artifactName": "TPV-Builder2-${version}.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "installerIcon": "icon.ico",
+    "artifactName": "TPV-Builder2-Installer-${version}.${ext}"
   }
 }

@@ -8,5 +8,5 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopBridge: () => ipcRenderer.invoke('stop-bridge'),
   onBridgeStatus: (cb) => { ipcRenderer.on('bridge-status', (_, data) => cb(data)); },
   onBridgeQr: (cb) => { ipcRenderer.on('bridge-qr', (_, data) => cb(data)); },
-  getRenderBridgeUrl: () => ipcRenderer.invoke('get-render-bridge-url')
+  // getRenderBridgeUrl eliminado
 });
