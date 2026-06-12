@@ -213,9 +213,8 @@ async function start() {
 }
 
 function restartBridge() {
-  const authPath = path.join(AUTH_DIR, 'creds.json');
-  try { if (fs.existsSync(authPath)) fs.unlinkSync(authPath); } catch {}
-  try { if (fs.existsSync(path.join(AUTH_DIR, 'app-state-sync-key.json'))) fs.unlinkSync(path.join(AUTH_DIR, 'app-state-sync-key.json')); } catch {}
+  try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
+  try { fs.mkdirSync(AUTH_DIR, { recursive: true }); } catch {}
   if (currentSock) { try { currentSock.end(); } catch {} currentSock = null; }
   isConnected = false;
   setTimeout(start, 500);

@@ -199,16 +199,13 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') {
     stopBridge();
     if (syncHelperProcess) syncHelperProcess.kill();
-    // Activar bridge de Render, forzar QR fresco y abrir página QR con auto-refresh
     renderFetch('/enable').then(() => {
       return renderFetchGet('/restart');
     }).then(() => {
       return waitForQr(20);
-    }).then(qrReady => {
+    }).then(() => {
       shell.openExternal(RENDER_BRIDGE_URL + '/qr.html?t=' + Date.now());
-      if (!qrReady) console.log('[EXIT] No se detectó QR, abriendo página igualmente');
-    }).catch(e => {
-      console.log('[EXIT] Error:', e.message);
+    }).catch(() => {
       shell.openExternal(RENDER_BRIDGE_URL + '/qr.html?t=' + Date.now());
     }).finally(() => {
       app.quit();
