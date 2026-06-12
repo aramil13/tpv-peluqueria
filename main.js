@@ -1,12 +1,15 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const http = require('http');
+const https = require('https');
 const { fork } = require('child_process');
 const { readData, writeData } = require('./lib/kv-data');
 const fs = require('fs');
 
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 require('dotenv').config({ path: path.join(__dirname, '.env') });
+
+const FLY_BRIDGE_URL = process.env.FLY_BRIDGE_URL || '';
 
 let mainWindow;
 let syncHelperProcess;
@@ -96,22 +99,27 @@ function stopBridge(deleteAuth) {
 
 ipcMain.handle('send-whatsapp', async (event, { phone, text }) => {
   if (waBridge) {
-    try { return await waBridge.sendMessage(phone, text); } catch (e) { return { sent: false, error: e.message }; }
+    try {
+      const r = await waBridge.sendMessage(phone, text);
+      if (r.sent) return r;
+    } catch {}
   }
-  return new Promise(resolve => {
-    const data = JSON.stringify({ phone, text });
-    const req = http.request('http://localhost:3457/send', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }
-    }, res => {
-      let body = '';
-      res.on('data', c => body += c);
-      res.on('end', () => { try { resolve(JSON.parse(body)); } catch { resolve({ sent: false, error: body }); } });
-    });
-    req.on('error', e => resolve({ sent: false, error: e.message }));
-    req.write(data); req.end();
-  });
+  if (FLY_BRIDGE_URL) {
+    try {
+      const data = JSON.stringify({ phone, text });
+      return await new Promise((resolve) => {
+        const req = https.request(FLY_BRIDGE_URL.replace(/\/+$/, '') + '/send', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) }, timeout: 10000
+        }, (res) => { let b = ''; res.on('data', c => b += c); res.on('end', () => { try { resolve(JSON.parse(b)); } catch { resolve({ sent: false }); } }); });
+        req.on('error', () => resolve({ sent: false, error: 'Fly bridge no responde' }));
+        req.write(data); req.end();
+      });
+    } catch {}
+  }
+  return { sent: false, error: 'Bridge no disponible' };
 });
+
+ipcMain.handle('get-fly-bridge-url', async () => FLY_BRIDGE_URL);
 
 ipcMain.handle('get-bridge-status', () => {
   if (waBridge) return waBridge.getStatus();
