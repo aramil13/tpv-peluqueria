@@ -309,6 +309,8 @@ const server = http.createServer((req, res) => {
           const remote = JSON.parse(body);
           const current = readData();
           const merged = { ...current };
+          const wasCancelledOrDeleted = new Set();
+          (current.appointments||[]).forEach(a => { if (a && (a.cancelledBy || a._deleted)) wasCancelledOrDeleted.add(a.id); });
           const LIST_KEYS = ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers'];
           LIST_KEYS.forEach(k => {
             if (Array.isArray(remote[k])) {
@@ -316,6 +318,16 @@ const server = http.createServer((req, res) => {
             }
           });
     merged.settings = remote.settings || current.settings || {};
+    (merged.appointments||[]).forEach(a => {
+      if (a && !a.cancelledBy && !a._deleted && wasCancelledOrDeleted.has(a.id)) {
+        const orig = (current.appointments||[]).find(x => x && x.id === a.id);
+        if (orig) {
+          if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
+          if (orig._deleted) a._deleted = true;
+          if (orig.cancelledBy || orig._deleted) a._modified = Date.now();
+        }
+      }
+    });
     writeData(merged);
     console.log('POST /sync: stored', 
       (remote.products||[]).length, 'products,',
@@ -418,7 +430,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     }
     const duration = service.duration || 30;
     const employeesList = (data.employees||[]).filter(e => !e._deleted);
-    const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted);
+    const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted && !a.cancelledBy);
     const now = new Date();
     const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const isToday = date === todayLocal.toISOString().split('T')[0];
@@ -517,7 +529,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         }
         // Check availability
         const empId = b.employeeId || '';
-        const empAppts = (data.appointments||[]).filter(a => a.date === b.date && !a._deleted && (!empId || a.employeeId === empId || !a.employeeId));
+        const empAppts = (data.appointments||[]).filter(a => a.date === b.date && !a._deleted && !a.cancelledBy && (!empId || a.employeeId === empId || !a.employeeId));
         const srv = (data.services||[]).find(s => s.id === b.serviceId);
         const srvDuration = srv ? srv.duration : 30;
         const reqStart = parseTime(b.time);

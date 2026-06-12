@@ -6,10 +6,11 @@ const http = require('http');
 const pino = require('pino');
 
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const logger = pino({ level: 'warn' });
 
-const AUTH_DIR = path.join(__dirname, 'wa_auth');
+const AUTH_DIR = process.env.WA_AUTH_DIR || path.join(__dirname, 'wa_auth');
 const RECONNECT_DELAY = 15000;
 
 let currentSock = null;
@@ -247,7 +248,7 @@ server.listen(BRIDGE_PORT, () => {
 });
 
 // Sincronizar datos desde la nube MERGEANDO con local (no sobrescribir)
-const SYNC_API_URL = (process.env.SYNC_URL || process.env.VERCEL_SYNC_URL || 'https://tpv-peluqueria.pages.dev/api').replace(/\/+$/, '') + '/sync';
+const SYNC_API_URL = (process.env.SYNC_URL || process.env.VERCEL_SYNC_URL || 'https://nymaraestilistas.es/api').replace(/\/+$/, '') + '/sync';
 async function syncAllFromCloud() {
   try {
     const resp = await fetch(SYNC_API_URL);
@@ -288,7 +289,7 @@ async function checkConfirmedAppointments() {
 
     // Confirmaciones de citas nuevas
     for (const appt of appts.filter(a =>
-      a.source === 'whatsapp' && !a.pendingSalonConfirm && !a._whatsappConfirmed && !a._deleted
+      a.source === 'whatsapp' && !a.pendingSalonConfirm && !a._whatsappConfirmed && !a._deleted && !a.cancelledBy
     )) {
       await sendApptNotification(appt, data, {
         text: `✅ Tu cita en Nymara Estilistas ha sido CONFIRMADA:\n\n📅 ${appt.date.split('-').reverse().join('-')}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${(()=>{const ids=appt.serviceIds||(appt.serviceId?[appt.serviceId]:[]);return ids.map(sid=>((data.services||[]).find(s=>s.id===sid))?.name).filter(Boolean).join(', ')||'Servicio'})()}\n👤 ${((data.employees||[]).find(e=>e.id===appt.employeeId)||{}).name||''}\n\n¡Te esperamos!`,

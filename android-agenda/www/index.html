@@ -1428,7 +1428,7 @@ function renderWaReminderList() {
   const now = new Date();
   const limit = new Date(now.getTime() + 72 * 3600000);
   const pending = data.appointments.filter(a => {
-    if (!a || a._deleted || !a.date || !a.time) return false;
+    if (!a || a._deleted || a.cancelledBy === 'salon' || !a.date || !a.time) return false;
     const cl = data.clients.find(c => c.id === a.clientId && !c._deleted);
     if (!cl || !cl.whatsapp || !cl.phone) return false;
     const apptTime = new Date(a.date + 'T' + a.time + ':00');

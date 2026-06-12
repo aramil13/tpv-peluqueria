@@ -1645,7 +1645,7 @@ function renderWaReminderList() {
   const now = new Date();
   const limit = new Date(now.getTime() + 72 * 3600000);
   const pending = data.appointments.filter(a => {
-    if (!a || a._deleted || !a.date || !a.time) return false;
+    if (!a || a._deleted || a.cancelledBy === 'salon' || !a.date || !a.time) return false;
     const cl = data.clients.find(c => c.id === a.clientId && !c._deleted);
     if (!cl || !cl.whatsapp || !cl.phone) return false;
     const apptTime = new Date(a.date + 'T' + a.time + ':00');
@@ -1797,14 +1797,6 @@ function syncPush() {
     if (status) status.textContent = '❌ ' + e.message;
     setTimeout(() => { if (status) status.textContent = ''; }, 5000);
   });
-  // También enviar al bridge de Render
-  if (window.electronAPI) {
-    window.electronAPI.getRenderBridgeUrl().then(bridgeUrl => {
-      if (bridgeUrl) fetch(bridgeUrl.replace(/\/+$/,'') + '/sync', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body
-      }).catch(() => {});
-    }).catch(() => {});
-  }
 }
 
 function mergeRemote(type, remote) {
@@ -1844,15 +1836,42 @@ function syncPull() {
     .then(r => r.json()).then(remote => {
       console.log('SYNC PULL: server has', (remote.services||[]).length, 'services,', (remote.employees||[]).length, 'employees');
       
-      // FORZAR reemplazo completo de datos del servidor
-      if (Array.isArray(remote.services) && remote.services.length > 0) data.services = [...remote.services];
-      if (Array.isArray(remote.sections) && remote.sections.length > 0) data.sections = [...remote.sections];
-      if (Array.isArray(remote.employees) && remote.employees.length > 0) data.employees = [...remote.employees];
-      if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
+      // Mergear datos: respetar cambios locales más recientes que cloud
+      if (Array.isArray(remote.services) && remote.services.length > 0) {
+        const localSvcs = {};
+        (data.services||[]).forEach(s => localSvcs[s.id] = s);
+        const mergedSvcs = remote.services.map(r => {
+          const l = localSvcs[r.id];
+          return (l && (l._modified||0) > (r._modified||0)) ? l : r;
+        });
+        remote.services.forEach(r => delete localSvcs[r.id]);
+        Object.values(localSvcs).forEach(s => mergedSvcs.push(s));
+        data.services = mergedSvcs;
+      }
+      if (Array.isArray(remote.appointments) && remote.appointments.length > 0) {
+        const localAppts = {};
+        (data.appointments||[]).forEach(a => localAppts[a.id] = a);
+        const mergedAppts = remote.appointments.map(r => {
+          const l = localAppts[r.id];
+          if (!l) return r;
+          // Si local tiene cancelación y cloud no, y local es más reciente → preservar cancelación
+          if (l.cancelledBy && !r.cancelledBy && (l._modified||0) > (r._modified||0)) return l;
+          // Si local es más reciente → preservar local
+          if ((l._modified||0) > (r._modified||0)) return l;
+          return r;
+        });
+        // Añadir citas locales que cloud aún no tiene (pendingSalonConfirm, recién creadas, etc.)
+        remote.appointments.forEach(r => delete localAppts[r.id]);
+        Object.values(localAppts).forEach(a => mergedAppts.push(a));
+        data.appointments = mergedAppts;
+      }
       if (Array.isArray(remote.clients) && remote.clients.length > 0) data.clients = [...remote.clients];
+      if (Array.isArray(remote.employees) && remote.employees.length > 0) data.employees = [...remote.employees];
+      // Reemplazo directo para datos simples
+      if (Array.isArray(remote.sections) && remote.sections.length > 0) data.sections = [...remote.sections];
+      if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
       if (Array.isArray(remote.projects) && remote.projects.length > 0) data.projects = [...remote.projects];
       if (Array.isArray(remote.providers) && remote.providers.length > 0) data.providers = [...remote.providers];
-      if (Array.isArray(remote.appointments) && remote.appointments.length > 0) data.appointments = [...remote.appointments];
       
       // Guardar todo
       try {
@@ -2917,7 +2936,7 @@ function renderAgenda() {
   grid.innerHTML = html;
   // Show today's appointments
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-  showDayAppts(todayStr);
+  showDayAppts(agendaSelectedDate || todayStr);
 }
 
 function changeMonth(delta) {
@@ -3675,6 +3694,7 @@ function deleteAppt(id) {
   if (!confirm('¿Cancelar esta cita?')) return;
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
+  const isRemote = a.source === 'online' || a.source === 'whatsapp';
   if (a.blockGroupId) {
     const relatedAppts = data.appointments.filter(x => x.blockGroupId === a.blockGroupId);
     relatedAppts.forEach(ra => {
@@ -3684,10 +3704,23 @@ function deleteAppt(id) {
     });
   } else {
     a._modified = Date.now();
-    if (a.source === 'online' || a.source === 'whatsapp') { a.cancelledBy = 'salon'; delete a._deleted; }
+    if (isRemote) { a.cancelledBy = 'salon'; delete a._deleted; }
     else { a._deleted = true; }
   }
+  // Marcar como ya notificado para que el bridge no duplique
+  if (isRemote) { a._cancelledBySalonSent = true; a._cancelledBySalonNotified = false; }
   saveKey('appointments'); renderAgenda(); syncPush();
+  // Notificar al cliente por WhatsApp si la cita era online/whatsapp
+  if (isRemote) {
+    const client = data.clients.find(c => c.id === a.clientId);
+    if (client && client.phone && window.electronAPI) {
+      const phone = client.phone.replace(/[^0-9]/g, '');
+      const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+      const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
+      const text = `❌ Cita CANCELADA por el salón:\n📅 ${a.date}\n⏰ ${a.time}${a.endTime?' - '+a.endTime:''}\n💇 ${svcNames}\n\nSi tienes alguna duda, contacta con nosotros.`;
+      window.electronAPI.sendWhatsApp(phone, text).catch(() => {});
+    }
+  }
 }
 
 function deleteAllAppointments() {
@@ -4633,7 +4666,7 @@ function renderDashboard() {
   const todaySales = visibleSales.filter(s => s.date.startsWith(today));
   const todayTotal = todaySales.reduce((sum, s) => sum + s.total, 0);
   const todayIva = todaySales.reduce((sum, s) => sum + (s.iva||0), 0);
-  const todayAppts = data.appointments.filter(a => a.date === today && !a._deleted).length;
+  const todayAppts = data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon').length;
   const totalSalesSum = visibleSales.reduce((sum, s) => sum + s.total, 0);
   const lowStock = data.products.filter(p => !p._deleted && (p.stock||0) <= (p.minStock||5)).length;
   
@@ -4659,7 +4692,7 @@ function renderDashboard() {
   
   // Today's appointments
   const apptsDiv = document.getElementById('dashboardAppts');
-  const tAppts = data.appointments.filter(a => a.date === today && !a._deleted).sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  const tAppts = data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon').sort((a,b) => (a.time||'').localeCompare(b.time||''));
   if (!tAppts.length) { apptsDiv.innerHTML = '<div class="empty-state"><p>Sin citas para hoy</p></div>'; }
   else {
     apptsDiv.innerHTML = tAppts.map(a => {

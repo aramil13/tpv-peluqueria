@@ -311,12 +311,24 @@ export async function onRequest(context) {
           const remote = await getBody();
           const current = await readData();
           const merged = { ...current };
+          const wasCancelledOrDeleted = new Set();
+          (current.appointments||[]).forEach(a => { if (a && (a.cancelledBy || a._deleted)) wasCancelledOrDeleted.add(a.id); });
           ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers'].forEach(k => {
             if (Array.isArray(remote[k])) {
               merged[k] = mergeArray(Array.isArray(current[k]) ? current[k] : [], remote[k]);
             }
           });
           merged.settings = remote.settings || current.settings || {};
+          (merged.appointments||[]).forEach(a => {
+            if (a && !a.cancelledBy && !a._deleted && wasCancelledOrDeleted.has(a.id)) {
+              const orig = (current.appointments||[]).find(x => x && x.id === a.id);
+              if (orig) {
+                if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
+                if (orig._deleted) a._deleted = true;
+                if (orig.cancelledBy || orig._deleted) a._modified = Date.now();
+              }
+            }
+          });
           const today = new Date().toISOString().split('T')[0];
           (merged.appointments||[]).forEach(a => {
             if (a.cancelledBy === 'salon' && (a.date < today || a.source !== 'online')) {
@@ -380,7 +392,7 @@ export async function onRequest(context) {
       const bloque2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
       const totalDuration = hasBlocks ? bloque1Dur + gap + bloque2Dur : bloque1Dur + bloque2Dur;
       const employeesList = (data.employees||[]).filter(e => !e._deleted);
-      const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted);
+      const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted && !a.cancelledBy);
       const now = new Date();
       const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const isToday = date === todayLocal.toISOString().split('T')[0];
@@ -529,7 +541,7 @@ export async function onRequest(context) {
           const dur = (block.serviceIds||[]).reduce((sum, id) => { const s = svcs.find(x => x.id === id); return sum + (s ? (s.duration || 30) : 30); }, 0);
           return { s: parseTime(block.time), e: parseTime(block.time) + dur / 60 };
         };
-        const empAppts = (data.appointments||[]).filter(a => a.date === b.date && !a._deleted && (!empId || a.employeeId === empId || !a.employeeId));
+        const empAppts = (data.appointments||[]).filter(a => a.date === b.date && !a._deleted && !a.cancelledBy && (!empId || a.employeeId === empId || !a.employeeId));
         const bkHours = getOpeningHoursForDay(b.date, data.settings);
         if (bkHours.breakStart !== null && bkHours.breakEnd !== null) {
           const bkReqStart = parseTime(b.time);
@@ -604,8 +616,8 @@ export async function onRequest(context) {
         }
         const beforeClean = (data.appointments||[]).filter(a => a.cancelledBy === 'salon' && a.clientId === client.id).length;
         (data.appointments||[]).forEach(a => {
-          if (a.cancelledBy === 'salon' && a.clientId === client.id) {
-            a._deleted = true; delete a.cancelledBy; a._modified = Date.now();
+            if (a.cancelledBy === 'salon' && a.clientId === client.id) {
+              a._deleted = true; delete a.cancelledBy; a._modified = Date.now();
           }
         });
         const cleanedCount = beforeClean;

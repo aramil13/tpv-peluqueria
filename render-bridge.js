@@ -213,8 +213,6 @@ async function start() {
 }
 
 function restartBridge() {
-  try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
-  try { fs.mkdirSync(AUTH_DIR, { recursive: true }); } catch {}
   if (currentSock) { try { currentSock.end(); } catch {} currentSock = null; }
   isConnected = false;
   setTimeout(start, 500);
@@ -280,7 +278,7 @@ p{font-size:14px;color:#aaa;margin-bottom:20px}
     document.getElementById('statusMsg').textContent='QR actualizado automáticamente';
   };
   document.getElementById('qrImg').src='/qr-img?t='+t;
-  setTimeout(refresh,3000);
+  setTimeout(refresh,10000);
 })();
 </script>
 </body></html>`;
@@ -415,7 +413,7 @@ async function checkConfirmedAppointments() {
     if (!resp.ok) return;
     const data = await resp.json();
     const appts = (data.appointments||[]);
-    for (const appt of appts.filter(a => a.source === 'whatsapp' && !a.pendingSalonConfirm && !a._whatsappConfirmed && !a._deleted)) {
+    for (const appt of appts.filter(a => a.source === 'whatsapp' && !a.pendingSalonConfirm && !a._whatsappConfirmed && !a._deleted && !a.cancelledBy)) {
       await sendNotif(appt, data, {
         text: `Tu cita ha sido CONFIRMADA:\n📅 ${appt.date.split('-').reverse().join('-')}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${(()=>{const ids=appt.serviceIds||(appt.serviceId?[appt.serviceId]:[]);return ids.map(sid=>((data.services||[]).find(s=>s.id===sid))?.name).filter(Boolean).join(', ')||'Servicio'})()}\n¡Te esperamos!`,
         clearFlag: '_whatsappConfirmed', setFlag: '_whatsappConfirmed'
