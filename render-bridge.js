@@ -212,26 +212,96 @@ async function start() {
   });
 }
 
+function restartBridge() {
+  const authPath = path.join(AUTH_DIR, 'creds.json');
+  try { if (fs.existsSync(authPath)) fs.unlinkSync(authPath); } catch {}
+  try { if (fs.existsSync(path.join(AUTH_DIR, 'app-state-sync-key.json'))) fs.unlinkSync(path.join(AUTH_DIR, 'app-state-sync-key.json')); } catch {}
+  if (currentSock) { try { currentSock.end(); } catch {} currentSock = null; }
+  isConnected = false;
+  setTimeout(start, 500);
+}
+
 const PORT = parseInt(process.env.PORT) || 3457;
 const server = http.createServer((req, res) => {
   const setJson = (status, body) => {
     res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
     res.end(JSON.stringify(body));
   };
+  const noCache = { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache', 'Expires': '0' };
   try {
     if (req.method === 'OPTIONS') { res.writeHead(204, { 'Access-Control-Allow-Origin': '*' }); res.end(); return; }
     if (req.method === 'GET' && (req.url === '/' || req.url === '/health' || req.url === '/ping')) {
-      setJson(200, { ok: true, connected: !!currentSock, uptime: process.uptime() });
+      setJson(200, { ok: true, connected: isConnected, uptime: process.uptime() });
       return;
     }
-    if (req.method === 'GET' && req.url === '/qr') {
+    if (req.method === 'GET' && (req.url === '/qr' || req.url === '/qr.html')) {
+      const qrPath = path.join(DATA_DIR, 'qr.png');
+      const hasQr = fs.existsSync(qrPath);
+      const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>WhatsApp Bridge - QR</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#111;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:20px;text-align:center}
+h2{font-size:20px;margin-bottom:8px}
+p{font-size:14px;color:#aaa;margin-bottom:20px}
+#qrImg{width:280px;height:280px;border:3px solid #333;border-radius:12px;background:#fff;padding:10px;margin-bottom:20px;display:${hasQr?'block':'none'}}
+#loading{color:#888;font-size:14px;margin-bottom:20px;display:${hasQr?'none':'block'}}
+.steps{background:#1a1a1a;border-radius:8px;padding:16px;max-width:400px;font-size:13px;color:#ccc;line-height:1.6;text-align:left;margin-bottom:20px}
+.steps li{margin-bottom:6px}
+.steps strong{color:#fff}
+.status{font-size:12px;color:#666;margin-top:10px}
+</style>
+</head><body>
+<h2>📱 Vincular WhatsApp</h2>
+<p>Escanea este c&oacute;digo QR con tu m&oacute;vil</p>
+<div class="steps">
+<ol>
+<li>Abre <strong>WhatsApp</strong> en tu m&oacute;vil</li>
+<li>Ve a <strong>Ajustes &gt; Dispositivos vinculados</strong></li>
+<li>Toca <strong>Vincular un dispositivo</strong></li>
+<li>Apunta la c&aacute;mara al QR de abajo</li>
+</ol>
+</div>
+<img id="qrImg" src="/qr-img?t=${Date.now()}" alt="QR">
+<div id="loading">⏳ Generando QR, espera unos segundos...</div>
+<div id="statusMsg" class="status"></div>
+<script>
+(function refresh(){
+  const t=Date.now();
+  document.getElementById('qrImg').onerror=function(){
+    this.style.display='none';
+    document.getElementById('loading').style.display='block';
+    document.getElementById('statusMsg').textContent='Esperando QR...';
+  };
+  document.getElementById('qrImg').onload=function(){
+    this.style.display='block';
+    document.getElementById('loading').style.display='none';
+    document.getElementById('statusMsg').textContent='QR actualizado automáticamente';
+  };
+  document.getElementById('qrImg').src='/qr-img?t='+t;
+  setTimeout(refresh,3000);
+})();
+</script>
+</body></html>`;
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', ...noCache });
+      res.end(html);
+      return;
+    }
+    if (req.method === 'GET' && req.url.startsWith('/qr-img')) {
       const qrPath = path.join(DATA_DIR, 'qr.png');
       if (fs.existsSync(qrPath)) {
-        res.writeHead(200, { 'Content-Type': 'image/png' });
+        res.writeHead(200, { 'Content-Type': 'image/png', ...noCache });
         res.end(fs.readFileSync(qrPath));
       } else {
-        setJson(404, { error: 'QR no disponible. Espera a que se genere (puede tardar unos segundos).' });
+        res.writeHead(204, noCache);
+        res.end();
       }
+      return;
+    }
+    if (req.method === 'GET' && req.url === '/restart') {
+      setJson(200, { ok: true, message: 'Reiniciando conexión para generar QR fresco...' });
+      restartBridge();
       return;
     }
     if (req.method === 'GET' && req.url === '/sync') {

@@ -24,10 +24,36 @@ function renderFetch(endpoint, method = 'POST') {
       headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(data) },
       timeout: 5000
     };
-    const req = https.request(opts, res => { let b=''; res.on('data',c=>b+=c); res.on('end',()=>resolve({ok:res.statusCode<400})); });
+    const req = https.request(opts, res => { let b=''; res.on('data',c=>b+=c); res.on('end',()=>{ try { resolve({ok:res.statusCode<400, body: JSON.parse(b) }); } catch { resolve({ok:res.statusCode<400}); }}); });
     req.on('error', () => resolve({ok:false}));
     req.write(data);
     req.end();
+  });
+}
+
+function renderFetchGet(endpoint) {
+  return new Promise(resolve => {
+    const url = new URL(endpoint, RENDER_BRIDGE_URL);
+    const opts = { hostname: url.hostname, port: 443, path: url.pathname, method: 'GET', timeout: 8000 };
+    const req = https.request(opts, res => { let b=''; res.on('data',c=>b+=c); res.on('end',()=>{ try { resolve({ok:res.statusCode<400, body: JSON.parse(b) }); } catch { resolve({ok:res.statusCode<400}); }}); });
+    req.on('error', () => resolve({ok:false}));
+    req.end();
+  });
+}
+
+function waitForQr(maxAttempts = 20) {
+  return new Promise(resolve => {
+    let attempts = 0;
+    const check = () => {
+      const url = new URL('/qr-img', RENDER_BRIDGE_URL);
+      https.get(url, { timeout: 5000 }, res => {
+        if (res.statusCode === 200) { res.resume(); resolve(true); }
+        else { attempts++; if (attempts < maxAttempts) setTimeout(check, 1500); else resolve(false); }
+      }).on('error', () => {
+        attempts++; if (attempts < maxAttempts) setTimeout(check, 1500); else resolve(false);
+      });
+    };
+    setTimeout(check, 2000);
   });
 }
 
@@ -173,9 +199,17 @@ app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') {
     stopBridge();
     if (syncHelperProcess) syncHelperProcess.kill();
-    // Activar bridge de Render y abrir QR, y SOLO entonces salir
+    // Activar bridge de Render, forzar QR fresco y abrir página QR con auto-refresh
     renderFetch('/enable').then(() => {
-      shell.openExternal(RENDER_BRIDGE_URL + '/qr');
+      return renderFetchGet('/restart');
+    }).then(() => {
+      return waitForQr(20);
+    }).then(qrReady => {
+      shell.openExternal(RENDER_BRIDGE_URL + '/qr.html?t=' + Date.now());
+      if (!qrReady) console.log('[EXIT] No se detectó QR, abriendo página igualmente');
+    }).catch(e => {
+      console.log('[EXIT] Error:', e.message);
+      shell.openExternal(RENDER_BRIDGE_URL + '/qr.html?t=' + Date.now());
     }).finally(() => {
       app.quit();
     });
