@@ -234,7 +234,8 @@ const server = http.createServer((req, res) => {
       setJson(200, { ok: true, connected: isConnected, uptime: process.uptime() });
       return;
     }
-    if (req.method === 'GET' && (req.url === '/qr' || req.url === '/qr.html')) {
+    const pathname = req.url.split('?')[0];
+    if (req.method === 'GET' && (pathname === '/qr' || pathname === '/qr.html')) {
       const qrPath = path.join(DATA_DIR, 'qr.png');
       const hasQr = fs.existsSync(qrPath);
       const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
@@ -288,7 +289,7 @@ p{font-size:14px;color:#aaa;margin-bottom:20px}
       res.end(html);
       return;
     }
-    if (req.method === 'GET' && req.url.startsWith('/qr-img')) {
+    if (req.method === 'GET' && pathname.startsWith('/qr-img')) {
       const qrPath = path.join(DATA_DIR, 'qr.png');
       if (fs.existsSync(qrPath)) {
         res.writeHead(200, { 'Content-Type': 'image/png', ...noCache });
@@ -299,7 +300,7 @@ p{font-size:14px;color:#aaa;margin-bottom:20px}
       }
       return;
     }
-    if (req.method === 'GET' && req.url === '/restart') {
+    if (req.method === 'GET' && pathname === '/restart') {
       setJson(200, { ok: true, message: 'Reiniciando conexión para generar QR fresco...' });
       restartBridge();
       return;
