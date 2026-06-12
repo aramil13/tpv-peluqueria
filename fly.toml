@@ -1,10 +1,5 @@
 app = "tpv-peluqueria-bridge"
-primary_region = "mad"
-
-[build]
-  buildpacks = []
-  [build.args]
-  NODE_ENV = "production"
+primary_region = "cdg"
 
 [http_service]
   internal_port = 3457
@@ -25,4 +20,3 @@ primary_region = "mad"
   PORT = "3457"
 
 [deploy]
-  release_command = "node fly-bridge.js"

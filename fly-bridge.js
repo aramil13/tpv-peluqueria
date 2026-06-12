@@ -56,18 +56,17 @@ async function start() {
     return;
   }
 
-  const { makeWASocket, DisconnectReason } = baileysMod;
+  const { makeWASocket, DisconnectReason, initAuthCreds } = baileysMod;
   let state, saveCreds;
 
   if (UPSTASH_URL && UPSTASH_TOKEN) {
     try {
       const { useRedisAuthState } = require('./lib/redis-auth');
-      const auth = useRedisAuthState(UPSTASH_URL, UPSTASH_TOKEN, 'wa:');
-      const creds = await auth.loadCreds();
-      if (creds) auth.state.creds = creds;
+      const auth = useRedisAuthState(UPSTASH_URL, UPSTASH_TOKEN, initAuthCreds, 'wa:');
+      await auth.init();
       state = auth.state;
       saveCreds = auth.saveCreds;
-      console.log('[BRIDGE] Auth en Upstash Redis');
+      console.log('[BRIDGE] Auth en Upstash Redis' + (state.creds?.registrationId ? ' (creds existentes)' : ' (nuevos creds)'));
     } catch (e) {
       console.error('[BRIDGE] Error Redis auth, usando archivos:', e.message);
       const auth = await baileysMod.useMultiFileAuthState(AUTH_DIR);
@@ -320,7 +319,8 @@ p{font-size:14px;color:#aaa;margin-bottom:20px}
       if (UPSTASH_URL && UPSTASH_TOKEN) {
         try {
           const { useRedisAuthState } = require('./lib/redis-auth');
-          const auth = useRedisAuthState(UPSTASH_URL, UPSTASH_TOKEN, 'wa:');
+          const { initAuthCreds } = await import('@whiskeysockets/baileys');
+          const auth = useRedisAuthState(UPSTASH_URL, UPSTASH_TOKEN, initAuthCreds, 'wa:');
           auth.clear();
         } catch {}
       }
