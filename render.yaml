@@ -21,3 +21,22 @@ services:
       name: data
       mountPath: /data
       sizeGB: 1
+
+  - type: web
+    name: tpv-peluqueria-sync
+    env: node
+    buildCommand: npm install
+    startCommand: node sync-helper.js
+    envVars:
+      - key: PORT
+        value: "3456"
+      - key: HOST
+        value: "0.0.0.0"
+      - key: BUSINESS_NAME
+        value: "Nymara Estilistas"
+      - key: SYNC_FORWARD_URL
+        sync: false
+      - key: SYNC_FORWARD_KEY
+        sync: false
+      - key: TZ
+        value: "Europe/Madrid"
