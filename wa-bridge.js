@@ -339,15 +339,47 @@ async function checkConfirmedAppointments() {
         setFlag: '_whatsappCancelRejectedSent'
       });
     }
+
+    // Cancelaciones hechas DIRECTAMENTE por el salón (deleteAppt en TPV)
+    for (const appt of appts.filter(a =>
+      a.cancelledBy === 'salon' && (a.source === 'whatsapp' || a.source === 'online') && !a._cancelledBySalonSent
+    )) {
+      const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
+      const svcNames = svcIds.map(sid => ((data.services||[]).find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
+      await sendApptNotification(appt, data, {
+        text: `❌ Tu cita en Nymara Estilistas ha sido CANCELADA por el salón:\n📅 ${appt.date.split('-').reverse().join('-')}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${svcNames}\n\nSi tienes alguna duda, contacta con nosotros.`,
+        clearFlag: '_cancelledBySalonNotified',
+        setFlag: '_cancelledBySalonSent'
+      });
+    }
   } catch (e) { /* ignore polling errors */ }
+}
+
+async function resolveJid(phone) {
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  const mapped = phoneJidMap.get(cleanPhone);
+  if (mapped) return mapped;
+  try {
+    if (currentSock && typeof currentSock.onWhatsApp === 'function') {
+      const result = await currentSock.onWhatsApp(cleanPhone);
+      if (result && result.length > 0 && result[0].exists) {
+        addJidMapping(cleanPhone, result[0].jid);
+        console.log(` [JID-RESOLVE] Resuelto JID para ${cleanPhone}: ${result[0].jid}`);
+        return result[0].jid;
+      }
+    }
+  } catch (e) {
+    console.log(` [JID-RESOLVE] Error consultando onWhatsApp para ${cleanPhone}: ${e.message}`);
+  }
+  const fallback = cleanPhone + '@s.whatsapp.net';
+  console.log(` [JID-RESOLVE] Usando fallback para ${cleanPhone}: ${fallback}`);
+  return fallback;
 }
 
 async function sendApptNotification(appt, data, opts) {
   const client = (data.clients||[]).find(c => c.id === appt.clientId);
   if (!client) return;
-  const cleanPhone = client.phone.replace(/[^0-9]/g, '');
-  const mappedJid = phoneJidMap.get(cleanPhone);
-  const jid = mappedJid || cleanPhone + '@s.whatsapp.net';
+  const jid = await resolveJid(client.phone);
   console.log(` [AUTO-NOTIF] Intentando enviar a ${client.phone}: jid=${jid}`);
   try {
     const sent = await currentSock.sendMessage(jid, { text: opts.text });

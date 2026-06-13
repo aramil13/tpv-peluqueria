@@ -1789,7 +1789,7 @@ function syncPush() {
     providers: Array.isArray(data.providers) ? data.providers : [],
     settings: data.settings || {}
   });
-  fetch(c.url.replace(/\/+$/,'') + '/sync', {
+  return fetch(c.url.replace(/\/+$/,'') + '/sync', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body
   }).then(async r => {
     if (r.ok && status) status.textContent = '✅ Sincronizado';
@@ -3711,7 +3711,7 @@ function findFreeSlots(date, empId, duration) {
   return slots;
 }
 
-function deleteAppt(id) {
+async function deleteAppt(id) {
   if (!confirm('¿Cancelar esta cita?')) return;
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
@@ -3724,10 +3724,8 @@ function deleteAppt(id) {
     const allIds = [];
     relatedAppts.forEach(ra => {
       ra._modified = Date.now();
-      if (ra.source === 'online' || ra.source === 'whatsapp') { ra.cancelledBy = 'salon'; delete ra._deleted; }
+      if (ra.source === 'online' || ra.source === 'whatsapp') { ra.cancelledBy = 'salon'; delete ra._deleted; ra._cancelledBySalonNotified = false; }
       else { ra._deleted = true; }
-      ra._cancelledBySalonSent = true;
-      ra._cancelledBySalonNotified = false;
       const raSvcIds = ra.serviceIds || (ra.serviceId ? [ra.serviceId] : []);
       raSvcIds.forEach(sid => { if (!allIds.includes(sid)) allIds.push(sid); });
     });
@@ -3738,22 +3736,16 @@ function deleteAppt(id) {
     }
   } else {
     a._modified = Date.now();
-    if (isRemote) { a.cancelledBy = 'salon'; delete a._deleted; a._cancelledBySalonSent = true; a._cancelledBySalonNotified = false; }
+    if (isRemote) { a.cancelledBy = 'salon'; delete a._deleted; a._cancelledBySalonNotified = false; }
     else { a._deleted = true; }
     const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
     allSvcsNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
   }
   delete a.pendingSalonConfirm;
   delete a.pendingCancelWhatsApp;
-  saveKey('appointments'); renderAgenda(); syncPush();
-  if (isRemote) {
-    const client = data.clients.find(c => c.id === a.clientId);
-    if (client && client.phone && window.electronAPI) {
-      const phone = client.phone.replace(/[^0-9]/g, '');
-      const text = `❌ Cita CANCELADA por el salón:\n📅 ${allDate}\n⏰ ${allTime}\n💇 ${allSvcsNames}\n\nSi tienes alguna duda, contacta con nosotros.`;
-      window.electronAPI.sendWhatsApp(phone, text).catch(() => {});
-    }
-  }
+  saveKey('appointments'); renderAgenda();
+  const pushDone = syncPush();
+  if (pushDone) await pushDone.catch(() => {});
 }
 
 function deleteAllAppointments() {
