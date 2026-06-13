@@ -1958,7 +1958,7 @@ function syncWebNow() {
   if (status) status.textContent = '🔄 Sincronizando con web...';
   const webProducts = data.products.filter(p => !p._deleted && p.showOnWeb).length;
   const webOffers = data.projects.filter(p => !p._deleted && p.showOnWeb).length;
-  fetch(c.url.replace(/\/+$/, '') + '/sync', {
+  return fetch(c.url.replace(/\/+$/, '') + '/sync', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -3157,7 +3157,7 @@ function acceptClientMod(id) {
   }
 }
 
-function confirmWhatsAppAppt(id) {
+async function confirmWhatsAppAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   const client = data.clients.find(c => c.id === a.clientId);
@@ -3209,19 +3209,16 @@ function confirmWhatsAppAppt(id) {
   a.notes = (a.notes||'').replace('PENDIENTE - ', '');
   a._modified = Date.now();
   saveAll();
-  syncWebNow();
   renderAgenda();
 
-  // Notificar al cliente por WhatsApp
-  if (client && client.phone && window.electronAPI) {
-    const phone = client.phone.replace(/[^0-9]/g, '');
-    const svcNames2 = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
-    const text = `✅ Tu cita en Nymara Estilistas ha sido CONFIRMADA:\n📅 ${a.date}\n⏰ ${a.time}${a.endTime?' - '+a.endTime:''}\n💇 ${svcNames2}\n👤 ${emp?emp.name:''}\n\n¡Te esperamos!`;
-    window.electronAPI.sendWhatsApp(phone, text);
-  }
+  // Sincronizar con Cloudflare y ESPERAR a que termine.
+  // El bridge (wa-bridge.js / wa-bridge-core.js) detecta el cambio
+  // vía polling cada 10s y envía el WhatsApp de confirmación al cliente.
+  const syncDone = syncWebNow();
+  if (syncDone) await syncDone.catch(() => {});
 }
 
-function confirmCancelWhatsApp(id) {
+async function confirmCancelWhatsApp(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   const client = data.clients.find(c => c.id === a.clientId);
@@ -3240,11 +3237,13 @@ function confirmCancelWhatsApp(id) {
     a.pendingSalonConfirm = false;
     a.cancelledBy = '';
     a._whatsappCancelRejectedPending = true;
+    a._whatsappCancelRejectedSent = false;
     a.notes = (a.notes||'') + ' [Cancelación rechazada por el salón]';
     a._modified = Date.now();
     saveAll();
-    syncWebNow();
     renderAgenda();
+    const syncDone = syncWebNow();
+    if (syncDone) await syncDone.catch(() => {});
     return;
   }
   a._deleted = true;
@@ -3252,11 +3251,13 @@ function confirmCancelWhatsApp(id) {
   a.pendingCancelWhatsApp = false;
   a.pendingSalonConfirm = false;
   a._whatsappCancelledPending = true;
+  a._whatsappCancelledSent = false;
   a.notes = (a.notes||'') + ' [Cancelada por cliente vía WhatsApp]';
   a._modified = Date.now();
   saveAll();
-  syncWebNow();
   renderAgenda();
+  const syncDone = syncWebNow();
+  if (syncDone) await syncDone.catch(() => {});
 }
 
 function editAppt(id) {

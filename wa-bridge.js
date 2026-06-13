@@ -22,6 +22,29 @@ let queueProcessing = false;
 const phoneJidMap = new Map(); // teléfono (sin +) → jid real (ej: 34678092305 → 58300003553300@lid)
 let outgoingMessageIds = new Set(); // IDs de mensajes enviados por el bot (para evitar bucles)
 
+// Persistir phoneJidMap a disco para que sobreviva a reconexiones QR
+const jidMapFile = path.join(AUTH_DIR, 'jid-map.json');
+function saveJidMap() {
+  try {
+    const obj = Object.fromEntries(phoneJidMap);
+    require('fs').writeFileSync(jidMapFile, JSON.stringify(obj));
+  } catch {}
+}
+function loadJidMap() {
+  try {
+    const fs = require('fs');
+    if (fs.existsSync(jidMapFile)) {
+      const obj = JSON.parse(fs.readFileSync(jidMapFile, 'utf8'));
+      for (const [k, v] of Object.entries(obj)) phoneJidMap.set(k, v);
+      console.log(`[JID-MAP] Cargados ${phoneJidMap.size} mapeos JID desde disco`);
+    }
+  } catch {}
+}
+function addJidMapping(phone, jid) {
+  phoneJidMap.set(phone, jid);
+  saveJidMap();
+}
+
 const { processWhatsAppMessage } = require('./lib/ai-assistant');
 const { loadConversation, clearConversation } = require('./lib/conversation');
 const { readData, writeData, mergeArray } = require('./lib/kv-data');
@@ -90,6 +113,7 @@ async function start() {
   processing = false;
 
   const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+  loadJidMap();
   const uid = Math.random().toString(36).substr(2,8);
   const sock = makeWASocket({ printQRInTerminal: false, auth: state, syncFullHistory: false, browser: ['WhatsApp/2.24.10', 'Windows', '10.0', uid], logger });
   currentSock = sock;
@@ -146,8 +170,8 @@ async function start() {
       const normPhone = phone.replace(/[^0-9]/g, '').slice(-9);
       const fullPhone = phone.replace(/[^0-9]/g, '');
 
-      phoneJidMap.set(fullPhone, jid);
-      phoneJidMap.set(normPhone, jid);
+      addJidMapping(fullPhone, jid);
+      addJidMapping(normPhone, jid);
       console.log(` [MAP] ${fullPhone} / ${normPhone} → ${jid}`);
 
       const text = m.message?.conversation || m.message?.extendedTextMessage?.text || '';
