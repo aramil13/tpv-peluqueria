@@ -159,11 +159,11 @@ async function start() {
         console.log(` [WARN] El teléfono del WhatsApp (+${phone}) NO coincide con BUSINESS_PHONE (${BUSINESS_PHONE}). Borra wa_auth/ y escanea con el número correcto.`);
       }
 
-      const normalized = text.trim().toLowerCase();
+      const trimmed = text.trim();
       const history = await loadConversation('+' + phone);
       const hasHistory = history.length > 0;
-      const isTrigger = normalized === 'hola nymara';
-      const isGoodbye = normalized === 'adios nymara' || normalized === 'bye nymara';
+      const isTrigger = trimmed === 'Hola Nymara';
+      const isGoodbye = trimmed === 'Adios Nymara' || trimmed === 'Bye Nymara';
       if (isGoodbye && currentSock) {
         console.log(` [BYE] ${phone}: "${text.slice(0,40)}"`);
         await clearConversation('+' + phone);

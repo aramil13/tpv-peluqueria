@@ -18,5 +18,14 @@ primary_region = "cdg"
   LOG_LEVEL = "warn"
   DATA_DIR = "/data"
   PORT = "3457"
+  BUSINESS_NAME = "Nymara Estilistas"
+  BUSINESS_PHONE = "+34624143658"
+  BUSINESS_ADDRESS = "Calle Antonio Machado, 11. 33420 Lugones. Siero"
+  SYNC_URL = "https://nymaraestilistas.es/api"
+  BRIDGE_API_KEY = "tpv-secret-2026"
+
+[mounts]
+  source = "data"
+  destination = "/data"
 
 [deploy]

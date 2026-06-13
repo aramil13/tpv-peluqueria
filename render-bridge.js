@@ -137,9 +137,16 @@ async function start() {
     if (connection === 'close') {
       isConnected = false;
       const logout = lastDisconnect?.error?.output?.statusCode === DisconnectReason.loggedOut;
-      if (logout) { console.log('Sesión cerrada. Elimina wa_auth/ y ejecuta de nuevo.'); return; }
+      if (logout) {
+        console.log('Sesión cerrada desde el móvil. Limpiando autenticación...');
+        try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
+        try { fs.mkdirSync(AUTH_DIR, { recursive: true }); } catch {}
+        setTimeout(start, 2000);
+        return;
+      }
       processing = false;
-      console.log('Reconectando en ' + (RECONNECT_DELAY/1000) + 's...');
+      const reason = lastDisconnect?.error?.message || lastDisconnect?.error?.output?.statusCode || 'desconocido';
+      console.log('Reconectando en ' + (RECONNECT_DELAY/1000) + 's... (razón: ' + reason + ')');
       setTimeout(start, RECONNECT_DELAY);
     }
     if (connection === 'open') {
@@ -189,11 +196,11 @@ async function start() {
         console.log(` [WARN] El teléfono del WhatsApp (+${phone}) NO coincide con BUSINESS_PHONE (${BUSINESS_PHONE}).`);
       }
 
-      const normalized = text.trim().toLowerCase();
+      const trimmed = text.trim();
       const history = await loadConversation('+' + phone);
       const hasHistory = history.length > 0;
-      const isTrigger = normalized === 'hola nymara';
-      const isGoodbye = normalized === 'adios nymara' || normalized === 'bye nymara';
+      const isTrigger = trimmed === 'Hola Nymara';
+      const isGoodbye = trimmed === 'Adios Nymara' || trimmed === 'Bye Nymara';
       if (isGoodbye && currentSock) {
         console.log(` [BYE] ${phone}: "${text.slice(0,40)}"`);
         await clearConversation('+' + phone);
@@ -215,7 +222,9 @@ async function start() {
 function restartBridge() {
   if (currentSock) { try { currentSock.end(); } catch {} currentSock = null; }
   isConnected = false;
-  setTimeout(start, 500);
+  try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
+  try { fs.mkdirSync(AUTH_DIR, { recursive: true }); } catch {}
+  setTimeout(start, 1000);
 }
 
 const PORT = parseInt(process.env.PORT) || 3457;
@@ -235,6 +244,9 @@ const server = http.createServer((req, res) => {
     if (req.method === 'GET' && (pathname === '/qr' || pathname === '/qr.html')) {
       const qrPath = path.join(DATA_DIR, 'qr.png');
       const hasQr = fs.existsSync(qrPath);
+      const qrExists = fs.existsSync(path.join(DATA_DIR, 'qr.png'));
+      const stateLabel = isConnected ? 'Conectado' : qrExists ? 'Esperando escaneo...' : 'Desconectado';
+      const stateColor = isConnected ? '#4ade80' : qrExists ? '#22d3ee' : '#f59e0b';
       const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WhatsApp Bridge - QR</title>
@@ -249,10 +261,14 @@ p{font-size:14px;color:#aaa;margin-bottom:20px}
 .steps li{margin-bottom:6px}
 .steps strong{color:#fff}
 .status{font-size:12px;color:#666;margin-top:10px}
+#bridgeStatus{font-size:13px;margin-bottom:16px;padding:8px 16px;border-radius:8px;background:rgba(255,255,255,0.05);}
+#restartBtn{background:#333;color:#fff;border:1px solid #555;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:13px;margin-top:12px}
+#restartBtn:hover{background:#444}
 </style>
 </head><body>
 <h2>📱 Vincular WhatsApp</h2>
 <p>Escanea este c&oacute;digo QR con tu m&oacute;vil</p>
+<div id="bridgeStatus">Estado del bridge: <span style="color:${stateColor};font-weight:600;">${stateLabel}</span></div>
 <div class="steps">
 <ol>
 <li>Abre <strong>WhatsApp</strong> en tu m&oacute;vil</li>
@@ -264,18 +280,29 @@ p{font-size:14px;color:#aaa;margin-bottom:20px}
 <img id="qrImg" src="/qr-img?t=${Date.now()}" alt="QR">
 <div id="loading">⏳ Generando QR, espera unos segundos...</div>
 <div id="statusMsg" class="status"></div>
+<button id="restartBtn" onclick="restartBridge()">🔄 Regenerar QR</button>
 <script>
+function restartBridge(){
+  document.getElementById('statusMsg').textContent='Regenerando QR...';
+  document.getElementById('statusMsg').style.color='#f59e0b';
+  var x=new XMLHttpRequest();
+  x.open('POST','/restart',true);
+  x.onload=function(){ document.getElementById('statusMsg').textContent='QR regenerado. Espera unos segundos...'; setTimeout(refresh,3000); };
+  x.onerror=function(){ document.getElementById('statusMsg').textContent='Error al regenerar. Recarga la página.'; document.getElementById('statusMsg').style.color='#ef4444'; };
+  x.send();
+}
 (function refresh(){
   const t=Date.now();
   document.getElementById('qrImg').onerror=function(){
     this.style.display='none';
     document.getElementById('loading').style.display='block';
-    document.getElementById('statusMsg').textContent='Esperando QR...';
+    document.getElementById('loading').textContent='⏳ Generando QR, espera unos segundos...';
   };
   document.getElementById('qrImg').onload=function(){
     this.style.display='block';
     document.getElementById('loading').style.display='none';
-    document.getElementById('statusMsg').textContent='QR actualizado automáticamente';
+    document.getElementById('statusMsg').textContent='✅ QR listo. Escanea con WhatsApp';
+    document.getElementById('statusMsg').style.color='#22d3ee';
   };
   document.getElementById('qrImg').src='/qr-img?t='+t;
   setTimeout(refresh,10000);
@@ -297,8 +324,8 @@ p{font-size:14px;color:#aaa;margin-bottom:20px}
       }
       return;
     }
-    if (req.method === 'GET' && pathname === '/restart') {
-      setJson(200, { ok: true, message: 'Reiniciando conexión para generar QR fresco...' });
+    if ((req.method === 'GET' || req.method === 'POST') && pathname === '/restart') {
+      setJson(200, { ok: true, message: 'Sesión limpiada. Generando QR nuevo...' });
       restartBridge();
       return;
     }

@@ -167,7 +167,12 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 <div id="pageServices" class="page">
   <div class="card">
     <div class="card-header"><h3>Servicios</h3><button class="btn btn-sm btn-primary" onclick="openServiceModal()">+ Añadir</button></div>
-    <div style="padding:0 12px 8px;"><input type="text" id="searchService" class="search-input" placeholder="Buscar servicio..." oninput="renderServices()"></div>
+    <div style="padding:0 12px 8px;display:flex;gap:6px;align-items:center;">
+      <input type="text" id="searchService" class="search-input" placeholder="Buscar servicio..." oninput="renderServices()" style="flex:1;">
+      <select id="filterServiceSection" onchange="renderServices()" style="width:auto;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:6px;max-width:150px;">
+        <option value="">Todas</option>
+      </select>
+    </div>
     <div id="servicesList"></div>
   </div>
 </div>
@@ -175,7 +180,12 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 <div id="pageProducts" class="page">
   <div class="card">
     <div class="card-header"><h3>Productos</h3><button class="btn btn-sm btn-primary" onclick="openProductModal()">+ Añadir</button></div>
-    <div style="padding:0 12px 8px;"><input type="text" id="searchProduct" class="search-input" placeholder="Buscar producto..." oninput="renderProducts()"></div>
+    <div style="padding:0 12px 8px;display:flex;gap:6px;align-items:center;">
+      <input type="text" id="searchProduct" class="search-input" placeholder="Buscar producto..." oninput="renderProducts()" style="flex:1;">
+      <select id="filterProductProvider" onchange="renderProducts()" style="width:auto;padding:4px 6px;font-size:12px;border:1px solid var(--border);border-radius:6px;max-width:150px;">
+        <option value="">Todos</option>
+      </select>
+    </div>
     <div id="productsList"></div>
   </div>
 </div>
@@ -362,9 +372,11 @@ let data = {
   services: DB.get('services') || [],
   employees: DB.get('employees') || [],
   products: DB.get('products') || [],
+  sections: DB.get('sections') || [],
+  providers: DB.get('providers') || [],
   ivaRate: DB.get('ivaRate') || 21
 };
-['appointments','clients','services','employees','products'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
+['appointments','clients','services','employees','products','sections','providers'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
 // Auto-clean: hard-delete past appointments + repair non-online cancelledBy='salon'
 const todayC = new Date().toISOString().split('T')[0];
@@ -388,7 +400,7 @@ let removedBad = 0;
 if (removedBad) { DB.set('appointments', data.appointments); }
 
 // Clean up any corrupted entries in main entities (caused by sync of binary-imported files on Windows)
-['clients', 'employees', 'services', 'products'].forEach(k => {
+['clients', 'employees', 'services', 'products', 'sections', 'providers'].forEach(k => {
   if (Array.isArray(data[k])) {
     const initialCount = data[k].length;
     data[k] = data[k].filter(item => {
@@ -1253,7 +1265,14 @@ function deleteEmployee(id) {
 function renderServices() {
   const div = document.getElementById('servicesList');
   const q = (document.getElementById('searchService').value||'').toLowerCase();
-  const list = data.services.filter(s => !s._deleted && s.name.toLowerCase().includes(q)).sort((a,b) => a.name.localeCompare(b.name));
+  const sectionFilter = document.getElementById('filterServiceSection').value;
+  const sel = document.getElementById('filterServiceSection');
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Todas</option>' +
+    (data.sections||[]).filter(s => !s._deleted).sort((a,b) => a.name.localeCompare(b.name))
+      .map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  sel.value = currentVal;
+  const list = data.services.filter(s => !s._deleted && s.name.toLowerCase().includes(q) && (!sectionFilter || s.sectionId === sectionFilter)).sort((a,b) => a.name.localeCompare(b.name));
   if (!list.length) { div.innerHTML = '<div class="empty-state"><p>No hay servicios</p></div>'; return; }
   div.innerHTML = list.map(s => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);">
     <div><strong>${esc(s.name)}</strong>${s.duration?` <span class="badge badge-info">${s.duration}min</span>`:''} ${s.bloque === 'bloque1' ? '<span style="background:#27ae60;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">Bloque 1</span>' : (s.bloque === 'bloque2' ? '<span style="background:#f39c12;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">Bloque 2</span>' : '')}<br><span style="font-size:12px;color:var(--primary);font-weight:600;">${cur(s.price)}</span>${s.desc?`<br><span style="font-size:10px;color:var(--text-light);">${esc(s.desc)}</span>`:''}</div>
@@ -1313,7 +1332,14 @@ function deleteService(id) {
 function renderProducts() {
   const div = document.getElementById('productsList');
   const q = (document.getElementById('searchProduct').value||'').toLowerCase();
-  const list = data.products.filter(p => p && !p._deleted && (p.name || '').toLowerCase().includes(q)).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
+  const providerFilter = document.getElementById('filterProductProvider').value;
+  const sel = document.getElementById('filterProductProvider');
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Todos</option>' +
+    (data.providers||[]).filter(p => !p._deleted).sort((a,b) => a.name.localeCompare(b.name))
+      .map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  sel.value = currentVal;
+  const list = data.products.filter(p => p && !p._deleted && (p.name || '').toLowerCase().includes(q) && (!providerFilter || p.providerId === providerFilter)).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   if (!list.length) { div.innerHTML = '<div class="empty-state"><p>No hay productos</p></div>'; return; }
   div.innerHTML = list.map(p => {
     const stock = p.stock||0;

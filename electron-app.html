@@ -350,7 +350,12 @@ tr:hover td { background: #f8f9fa; }
       <div class="card">
         <div class="card-header"><h3>Gestión de Productos</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('products')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('products')">📤 Exportar</button><button class="btn btn-danger btn-sm" onclick="clearAllData('products')">🗑️ Vaciar</button><button class="btn btn-primary" onclick="openProductModal()">+ Nuevo Producto</button></div></div>
         <div id="webProductsStatus" style="display:flex;align-items:center;gap:12px;padding:8px 12px;margin-bottom:8px;background:#f0f9f4;border:1px solid #a9dfbf;border-radius:8px;font-size:13px;"></div>
-        <div class="search-bar"><input type="text" id="searchProduct" placeholder="Buscar producto..." oninput="renderProducts()"></div>
+        <div class="search-bar" style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="searchProduct" placeholder="Buscar producto..." oninput="renderProducts()" style="flex:1;">
+          <select id="filterProductProvider" onchange="renderProducts()" style="width:auto;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;max-width:180px;">
+            <option value="">Todos los proveedores</option>
+          </select>
+        </div>
         <div class="alphabet-filter" id="productAlphabetFilter"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Proveedor</th><th>Precio Venta</th><th>Stock</th><th>Stock Mín.</th><th>Estado</th><th>Web</th><th>Acciones</th></tr></thead><tbody id="productsTable"></tbody></table></div>
       </div>
@@ -2620,6 +2625,13 @@ function openProductModal() {
 function renderProducts() {
   const q = (document.getElementById('searchProduct').value||'').toLowerCase();
   const tbody = document.getElementById('productsTable');
+  const providerFilter = document.getElementById('filterProductProvider').value;
+  const sel = document.getElementById('filterProductProvider');
+  const currentVal = sel.value;
+  sel.innerHTML = '<option value="">Todos los proveedores</option>' +
+    data.providers.filter(p => !p._deleted).sort((a,b) => a.name.localeCompare(b.name))
+      .map(p => `<option value="${p.id}">${esc(p.name)}</option>`).join('');
+  sel.value = currentVal;
   const list = data.products.filter(p => {
     if (!p) return false;
     if (p._deleted && !p.showOnWeb) return false;
@@ -2629,6 +2641,7 @@ function renderProducts() {
       const firstLetter = (p.name || '').trim().charAt(0).toUpperCase();
       return firstLetter === selectedProductLetter;
     }
+    if (providerFilter && p.providerId !== providerFilter) return false;
     return true;
   }).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay productos</td></tr>'; return; }
@@ -3702,30 +3715,41 @@ function deleteAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   const isRemote = a.source === 'online' || a.source === 'whatsapp';
+  let allSvcsNames = '';
+  let allDate = a.date;
+  let allTime = a.time + (a.endTime ? ' - ' + a.endTime : '');
   if (a.blockGroupId) {
     const relatedAppts = data.appointments.filter(x => x.blockGroupId === a.blockGroupId);
+    const allIds = [];
     relatedAppts.forEach(ra => {
       ra._modified = Date.now();
       if (ra.source === 'online' || ra.source === 'whatsapp') { ra.cancelledBy = 'salon'; delete ra._deleted; }
       else { ra._deleted = true; }
+      ra._cancelledBySalonSent = true;
+      ra._cancelledBySalonNotified = false;
+      const raSvcIds = ra.serviceIds || (ra.serviceId ? [ra.serviceId] : []);
+      raSvcIds.forEach(sid => { if (!allIds.includes(sid)) allIds.push(sid); });
     });
+    allSvcsNames = allIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
+    if (relatedAppts.length > 1) {
+      const times = relatedAppts.map(ra => ra.time + (ra.endTime ? ' - ' + ra.endTime : '')).join(' y ');
+      allTime = times;
+    }
   } else {
     a._modified = Date.now();
-    if (isRemote) { a.cancelledBy = 'salon'; delete a._deleted; }
+    if (isRemote) { a.cancelledBy = 'salon'; delete a._deleted; a._cancelledBySalonSent = true; a._cancelledBySalonNotified = false; }
     else { a._deleted = true; }
+    const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+    allSvcsNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
   }
-  if (isRemote) { a._cancelledBySalonSent = true; a._cancelledBySalonNotified = false; }
   delete a.pendingSalonConfirm;
   delete a.pendingCancelWhatsApp;
   saveKey('appointments'); renderAgenda(); syncPush();
-  // Notificar al cliente por WhatsApp si la cita era online/whatsapp
   if (isRemote) {
     const client = data.clients.find(c => c.id === a.clientId);
     if (client && client.phone && window.electronAPI) {
       const phone = client.phone.replace(/[^0-9]/g, '');
-      const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
-      const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
-      const text = `❌ Cita CANCELADA por el salón:\n📅 ${a.date}\n⏰ ${a.time}${a.endTime?' - '+a.endTime:''}\n💇 ${svcNames}\n\nSi tienes alguna duda, contacta con nosotros.`;
+      const text = `❌ Cita CANCELADA por el salón:\n📅 ${allDate}\n⏰ ${allTime}\n💇 ${allSvcsNames}\n\nSi tienes alguna duda, contacta con nosotros.`;
       window.electronAPI.sendWhatsApp(phone, text).catch(() => {});
     }
   }
