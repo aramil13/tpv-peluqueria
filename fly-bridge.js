@@ -43,6 +43,22 @@ const phoneJidMap = new Map();
 let outgoingMessageIds = new Set();
 let stopped = false;
 let reconnectTimer = null;
+
+// Persistir phoneJidMap a disco para que sobreviva a reconexiones QR
+const jidMapFile = path.join(AUTH_DIR, 'jid-map.json');
+function saveJidMap() {
+  try { fs.writeFileSync(jidMapFile, JSON.stringify(Object.fromEntries(phoneJidMap))); } catch {}
+}
+function loadJidMap() {
+  try {
+    if (fs.existsSync(jidMapFile)) {
+      const obj = JSON.parse(fs.readFileSync(jidMapFile, 'utf8'));
+      for (const [k, v] of Object.entries(obj)) phoneJidMap.set(k, v);
+      console.log(`[JID-MAP] Cargados ${phoneJidMap.size} mapeos JID desde disco`);
+    }
+  } catch {}
+}
+function addJidMapping(phone, jid) { phoneJidMap.set(phone, jid); saveJidMap(); }
 let currentQr = null;
 let qrGeneratedThisSession = false;
 let lastDisconnectWas515 = false;
@@ -79,6 +95,7 @@ async function start() {
   const auth = await useMultiFileAuthState(AUTH_DIR);
   state = auth.state;
   saveCreds = auth.saveCreds;
+  loadJidMap();
 
   const uid = Math.random().toString(36).substr(2, 8);
   const sock = makeWASocket({
@@ -179,7 +196,7 @@ async function start() {
       if (!m.message?.conversation && !m.message?.extendedTextMessage?.text) continue;
 
       const phone = jid.split('@')[0].replace(/[^0-9]/g, '');
-      phoneJidMap.set(phone, jid);
+      addJidMapping(phone, jid);
       const text = m.message.conversation || m.message.extendedTextMessage.text || '';
       const trimmed = text.trim();
       const history = await loadConversation('+' + phone);
@@ -433,6 +450,22 @@ async function syncAllFromCloud() {
   } catch (e) { /* sync error */ }
 }
 
+async function resolveJid(phone) {
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  const mapped = phoneJidMap.get(cleanPhone);
+  if (mapped) return mapped;
+  try {
+    if (currentSock && typeof currentSock.onWhatsApp === 'function') {
+      const result = await currentSock.onWhatsApp(cleanPhone);
+      if (result && result.length > 0 && result[0].exists) {
+        addJidMapping(cleanPhone, result[0].jid);
+        return result[0].jid;
+      }
+    }
+  } catch {}
+  return cleanPhone + '@s.whatsapp.net';
+}
+
 async function checkConfirmedAppointments() {
   if (!isConnected || !currentSock) return;
   try {
@@ -441,13 +474,13 @@ async function checkConfirmedAppointments() {
     const data = await resp.json();
     const appts = (data.appointments||[]);
 
+    // Confirmaciones de citas nuevas
     for (const appt of appts.filter(a =>
       a.source === 'whatsapp' && !a.pendingSalonConfirm && !a._whatsappConfirmed && !a._deleted && !a.cancelledBy
     )) {
       const client = (data.clients||[]).find(c => c.id === appt.clientId);
       if (!client) continue;
-      const cleanPhone = client.phone.replace(/[^0-9]/g, '');
-      const jid = phoneJidMap.get(cleanPhone) || cleanPhone + '@s.whatsapp.net';
+      const jid = await resolveJid(client.phone);
       const svcs = (appt.serviceIds || (appt.serviceId ? [appt.serviceId] : [])).map(sid => ((data.services||[]).find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
       const empName = ((data.employees||[]).find(e => e.id === appt.employeeId)||{}).name || '';
       try {
@@ -457,10 +490,11 @@ async function checkConfirmedAppointments() {
       } catch {}
     }
 
+    // Cancelaciones solicitadas por cliente y ACEPTADAS por el salón
     for (const appt of appts.filter(a => a._whatsappCancelledPending && !a._whatsappCancelledSent)) {
       const client = (data.clients||[]).find(c => c.id === appt.clientId);
       if (!client) continue;
-      const jid = client.phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+      const jid = await resolveJid(client.phone);
       try {
         const sent = await currentSock.sendMessage(jid, { text: `✅ Tu solicitud de cancelación ha sido ACEPTADA. La cita del ${appt.date.split('-').reverse().join('-')} a las ${appt.time} ha sido cancelada.` });
         if (sent?.key?.id) outgoingMessageIds.add(sent.key.id);
@@ -468,14 +502,31 @@ async function checkConfirmedAppointments() {
       } catch {}
     }
 
+    // Cancelaciones solicitadas por cliente y RECHAZADAS por el salón
     for (const appt of appts.filter(a => a._whatsappCancelRejectedPending && !a._whatsappCancelRejectedSent)) {
       const client = (data.clients||[]).find(c => c.id === appt.clientId);
       if (!client) continue;
-      const jid = client.phone.replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+      const jid = await resolveJid(client.phone);
       try {
         const sent = await currentSock.sendMessage(jid, { text: `ℹ️ Tu solicitud de cancelación ha sido RECHAZADA. La cita del ${appt.date.split('-').reverse().join('-')} a las ${appt.time} sigue activa. Contacta con el salón si necesitas ayuda.` });
         if (sent?.key?.id) outgoingMessageIds.add(sent.key.id);
         await fetch(SYNC_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointments: [{ ...appt, _whatsappCancelRejectedSent: true, _modified: Date.now() }] }) });
+      } catch {}
+    }
+
+    // Cancelaciones hechas DIRECTAMENTE por el salón desde la TPV
+    for (const appt of appts.filter(a =>
+      a.cancelledBy === 'salon' && (a.source === 'whatsapp' || a.source === 'online') && !a._cancelledBySalonSent
+    )) {
+      const client = (data.clients||[]).find(c => c.id === appt.clientId);
+      if (!client) continue;
+      const jid = await resolveJid(client.phone);
+      const svcIds = appt.serviceIds || (appt.serviceId ? [appt.serviceId] : []);
+      const svcNames = svcIds.map(sid => ((data.services||[]).find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
+      try {
+        const sent = await currentSock.sendMessage(jid, { text: `❌ Tu cita en Nymara Estilistas ha sido CANCELADA por el salón:\n📅 ${appt.date.split('-').reverse().join('-')}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${svcNames}\n\nSi tienes alguna duda, contacta con nosotros.` });
+        if (sent?.key?.id) outgoingMessageIds.add(sent.key.id);
+        await fetch(SYNC_API_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ appointments: [{ ...appt, _cancelledBySalonNotified: false, _cancelledBySalonSent: true, _modified: Date.now() }] }) });
       } catch {}
     }
   } catch {}
