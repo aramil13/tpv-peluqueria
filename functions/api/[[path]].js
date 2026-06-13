@@ -331,7 +331,7 @@ export async function onRequest(context) {
           });
           const today = new Date().toISOString().split('T')[0];
           (merged.appointments||[]).forEach(a => {
-            if (a.cancelledBy === 'salon' && (a.date < today || a.source !== 'online')) {
+            if (a.cancelledBy === 'salon' && (a.date < today || (a.source !== 'online' && a.source !== 'whatsapp'))) {
               a._deleted = true; delete a.cancelledBy; a._modified = Date.now();
             }
           });
