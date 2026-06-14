@@ -139,13 +139,25 @@ ipcMain.handle('set-deepseek-key', async (event, key) => {
 ipcMain.handle('start-bridge', async () => { startBridge(); return { ok: true }; });
 ipcMain.handle('stop-bridge', async () => { stopBridge(true); return { ok: true }; });
 
-app.on('ready', () => {
-  ensureSyncEnv();
-  startSyncHelper();
-  createWindow();
-  const key = getDeepSeekKeyFromSettings() || process.env.DEEPSEEK_API_KEY;
-  if (key) { process.env.DEEPSEEK_API_KEY = key; startBridge(); }
-});
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
+  app.on('ready', () => {
+    ensureSyncEnv();
+    startSyncHelper();
+    createWindow();
+    const key = getDeepSeekKeyFromSettings() || process.env.DEEPSEEK_API_KEY;
+    if (key) { process.env.DEEPSEEK_API_KEY = key; startBridge(); }
+  });
+}
 
 app.on('window-all-closed', function () {
   if (process.platform !== 'darwin') {

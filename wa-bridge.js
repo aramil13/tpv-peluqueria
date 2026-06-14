@@ -11,7 +11,27 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 const logger = pino({ level: 'warn' });
 
 const AUTH_DIR = process.env.WA_AUTH_DIR || path.join(__dirname, 'wa_auth');
+const LOCK_FILE = path.join(AUTH_DIR, 'bridge.lock');
 const RECONNECT_DELAY = 15000;
+
+// ---- SINGLE INSTANCE LOCK ----
+const fsLock = require('fs');
+function acquireLock() {
+  try {
+    if (!fsLock.existsSync(AUTH_DIR)) fsLock.mkdirSync(AUTH_DIR, { recursive: true });
+    if (fsLock.existsSync(LOCK_FILE)) {
+      const pid = fsLock.readFileSync(LOCK_FILE, 'utf8').trim();
+      try { process.kill(parseInt(pid), 0); console.error('❌ Ya hay otro bridge WhatsApp ejecutándose (PID: ' + pid + '). Cerrando este.'); return false; } catch {}
+    }
+    fsLock.writeFileSync(LOCK_FILE, String(process.pid));
+    fsLock.writeFileSync(path.join(AUTH_DIR, 'bridge-port.lock'), '3457');
+    process.on('exit', () => { try { fsLock.unlinkSync(LOCK_FILE); } catch {} try { fsLock.unlinkSync(path.join(AUTH_DIR, 'bridge-port.lock')); } catch {} });
+    process.on('SIGINT', () => { try { fsLock.unlinkSync(LOCK_FILE); } catch {} try { fsLock.unlinkSync(path.join(AUTH_DIR, 'bridge-port.lock')); } catch {} process.exit(); });
+    return true;
+  } catch { return true; }
+}
+if (!acquireLock()) { process.exit(1); }
+// -------------------------------
 
 let currentSock = null;
 let isConnected = false;

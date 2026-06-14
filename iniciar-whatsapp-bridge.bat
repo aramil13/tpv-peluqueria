@@ -12,6 +12,11 @@ echo.
 echo El bridge necesita el sync-helper corriendo
 echo en http://localhost:3456
 echo.
+echo Cerrando bridges anteriores...
+taskkill /f /fi "WINDOWTITLE eq WhatsApp Bridge" /t /im node.exe >nul 2>nul
+taskkill /f /im node.exe /fi "cmdline eq *wa-bridge*" >nul 2>nul
+timeout /t 2 /nobreak >nul
+
 echo Si quieres usar el servidor remoto en vez de local:
 set AI_API_URL=https://nymaraestilistas/api/ai-message
 echo.

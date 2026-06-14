@@ -216,6 +216,7 @@ tr:hover td { background: #f8f9fa; }
     <div class="nav-item" data-section="products"><span class="icon">🧴</span><span>Productos</span></div>
     <div class="nav-item" data-section="providers"><span class="icon">🏭</span><span>Proveedores</span></div>
     <div class="nav-item" data-section="warehouse"><span class="icon">📦</span><span>Almacén</span></div>
+    <div class="nav-item" data-section="pending-confirmations" id="navPendingConfirm"><span class="icon">⏳</span><span>Confirmaciones Pendientes</span><span id="pendingBadge" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;margin-left:auto;font-weight:600;">0</span></div>
     <div class="nav-item" data-section="agenda"><span class="icon">📅</span><span>Agenda</span></div>
     <div class="nav-item" data-section="reports"><span class="icon">📈</span><span>Listados</span></div>
   </nav>
@@ -417,6 +418,14 @@ tr:hover td { background: #f8f9fa; }
       <div class="card">
         <div class="card-header"><h3>Citas del Día</h3></div>
         <div id="dayAppointments"></div>
+      </div>
+    </div>
+
+    <!-- PENDING CONFIRMATIONS -->
+    <div class="section" id="sec-pending-confirmations">
+      <div class="card">
+        <div class="card-header"><h3>⏳ Confirmaciones Pendientes</h3></div>
+        <div id="pendingConfirmList"></div>
       </div>
     </div>
 
@@ -1997,13 +2006,14 @@ document.querySelectorAll('.nav-item').forEach(el => {
     const titles = {
       dashboard:'PANEL DE CONTROL', pos:'Punto de Venta', clients:'Clientes', services:'Servicios',
       sections:'Secciones', projects:'Pack de Servicios', products:'Productos',
-      providers:'Proveedores', warehouse:'Almacén', agenda:'Agenda', employees:'Empleados', reports:'Listados'
+      providers:'Proveedores', warehouse:'Almacén', agenda:'Agenda', employees:'Empleados',
+      'pending-confirmations':'Confirmaciones Pendientes', reports:'Listados'
     };
     const t = titles[this.dataset.section]||'';
     const subs = {pos:'Terminal de cobro', clients:'Gestión de clientes', employees:'Gestión de empleados', services:'Servicios y tratamientos',
       sections:'Categorías de servicios', projects:'Packs de servicios', products:'Productos para la venta',
       providers:'Proveedores de productos', warehouse:'Control de inventario',
-      agenda:'Gestión de citas', reports:'Informes y estadísticas'};
+      agenda:'Gestión de citas', 'pending-confirmations':'Citas pendientes de confirmar por el salón', reports:'Informes y estadísticas'};
     document.getElementById('sectionTitle').innerHTML = t+' <small>'+(subs[this.dataset.section]||'')+'</small>';
     if (this.dataset.section === 'dashboard') renderDashboard();
     if (this.dataset.section === 'pos') { renderPosSectionTabs(); renderPosItems(); updateTicket(); }
@@ -2016,6 +2026,7 @@ document.querySelectorAll('.nav-item').forEach(el => {
     if (this.dataset.section === 'providers') renderProviders();
     if (this.dataset.section === 'warehouse') renderWarehouse();
     if (this.dataset.section === 'agenda') { syncPull(); renderAgenda(); }
+    if (this.dataset.section === 'pending-confirmations') renderPendingConfirmations();
     if (this.dataset.section === 'reports') renderReports();
   });
 });
@@ -4685,6 +4696,85 @@ function printReport() {
 }
 
 // ============ DASHBOARD ============
+// ============ PENDING CONFIRMATIONS ============
+function countPendingConfirmations() {
+  return data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified)).length;
+}
+
+function updatePendingBadge() {
+  const badge = document.getElementById('pendingBadge');
+  const count = countPendingConfirmations();
+  if (count > 0) { badge.style.display = 'inline'; badge.textContent = count; badge.style.background = '#e74c3c'; }
+  else { badge.style.display = 'none'; }
+}
+
+function goToAgendaDay(dateStr) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  const agendaNav = document.querySelector('.nav-item[data-section="agenda"]');
+  if (agendaNav) agendaNav.classList.add('active');
+  document.getElementById('sec-agenda').classList.add('active');
+  document.getElementById('sectionTitle').innerHTML = 'Agenda <small>Gestión de citas</small>';
+  syncPull();
+  renderAgenda();
+  setTimeout(() => showDayAppts(dateStr), 100);
+}
+
+function renderPendingConfirmations() {
+  const today = new Date().toISOString().split('T')[0];
+  const pending = data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified));
+
+  const grouped = {};
+  pending.forEach(a => {
+    const d = a.date || 'sin-fecha';
+    if (!grouped[d]) grouped[d] = [];
+    grouped[d].push(a);
+  });
+
+  const sortedDays = Object.keys(grouped).sort((a, b) => a === 'sin-fecha' ? 1 : b === 'sin-fecha' ? -1 : a.localeCompare(b));
+
+  const div = document.getElementById('pendingConfirmList');
+  if (!sortedDays.length) {
+    div.innerHTML = '<div class="empty-state"><div class="icon">✅</div><p>No hay confirmaciones pendientes</p></div>';
+    return;
+  }
+
+  div.innerHTML = sortedDays.map(day => {
+    const displayDate = day === 'sin-fecha' ? 'Sin fecha asignada' : new Date(day + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const isPast = day !== 'sin-fecha' && day < today;
+    return `<div class="card" style="margin-bottom:12px;padding:15px;${isPast?'opacity:0.6;':''}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--bg);cursor:pointer;" onclick="goToAgendaDay('${day}')" title="Ir a la agenda de este día">
+        <h4 style="font-size:14px;font-weight:600;display:flex;align-items:center;gap:6px;">📅 ${esc(displayDate)} ${isPast?'<span style="font-size:11px;color:var(--text-light);">(pasado)</span>':''}</h4>
+        <span style="font-size:11px;color:var(--text-light);">${grouped[day].length} pendiente${grouped[day].length !== 1 ? 's' : ''} →</span>
+      </div>
+      ${grouped[day].map(a => {
+        const client = data.clients.find(c => c.id === a.clientId);
+        const service = data.services.find(s => s.id === a.serviceId);
+        const employee = data.employees.find(e => e.id === a.employeeId);
+        const typeIcon = a.pendingCancelWhatsApp ? '❌' : (a.clientModified ? '✏️' : '📱');
+        const typeText = a.pendingCancelWhatsApp ? 'Cancelación solicitada' : (a.clientModified ? 'Modificación solicitada' : 'Nueva cita WhatsApp');
+        const typeClass = a.pendingCancelWhatsApp ? 'badge-danger' : (a.clientModified ? 'badge-warning' : 'badge-info');
+        const svcNames = (a.serviceIds || (a.serviceId ? [a.serviceId] : [])).map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-bottom:4px;border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:background .15s;" onclick="goToAgendaDay('${a.date||today}')" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
+          <div style="flex:1;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+              <span class="badge ${typeClass}" style="font-size:10px;">${typeIcon} ${typeText}</span>
+              <strong style="font-size:13px;">${esc(client ? client.name : '?')}</strong>
+              ${a.time ? `<span style="color:var(--text-light);font-size:12px;">⏰ ${a.time}</span>` : ''}
+            </div>
+            <div style="font-size:12px;color:var(--text-light);display:flex;gap:8px;flex-wrap:wrap;">
+              <span>✂️ ${esc(svcNames)}</span>
+              ${employee ? `<span>👤 ${esc(employee.name)}</span>` : ''}
+              ${a.pendingDate ? `<span style="color:var(--warning);">📅 Solicitado: ${a.pendingDate} ${a.pendingTime||''}</span>` : ''}
+            </div>
+          </div>
+          <span style="font-size:11px;color:var(--primary);font-weight:500;white-space:nowrap;">Ver en agenda →</span>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }).join('');
+}
+
 function renderDashboard() {
   const visibleSales = data.sales.filter(s => !isSaleArchived(s));
   const today = new Date().toISOString().split('T')[0];
@@ -4695,14 +4785,26 @@ function renderDashboard() {
   const totalSalesSum = visibleSales.reduce((sum, s) => sum + s.total, 0);
   const lowStock = data.products.filter(p => !p._deleted && (p.stock||0) <= (p.minStock||5)).length;
   
+  const pendingCount = countPendingConfirmations();
   document.getElementById('dashboardStats').innerHTML = `
     <div class="stat-card"><div class="stat-number">${cur(todayTotal)}</div><div class="stat-label">Ventas Hoy</div></div>
     <div class="stat-card"><div class="stat-number">${todaySales.length}</div><div class="stat-label">Ventas Hoy</div></div>
     <div class="stat-card"><div class="stat-number">${cur(todayIva)}</div><div class="stat-label">IVA Hoy</div></div>
     <div class="stat-card"><div class="stat-number">${todayAppts}</div><div class="stat-label">Citas Hoy</div></div>
+    <div class="stat-card" style="${pendingCount > 0 ? 'cursor:pointer;border:2px solid #e74c3c;' : ''}" onclick="${pendingCount > 0 ? "document.querySelector('.nav-item[data-section=\\'pending-confirmations\\']').click()" : ''}"><div class="stat-number" style="${pendingCount > 0 ? 'color:#e74c3c;' : ''}">${pendingCount}</div><div class="stat-label">Pendientes ⏳</div></div>
     <div class="stat-card"><div class="stat-number">${data.clients.filter(c=>!c._deleted).length}</div><div class="stat-label">Clientes</div></div>
     <div class="stat-card"><div class="stat-number">${data.employees.filter(e=>!e._deleted).length}</div><div class="stat-label">Empleados</div></div>`;
   
+  // Pending confirmations alert
+  if (pendingCount > 0) {
+    const pendingDiv = document.createElement('div');
+    pendingDiv.innerHTML = `<div class="alert alert-danger" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="document.querySelector('.nav-item[data-section=\\'pending-confirmations\\']').click()">
+      <span><strong>⏳ ${pendingCount} confirmación${pendingCount !== 1 ? 'es' : ''} pendiente${pendingCount !== 1 ? 's' : ''}</strong> — Citas de WhatsApp / modificaciones por revisar</span>
+      <span style="font-size:12px;font-weight:500;">Ver todas →</span>
+    </div>`;
+    document.getElementById('dashboardStats').after(pendingDiv.firstElementChild);
+  }
+
   // Recent sales
   const recentSales = visibleSales.sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,5);
   const salesDiv = document.getElementById('dashboardSales');
@@ -4898,9 +5000,11 @@ function init() {
   cleanOldAppointments();
   cleanOldWaReminders();
   renderDashboard();
+  updatePendingBadge();
   updateAppHeader();
   initAlphabetFilters();
   if (getSyncCfg().enabled) syncPush();
+  setInterval(updatePendingBadge, 5000);
 }
 
 function cleanOldWaReminders() {
