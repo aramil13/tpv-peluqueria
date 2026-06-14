@@ -1,6 +1,13 @@
 const { readData, writeData, mergeArray } = require('../../lib/kv-data');
-const { sendMessage } = require('../../lib/whatsapp');
-const { processWhatsAppMessage, processPhoneMessage } = require('../../lib/ai-assistant');
+
+function getSendMessage() {
+  return require('../../lib/whatsapp').sendMessage;
+}
+
+function getAiAssistant() {
+  const ai = require('../../lib/ai-assistant');
+  return { processWhatsAppMessage: ai.processWhatsAppMessage, processPhoneMessage: ai.processPhoneMessage };
+}
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -259,7 +266,7 @@ export async function onRequest(context) {
         const b = await getBody();
         const to = b.to || '+34678092305';
         const text = b.text || 'Test desde Nymara';
-        const result = await sendMessage(to, text);
+        const result = await getSendMessage()(to, text);
         return json({ sent: true, result: result.error || result.status + ' ' + (result.sid||'') });
       } catch (e) { return json({ error: e.message }, 500); }
     }
@@ -280,7 +287,7 @@ export async function onRequest(context) {
         const emp = (d.employees||[]).find(e => e.id === appt.employeeId) || {};
         const dateFmt = appt.date ? appt.date.split('-').reverse().join('-') : '';
         const text = '✅ Tu cita en ' + BUSINESS_NAME + ' ha sido CONFIRMADA:\n\n📅 ' + dateFmt + '\n⏰ ' + appt.time + (appt.endTime ? ' - '+appt.endTime : '') + '\n💇 ' + (svc.name || 'Servicio') + '\n' + (emp.name ? '👤 '+emp.name : '') + '\n\n¡Te esperamos!';
-        const result = await sendMessage(client.phone, text);
+        const result = await getSendMessage()(client.phone, text);
         return json({ sent: true, phone: client.phone, result: result.error || result.status + ' ' + (result.sid||'') });
       } catch (e) { return json({ error: e.message }, 500); }
     }
@@ -292,7 +299,7 @@ export async function onRequest(context) {
         const b = await getBody();
         const { phone, text } = b;
         if (!phone || !text) { return json({ error: 'phone and text required' }, 400); }
-        const result = await sendMessage(phone, text);
+        const result = await getSendMessage()(phone, text);
         return json({ sent: true, phone, result: result.error || result.status + ' ' + (result.sid||'') });
       } catch (e) { return json({ error: e.message }, 500); }
     }
@@ -950,7 +957,7 @@ export async function onRequest(context) {
         const { phone, text } = b;
         let replyText = '';
         if (phone && text) {
-          replyText = await processWhatsAppMessage(phone, text) || '';
+          replyText = await getAiAssistant().processWhatsAppMessage(phone, text) || '';
         }
         return json({ response: replyText });
       } catch (e) {
@@ -999,7 +1006,7 @@ export async function onRequest(context) {
         if (!speechResult) {
           return xml('<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather input="speech" action="/api/phone-process" method="POST" language="es-ES" speechTimeout="auto">\n    <Say voice="alice" language="es-ES">No te he entendido bien. ¿Podrías repetirlo, por favor?</Say>\n  </Gather>\n  <Say voice="alice" language="es-ES">Lo siento, tengo problemas para escucharte. Puedes intentar llamarnos más tarde o escribirnos por WhatsApp. ¡Hasta pronto!</Say>\n</Response>');
         }
-        const responseText = await processPhoneMessage(caller, speechResult);
+        const responseText = await getAiAssistant().processPhoneMessage(caller, speechResult);
 
         return xml('<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather input="speech" action="/api/phone-process" method="POST" language="es-ES" speechTimeout="auto">\n    <Say voice="alice" language="es-ES">' + escapeXml(responseText) + '</Say>\n  </Gather>\n  <Say voice="alice" language="es-ES">Si no tienes más dudas, gracias por llamar a ' + escapeXml(BUSINESS_NAME) + '. ¡Que tengas un buen día!</Say>\n</Response>');
       } catch (e) {

@@ -1843,14 +1843,37 @@ function safeMergeRemote(type, remote, activeModalId) {
   return mergeRemote(type, remote);
 }
 
+let syncErrorCount = 0;
+let syncErrorTimer = null;
+
+function updateSyncErrorIndicator() {
+  const status = document.getElementById('syncStatus');
+  if (!status) return;
+  if (syncErrorCount > 0) {
+    status.textContent = '❌ Sync error (' + syncErrorCount + ')';
+    status.style.color = '#e74c3c';
+    status.style.fontWeight = '600';
+  } else {
+    status.style.color = '';
+    status.style.fontWeight = '';
+  }
+}
+
 function syncPull() {
   const c = getSyncCfg();
   if (!c.enabled) return;
   fetch(c.url.replace(/\/+$/,'') + '/sync')
-    .then(r => r.json()).then(remote => {
-      console.log('SYNC PULL: server has', (remote.services||[]).length, 'services,', (remote.employees||[]).length, 'employees');
-      
-      // Mergear datos: respetar cambios locales más recientes que cloud
+    .then(r => {
+      if (!r.ok) throw new Error(String(r.status));
+      return r.json();
+    }).then(remote => {
+      syncErrorCount = 0;
+      updateSyncErrorIndicator();
+      if (syncErrorTimer) { clearTimeout(syncErrorTimer); syncErrorTimer = null; }
+      const status = document.getElementById('syncStatus');
+      if (status) { status.textContent = '✅ Sincronizado'; status.style.color = ''; status.style.fontWeight = ''; }
+      setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+
       if (Array.isArray(remote.services) && remote.services.length > 0) {
         const localSvcs = {};
         (data.services||[]).forEach(s => localSvcs[s.id] = s);
@@ -1868,45 +1891,28 @@ function syncPull() {
         const mergedAppts = remote.appointments.map(r => {
           const l = localAppts[r.id];
           if (!l) return r;
-          // Si local tiene cancelación y cloud no, y local es más reciente → preservar cancelación
           if (l.cancelledBy && !r.cancelledBy && (l._modified||0) > (r._modified||0)) return l;
-          // Si local es más reciente → preservar local
           if ((l._modified||0) > (r._modified||0)) return l;
           return r;
         });
-        // Añadir citas locales que cloud aún no tiene (pendingSalonConfirm, recién creadas, etc.)
         remote.appointments.forEach(r => delete localAppts[r.id]);
         Object.values(localAppts).forEach(a => mergedAppts.push(a));
         data.appointments = mergedAppts;
       }
       if (Array.isArray(remote.clients) && remote.clients.length > 0) data.clients = [...remote.clients];
       if (Array.isArray(remote.employees) && remote.employees.length > 0) data.employees = [...remote.employees];
-      // Reemplazo directo para datos simples
       if (Array.isArray(remote.sections) && remote.sections.length > 0) data.sections = [...remote.sections];
       if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
       if (Array.isArray(remote.projects) && remote.projects.length > 0) data.projects = [...remote.projects];
       if (Array.isArray(remote.providers) && remote.providers.length > 0) data.providers = [...remote.providers];
-      
-      // Guardar todo
+
       try {
         saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
         saveKey('clients'); saveKey('projects'); saveKey('providers'); saveKey('appointments');
-        
-        // Verificar que se guardó
-        const verif = JSON.parse(localStorage.getItem('tpv_services') || '[]');
-        console.log('VERIFIED: localStorage has', verif.length, 'services after save');
-        
-        if (verif.length > 0) {
-          const status = document.getElementById('syncStatus');
-          if (status) status.textContent = '✅ Sincronizado: ' + verif.length + ' servicios';
-          setTimeout(() => { if (status) status.textContent = ''; }, 5000);
-        }
       } catch(e) {
         console.error('SAVE ERROR:', e);
-        alert('Error al guardar datos de sincronización');
       }
-      
-      // Renderizar
+
       const active = document.querySelector('.nav-item.active');
       if (active) {
         const sec = active.dataset.section;
@@ -1921,25 +1927,43 @@ function syncPull() {
       }
     }).catch(e => {
       console.error('SYNC PULL ERROR:', e);
-      alert('Error de sincronización: ' + e.message);
+      syncErrorCount++;
+      updateSyncErrorIndicator();
+      const status = document.getElementById('syncStatus');
+      if (status) {
+        status.textContent = '❌ Sync error ' + (e.message || 'desconocido');
+        status.style.color = '#e74c3c';
+        status.style.fontWeight = '600';
+        syncErrorTimer = setTimeout(() => { if (syncErrorCount === 0 && status) { status.textContent = ''; status.style.color = ''; status.style.fontWeight = ''; } }, 10000);
+      }
     });
 }
 
 let syncTimer = null;
 let webSyncTimer = null;
-function startSyncPoller() {
-  stopSyncPoller();
+
+function scheduleSync() {
   if (!getSyncCfg().enabled) return;
   if (!isInSyncTimeWindow()) {
-    syncTimer = setTimeout(startSyncPoller, 60000);
+    syncTimer = setTimeout(scheduleSync, 60000);
     return;
   }
-  syncTimer = setInterval(function syncInterval() {
+  const base = 30000;
+  const max = 300000;
+  const backoff = syncErrorCount > 0
+    ? Math.min(base * Math.pow(2, Math.min(syncErrorCount, 6)), max)
+    : base;
+  syncTimer = setTimeout(function syncTick() {
     syncPull();
-    if (!isInSyncTimeWindow()) { stopSyncPoller(); startSyncPoller(); }
-  }, 30000);
+    if (!isInSyncTimeWindow()) return;
+    syncTimer = setTimeout(syncTick, syncErrorCount > 0
+      ? Math.min(base * Math.pow(2, Math.min(syncErrorCount, 6)), max)
+      : base);
+  }, backoff);
 }
-function stopSyncPoller() { if (syncTimer) { clearInterval(syncTimer); syncTimer = null } }
+
+function stopSyncPoller() { if (syncTimer) { clearTimeout(syncTimer); syncTimer = null } }
+function startSyncPoller() { stopSyncPoller(); scheduleSync(); }
 function startWebSyncPoller() {
   stopWebSyncPoller();
   const ws = (data.settings.webSync || {});
@@ -1951,8 +1975,8 @@ function startWebSyncPoller() {
 function stopWebSyncPoller() { if (webSyncTimer) { clearInterval(webSyncTimer); webSyncTimer = null } }
 
 // Start sync on load
-startSyncPoller();
 if (getSyncCfg().enabled) { syncPush(); syncPull(); }
+startSyncPoller();
 startWebSyncPoller();
 
 // Manual web sync — pushes data and shows clear feedback
@@ -4791,7 +4815,7 @@ function renderDashboard() {
     <div class="stat-card"><div class="stat-number">${todaySales.length}</div><div class="stat-label">Ventas Hoy</div></div>
     <div class="stat-card"><div class="stat-number">${cur(todayIva)}</div><div class="stat-label">IVA Hoy</div></div>
     <div class="stat-card"><div class="stat-number">${todayAppts}</div><div class="stat-label">Citas Hoy</div></div>
-    <div class="stat-card" style="${pendingCount > 0 ? 'cursor:pointer;border:2px solid #e74c3c;' : ''}" onclick="${pendingCount > 0 ? "document.querySelector('.nav-item[data-section=\\'pending-confirmations\\']').click()" : ''}"><div class="stat-number" style="${pendingCount > 0 ? 'color:#e74c3c;' : ''}">${pendingCount}</div><div class="stat-label">Pendientes ⏳</div></div>
+    <div class="stat-card" style="${pendingCount > 0 ? 'cursor:pointer;border:2px solid #e74c3c;' : ''}" onclick="${pendingCount > 0 ? "document.querySelector('.nav-item[data-section=\\'pending-confirmations\\']').click()" : ''}"><div class="stat-number" style="${pendingCount > 0 ? 'color:#e74c3c;' : ''}">${pendingCount}</div><div class="stat-label">Confirmaciones Pendientes ⏳</div></div>
     <div class="stat-card"><div class="stat-number">${data.clients.filter(c=>!c._deleted).length}</div><div class="stat-label">Clientes</div></div>
     <div class="stat-card"><div class="stat-number">${data.employees.filter(e=>!e._deleted).length}</div><div class="stat-label">Empleados</div></div>`;
   
