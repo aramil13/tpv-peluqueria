@@ -1914,16 +1914,14 @@ function syncPull() {
         remote.appointments.forEach(r => delete localAppts[r.id]);
         Object.values(localAppts).forEach(a => mergedAppts.push(a));
         // Eliminar duplicados logicos (mismo cliente+fecha+hora+empleado+bloque)
-        const dedupAppts = [];
         const dupSeen = new Set();
-        let removed = 0;
+        const dedupAppts = [];
         mergedAppts.forEach(a => {
-          const key = a.clientId + '|' + a.date + '|' + a.time + '|' + a.employeeId + '|' + (a.blockGroupId || '');
-          if (dupSeen.has(key)) { removed++; return; }
+          const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'');
+          if (dupSeen.has(key)) return;
           dupSeen.add(key);
           dedupAppts.push(a);
         });
-        if (removed > 0) console.log('[SYNC] Eliminados', removed, 'duplicados de appointments tras merge');
         data.appointments = dedupAppts;
       }
       if (Array.isArray(remote.clients) && remote.clients.length > 0) data.clients = [...remote.clients];
@@ -4767,7 +4765,7 @@ function getPendingAppts() {
   raw.forEach(a => {
     if (seenId.has(a.id)) return;
     seenId.add(a.id);
-    const dupKey = a.clientId + '|' + a.date + '|' + a.time + '|' + (a.blockGroupId || '');
+    const dupKey = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.blockGroupId||'');
     if (seenDup.has(dupKey)) { cleanedDups++; return; }
     seenDup.add(dupKey);
     if (a.blockGroupId) {
@@ -4881,7 +4879,7 @@ function renderDashboard() {
   const todayIva = todaySales.reduce((sum, s) => sum + (s.iva||0), 0);
   const todayCountMap = new Map();
   data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon').forEach(a => {
-    const key = a.clientId + '|' + a.time + '|' + a.employeeId + '|' + (a.blockGroupId || '');
+    const key = String(a.clientId||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'');
     const existing = todayCountMap.get(key);
     if (!existing || (a._modified||0) > (existing._modified||0)) todayCountMap.set(key, a);
   });
@@ -4926,7 +4924,7 @@ function renderDashboard() {
   const rawAppts = data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon');
   const dedupMap = new Map();
   rawAppts.forEach(a => {
-    const key = a.clientId + '|' + a.time + '|' + a.employeeId + '|' + (a.blockGroupId || '');
+    const key = String(a.clientId||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'');
     const existing = dedupMap.get(key);
     if (!existing || (a._modified||0) > (existing._modified||0)) dedupMap.set(key, a);
   });
@@ -5106,7 +5104,7 @@ function cleanDupAppointments() {
   const keep = [];
   let removed = 0;
   (data.appointments || []).forEach(a => {
-    const key = a.clientId + '|' + a.date + '|' + a.time + '|' + a.employeeId + '|' + (a.blockGroupId || '');
+    const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'');
     if (seen.has(key)) { removed++; return; }
     seen.add(key);
     keep.push(a);
