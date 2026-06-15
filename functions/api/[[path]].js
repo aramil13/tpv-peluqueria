@@ -524,7 +524,7 @@ export async function onRequest(context) {
               serviceIds: services.map(s => s.id),
               employeeId: empId, date: b.date, time, endTime,
               notes: b.notes || 'Reserva online',
-              source: 'online', status: 'pending', _modified: Date.now(), _deleted: false,
+              source: 'online', status: 'pending', pendingSalonConfirm: true, _modified: Date.now(), _deleted: false,
               modificationCount: 0, salonModified: false, cancelledBy: '',
               blockGroupId, blockNum
             };
@@ -616,7 +616,7 @@ export async function onRequest(context) {
             clientId: client.id, serviceIds: serviceIds, serviceId: serviceIds[0],
             employeeId: empId, date: b.date, time: b.time, endTime: endTime,
             notes: b.notes || 'Reserva online',
-            source: 'online', status: 'pending', _modified: Date.now(), _deleted: false,
+            source: 'online', status: 'pending', pendingSalonConfirm: true, _modified: Date.now(), _deleted: false,
             modificationCount: 0, salonModified: false, cancelledBy: ''
           };
           data.appointments.push(appt);

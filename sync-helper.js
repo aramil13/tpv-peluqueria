@@ -562,7 +562,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           clientId: client.id, serviceId: b.serviceId,
           employeeId: empId, date: b.date, time: b.time, endTime: endTime,
           notes: b.notes || 'Reserva online',
-          source: 'online', status: 'pending', _modified: Date.now(), _deleted: false, modificationCount: 0, salonModified: false, cancelledBy: ''
+          source: 'online', status: 'pending', pendingSalonConfirm: true, _modified: Date.now(), _deleted: false, modificationCount: 0, salonModified: false, cancelledBy: ''
         };
         data.appointments.push(appt);
         writeData(data);
