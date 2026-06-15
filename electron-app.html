@@ -4748,16 +4748,22 @@ function getPendingAppts() {
   const raw = data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified));
   const seenBlock = new Set();
   const seenId = new Set();
+  const seenDup = new Set();
   const result = [];
+  let cleanedDups = 0;
   raw.forEach(a => {
     if (seenId.has(a.id)) return;
     seenId.add(a.id);
+    const dupKey = a.clientId + '|' + a.date + '|' + a.time + '|' + (a.blockGroupId || '');
+    if (seenDup.has(dupKey)) { cleanedDups++; return; }
+    seenDup.add(dupKey);
     if (a.blockGroupId) {
       if (seenBlock.has(a.blockGroupId)) return;
       seenBlock.add(a.blockGroupId);
     }
     result.push(a);
   });
+  if (cleanedDups > 0) console.log('[PENDING] Limpiados', cleanedDups, 'duplicados en memoria');
   return result;
 }
 
@@ -4860,7 +4866,10 @@ function renderDashboard() {
   const todaySales = visibleSales.filter(s => s.date.startsWith(today));
   const todayTotal = todaySales.reduce((sum, s) => sum + s.total, 0);
   const todayIva = todaySales.reduce((sum, s) => sum + (s.iva||0), 0);
-  const todayAppts = data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon').length;
+  const rawCount = data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon');
+  const countMap = {};
+  rawCount.forEach(a => { countMap[a.id] = true; });
+  const todayAppts = Object.keys(countMap).length;
   const totalSalesSum = visibleSales.reduce((sum, s) => sum + s.total, 0);
   const lowStock = data.products.filter(p => !p._deleted && (p.stock||0) <= (p.minStock||5)).length;
   
@@ -4896,9 +4905,20 @@ function renderDashboard() {
       }).join('') + '</tbody></table></div>';
   }
   
-  // Today's appointments
+  // Today's appointments (con dedup)
   const apptsDiv = document.getElementById('dashboardAppts');
-  const tAppts = data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon').sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  const rawAppts = data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon').sort((a,b) => (a.time||'').localeCompare(b.time||''));
+  const seenAppt = new Set();
+  const tAppts = [];
+  rawAppts.forEach(a => {
+    const k = a.id;
+    if (seenAppt.has(k)) return;
+    seenAppt.add(k);
+    const dk = a.clientId+'|'+a.date+'|'+a.time+'|'+a.employeeId+'|'+(a.blockGroupId||'');
+    if (seenAppt.has(dk)) return;
+    seenAppt.add(dk);
+    tAppts.push(a);
+  });
   if (!tAppts.length) { apptsDiv.innerHTML = '<div class="empty-state"><p>Sin citas para hoy</p></div>'; }
   else {
     apptsDiv.innerHTML = tAppts.map(a => {
@@ -5069,6 +5089,19 @@ document.addEventListener('keydown', function(e) {
   }
 }, true);
 
+function cleanDupAppointments() {
+  const seen = new Set();
+  const keep = [];
+  let removed = 0;
+  (data.appointments || []).forEach(a => {
+    const key = a.clientId + '|' + a.date + '|' + a.time + '|' + a.employeeId + '|' + (a.blockGroupId || '');
+    if (seen.has(key)) { removed++; return; }
+    seen.add(key);
+    keep.push(a);
+  });
+  if (removed > 0) { data.appointments = keep; saveKey('appointments'); console.log('Limpiados', removed, 'duplicados de appointments'); }
+}
+
 function init() {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('apptDate').value = today;
@@ -5077,6 +5110,7 @@ function init() {
   document.getElementById('reportFrom').value = monthAgo.toISOString().split('T')[0];
   
   cleanOldAppointments();
+  cleanDupAppointments();
   cleanOldWaReminders();
   renderDashboard();
   updatePendingBadge();
