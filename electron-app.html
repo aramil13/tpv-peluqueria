@@ -3192,6 +3192,8 @@ function acceptClientMod(id) {
   saveAll();
   syncWebNow();
   renderAgenda();
+  updatePendingBadge();
+  if (document.getElementById('sec-pending-confirmations')?.classList.contains('active')) renderPendingConfirmations();
   const c = getSyncCfg();
   if (c.enabled && c.url && client) {
     const dateFmt = (a.pendingDate || a.date).split('-').reverse().join('-');
@@ -3260,6 +3262,8 @@ async function confirmWhatsAppAppt(id) {
   a._modified = Date.now();
   saveAll();
   renderAgenda();
+  updatePendingBadge();
+  if (document.getElementById('sec-pending-confirmations')?.classList.contains('active')) renderPendingConfirmations();
 
   // Sincronizar con Cloudflare y ESPERAR a que termine.
   // El bridge (wa-bridge.js / wa-bridge-core.js) detecta el cambio
@@ -3292,6 +3296,8 @@ async function confirmCancelWhatsApp(id) {
     a._modified = Date.now();
     saveAll();
     renderAgenda();
+    updatePendingBadge();
+    if (document.getElementById('sec-pending-confirmations')?.classList.contains('active')) renderPendingConfirmations();
     const syncDone = syncWebNow();
     if (syncDone) await syncDone.catch(() => {});
     return;
@@ -3306,6 +3312,8 @@ async function confirmCancelWhatsApp(id) {
   a._modified = Date.now();
   saveAll();
   renderAgenda();
+  updatePendingBadge();
+  if (document.getElementById('sec-pending-confirmations')?.classList.contains('active')) renderPendingConfirmations();
   const syncDone = syncWebNow();
   if (syncDone) await syncDone.catch(() => {});
 }
@@ -4737,13 +4745,15 @@ function printReport() {
 // ============ DASHBOARD ============
 // ============ PENDING CONFIRMATIONS ============
 function countPendingConfirmations() {
-  return data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified)).length;
+  const seen = new Set();
+  return data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified) && !a.blockGroupId).length +
+    data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified) && a.blockGroupId && !seen.has(a.blockGroupId) && seen.add(a.blockGroupId)).length;
 }
 
 function updatePendingBadge() {
   const badge = document.getElementById('pendingBadge');
   const count = countPendingConfirmations();
-  if (count > 0) { badge.style.display = 'inline'; badge.textContent = count; badge.style.background = '#e74c3c'; }
+  if (count > 0) { badge.style.display = 'inline'; badge.textContent = count; badge.style.color = '#fff'; }
   else { badge.style.display = 'none'; }
 }
 
@@ -4759,12 +4769,28 @@ function goToAgendaDay(dateStr) {
   setTimeout(() => showDayAppts(dateStr), 100);
 }
 
+function confirmPendingItem(id) {
+  const a = data.appointments.find(x => x.id === id);
+  if (!a) return;
+  if (a.pendingCancelWhatsApp) { confirmCancelWhatsApp(id); }
+  else if (a.clientModified) { acceptClientMod(id); }
+  else { confirmWhatsAppAppt(id); }
+  updatePendingBadge();
+  const sec = document.getElementById('sec-pending-confirmations');
+  if (sec && sec.classList.contains('active')) renderPendingConfirmations();
+}
+
 function renderPendingConfirmations() {
   const today = new Date().toISOString().split('T')[0];
-  const pending = data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified));
+  const raw = data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified));
 
   const grouped = {};
-  pending.forEach(a => {
+  const seenBlock = new Set();
+  raw.forEach(a => {
+    if (a.blockGroupId) {
+      if (seenBlock.has(a.blockGroupId)) return;
+      seenBlock.add(a.blockGroupId);
+    }
     const d = a.date || 'sin-fecha';
     if (!grouped[d]) grouped[d] = [];
     grouped[d].push(a);
@@ -4788,16 +4814,16 @@ function renderPendingConfirmations() {
       </div>
       ${grouped[day].map(a => {
         const client = data.clients.find(c => c.id === a.clientId);
-        const service = data.services.find(s => s.id === a.serviceId);
         const employee = data.employees.find(e => e.id === a.employeeId);
         const typeIcon = a.pendingCancelWhatsApp ? '❌' : (a.clientModified ? '✏️' : '📱');
-        const typeText = a.pendingCancelWhatsApp ? 'Cancelación solicitada' : (a.clientModified ? 'Modificación solicitada' : 'Nueva cita WhatsApp');
-        const typeClass = a.pendingCancelWhatsApp ? 'badge-danger' : (a.clientModified ? 'badge-warning' : 'badge-info');
+        const typeText = a.pendingCancelWhatsApp ? 'Cancelación solicitada' : (a.clientModified ? 'Modificación solicitada' : 'Nueva cita WhatsApp/Online');
+        const btnClass = a.pendingCancelWhatsApp ? 'btn-danger' : 'btn-success';
+        const btnIcon = a.pendingCancelWhatsApp ? '✔️ Aceptar cancelación' : (a.clientModified ? '✔️ Aceptar modificación' : '✅ Confirmar cita');
         const svcNames = (a.serviceIds || (a.serviceId ? [a.serviceId] : [])).map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-bottom:4px;border:1px solid var(--border);border-radius:6px;cursor:pointer;transition:background .15s;" onclick="goToAgendaDay('${a.date||today}')" onmouseover="this.style.background='#f8f9fa'" onmouseout="this.style.background=''">
-          <div style="flex:1;">
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-bottom:4px;border:1px solid var(--border);border-radius:6px;">
+          <div style="flex:1;cursor:pointer;" onclick="goToAgendaDay('${a.date||today}')" title="Ir a agenda">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
-              <span class="badge ${typeClass}" style="font-size:10px;">${typeIcon} ${typeText}</span>
+              <span class="badge badge-info" style="font-size:10px;">${typeIcon} ${typeText}</span>
               <strong style="font-size:13px;">${esc(client ? client.name : '?')}</strong>
               ${a.time ? `<span style="color:var(--text-light);font-size:12px;">⏰ ${a.time}</span>` : ''}
             </div>
@@ -4807,7 +4833,10 @@ function renderPendingConfirmations() {
               ${a.pendingDate ? `<span style="color:var(--warning);">📅 Solicitado: ${a.pendingDate} ${a.pendingTime||''}</span>` : ''}
             </div>
           </div>
-          <span style="font-size:11px;color:var(--primary);font-weight:500;white-space:nowrap;">Ver en agenda →</span>
+          <div style="display:flex;gap:4px;flex-shrink:0;">
+            <button class="btn ${btnClass} btn-sm" onclick="event.stopPropagation();confirmPendingItem('${a.id}')" style="font-size:11px;padding:5px 10px;">${btnIcon}</button>
+            <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();goToAgendaDay('${a.date||today}')" style="font-size:11px;padding:5px 8px;" title="Ver en agenda">📅</button>
+          </div>
         </div>`;
       }).join('')}
     </div>`;
