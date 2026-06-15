@@ -12,15 +12,22 @@ function getAiAssistant() {
 export async function onRequest(context) {
   const { request, env } = context;
 
-  globalThis.__ENV = env;
-  globalThis.__KV = env.KV_DATA;
+  try {
+    if (!env.KV_DATA) {
+      return new Response(JSON.stringify({ error: 'KV_DATA binding no configurado. Ve a Cloudflare Pages > Settings > Functions > KV Namespace Bindings' }), {
+        status: 500, headers: { 'Content-Type': 'application/json' }
+      });
+    }
 
-  const CORS_ORIGIN = env.CORS_ORIGIN || '*';
-  const WEB_API_KEY = env.WEB_API_KEY || '';
-  const BUSINESS_NAME = env.BUSINESS_NAME || 'Nymara Estilistas';
-  const BUSINESS_PHONE = env.BUSINESS_PHONE || '';
+    globalThis.__ENV = env;
+    globalThis.__KV = env.KV_DATA;
 
-  const CORS_HEADERS = {
+    const CORS_ORIGIN = env.CORS_ORIGIN || '*';
+    const WEB_API_KEY = env.WEB_API_KEY || '';
+    const BUSINESS_NAME = env.BUSINESS_NAME || 'Nymara Estilistas';
+    const BUSINESS_PHONE = env.BUSINESS_PHONE || '';
+
+    const CORS_HEADERS = {
     'Access-Control-Allow-Origin': CORS_ORIGIN,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS, PUT, DELETE',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -1022,5 +1029,11 @@ export async function onRequest(context) {
 
     default:
       return json({ error: 'Not found' }, 404);
+  }
+  } catch (e) {
+    console.error('[CF ERROR]', e.message, e.stack);
+    return new Response(JSON.stringify({ error: 'Error interno: ' + e.message }), {
+      status: 500, headers: { 'Content-Type': 'application/json' }
+    });
   }
 }
