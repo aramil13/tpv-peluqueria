@@ -204,11 +204,13 @@ function renderMyAppts() {
     const cancelledBySalon = a.cancelledBy === 'salon';
     const modifiedBySalon = !!a.salonModified && !cancelledBySalon && !cancelledByClient;
     const pendingClientMod = !!a.clientModified && !cancelledBySalon && !cancelledByClient;
+    const pendingSalonConfirm = !!a.pendingSalonConfirm && !cancelledBySalon && !cancelledByClient && !modifiedBySalon;
     let cardClass = 'appt-card';
     if (isPast) cardClass += ' appt-past';
     if (cancelledByClient) cardClass += ' appt-cancelled';
     if (cancelledBySalon) cardClass += ' appt-cancelled-by-salon';
     if (modifiedBySalon) cardClass += ' appt-modified-by-salon';
+    if (pendingSalonConfirm) cardClass += ' appt-pending-salon';
     const timeColor = modifiedBySalon ? 'color:#e74c3c;' : '';
     return '<div class="'+cardClass+'">'+
       '<div class="appt-card-date">'+
@@ -225,14 +227,15 @@ function renderMyAppts() {
         (pendingClientMod ? '<div style="color:#f39c12;font-weight:600;font-size:13px;margin-top:6px;">⏳ Pendiente de aprobación del salón</div>'+
           '<div style="color:#f39c12;font-size:12px;margin-top:3px;">'+esc(a.date)+' '+esc(a.time)+' → '+esc(a.pendingDate||a.date)+' '+esc(a.pendingTime||a.time)+'</div>'+
           (a.pendingEmployeeId && a.employeeId !== a.pendingEmployeeId ? '<div style="color:#f39c12;font-size:12px;">👤 '+esc(a.employeeName||'?')+' → '+esc(a.pendingEmployeeName||'?')+'</div>' : '') : '')+
-        (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 Esta cita ha sido anulada por el salón.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+
-      '</div>'+
-      (!isPast && a.source==='online' && !cancelledByClient ? '<div class="appt-card-actions">'+
-        (!cancelledBySalon && !modifiedBySalon && !pendingClientMod ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+
+        (pendingSalonConfirm ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">⏳ Pendiente de confirmar por el salón</div>' : '')+ 
+        (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 Esta cita ha sido anulada por el salón.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+ 
+      '</div>'+ 
+      (!isPast && a.source==='online' && !cancelledByClient && !pendingSalonConfirm ? '<div class="appt-card-actions">'+ 
+        (!cancelledBySalon && !modifiedBySalon && !pendingClientMod ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+ 
         (modifiedBySalon ? '<button class="btn btn-sm btn-success" onclick="acceptModification(\''+a.id+'\')">✔ Aceptar modificación</button>' : '')+
         '<button class="btn btn-sm '+(cancelledBySalon?'btn-success':'btn-danger')+'" onclick="cancelAppt(\''+a.id+'\')">'+
-          (cancelledBySalon ? 'VISTO' : 'Cancelar')+'</button>'+
-      '</div>' : '')+
+          (cancelledBySalon ? 'VISTO' : 'Cancelar')+'</button>'+ 
+      '</div>' : '')+ 
     '</div>';
   }).join('');
 }

@@ -197,7 +197,8 @@ export async function onRequest(context) {
           salonModified: !!a.salonModified, modificationCount: a.modificationCount || 0,
           clientModified: !!a.clientModified, pendingTime: a.pendingTime || '', pendingDate: a.pendingDate || '',
           pendingEmployeeId: a.pendingEmployeeId || '',
-          pendingEmployeeName: a.pendingEmployeeId && empMap[a.pendingEmployeeId] ? empMap[a.pendingEmployeeId].name : ''
+          pendingEmployeeName: a.pendingEmployeeId && empMap[a.pendingEmployeeId] ? empMap[a.pendingEmployeeId].name : '',
+          pendingSalonConfirm: !!a.pendingSalonConfirm
         };
       })
     });
