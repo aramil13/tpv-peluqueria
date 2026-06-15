@@ -667,18 +667,18 @@ async function confirmBooking() {
       goStep(5);
       const svcNames = selectedServices.map(s => s.name).join(', ');
       const times = (d.apptTimes && d.apptTimes.length > 1) ? d.apptTimes.join(' y ') : selectedSlot.time;
-      const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20confirmada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(times) + '.';
+      const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20solicitada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(times) + '.%20Estamos%20revis%C3%A1ndola%20y%20te%20confirmaremos%20pronto.';
       const waPhone = (currentClient.phone||'').replace(/[^0-9]/g,'');
       const waLink = 'https://wa.me/34' + waPhone + '?text=' + waMsg;
       let extra = '';
-      if (d.emailSent) extra = '✅ Te hemos enviado un email de confirmación.<br><br>';
-      extra += '💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Recibir confirmación por WhatsApp</a>';
-      let msg = 'Tu cita ha sido registrada para el <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+times+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+
-        'Servicios: <strong>'+esc(svcNames)+'</strong><br><br>'+extra;
+      if (d.emailSent) extra = '✅ Te hemos enviado un email con los detalles.<br><br>';
+      extra += '💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Recibir aviso por WhatsApp</a>';
+      let msg = 'Tu cita ha sido enviada al salón y está <strong>pendiente de confirmación</strong>.<br><br>📅 <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+times+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+
+        '✂️ '+esc(svcNames)+'<br><br>'+extra;
       if (d.apptTimes && d.apptTimes.length > 1) {
         const bloque1Svcs = selectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque).map(s=>s.name).join(', ');
         const bloque2Svcs = selectedServices.filter(s => s.bloque === 'bloque2').map(s=>s.name).join(', ');
-        msg = 'Tus citas han sido registradas para el <strong>'+fmtDate(selectedDate)+'</strong>:<br>'+
+        msg = 'Tus citas han sido enviadas al salón y están <strong>pendientes de confirmación</strong>.<br><br>📅 <strong>'+fmtDate(selectedDate)+'</strong>:<br>'+
           '• <strong>'+d.apptTimes[0]+'</strong> — '+esc(bloque1Svcs)+'<br>'+
           '• <strong>'+d.apptTimes[1]+'</strong> — '+esc(bloque2Svcs)+'<br><br>'+
           (selectedSlot.employeeName?'Con <strong>'+selectedSlot.employeeName+'</strong><br><br>':'')+

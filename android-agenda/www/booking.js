@@ -577,9 +577,9 @@ async function confirmBooking() {
       const waPhone = (currentClient.phone||'').replace(/[^0-9]/g,'');
       const waLink = 'https://wa.me/34' + waPhone + '?text=' + waMsg;
       let extra = '';
-      if (d.emailSent) extra = '✅ Te hemos enviado un email de confirmación.<br><br>';
-      extra += '💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Recibir confirmación por WhatsApp</a>';
-      document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido registrada para el <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+extra;
+      if (d.emailSent) extra = '✅ Te hemos enviado un email con los detalles.<br><br>';
+      extra += '💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Recibir aviso por WhatsApp</a>';
+      document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido enviada al salón y está <strong>pendiente de confirmación</strong>.<br><br>📅 <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+extra;
     } else {
       alert('Error: '+(d.error||'No se pudo reservar'));
       document.getElementById('confirmBtn').disabled = false;

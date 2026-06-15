@@ -573,7 +573,7 @@ async function confirmBooking() {
     const d = await r.json();
     if (d.ok) {
       goStep(5);
-      const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20confirmada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(selectedSlot.time) + '.';
+      const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20solicitada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(selectedSlot.time) + '.%20Estamos%20revis%C3%A1ndola%20y%20te%20confirmaremos%20pronto.';
       const waPhone = (currentClient.phone||'').replace(/[^0-9]/g,'');
       const waLink = 'https://wa.me/34' + waPhone + '?text=' + waMsg;
       let extra = '';
