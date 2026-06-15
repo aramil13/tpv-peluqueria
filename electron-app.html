@@ -1802,6 +1802,7 @@ function syncPush() {
   if (!c.enabled) return;
   const status = document.getElementById('syncStatus');
   if (status) status.textContent = '🔄 Sincronizando...';
+  cleanDupAppointments();
   const body = JSON.stringify({
     appointments: Array.isArray(data.appointments) ? data.appointments : [],
     clients: Array.isArray(data.clients) ? data.clients : [],
@@ -1912,7 +1913,18 @@ function syncPull() {
         });
         remote.appointments.forEach(r => delete localAppts[r.id]);
         Object.values(localAppts).forEach(a => mergedAppts.push(a));
-        data.appointments = mergedAppts;
+        // Eliminar duplicados logicos (mismo cliente+fecha+hora+empleado+bloque)
+        const dedupAppts = [];
+        const dupSeen = new Set();
+        let removed = 0;
+        mergedAppts.forEach(a => {
+          const key = a.clientId + '|' + a.date + '|' + a.time + '|' + a.employeeId + '|' + (a.blockGroupId || '');
+          if (dupSeen.has(key)) { removed++; return; }
+          dupSeen.add(key);
+          dedupAppts.push(a);
+        });
+        if (removed > 0) console.log('[SYNC] Eliminados', removed, 'duplicados de appointments tras merge');
+        data.appointments = dedupAppts;
       }
       if (Array.isArray(remote.clients) && remote.clients.length > 0) data.clients = [...remote.clients];
       if (Array.isArray(remote.employees) && remote.employees.length > 0) data.employees = [...remote.employees];
@@ -2003,6 +2015,7 @@ function syncWebNow() {
     alert('Activa la sincronización en ⚙️ Configuración → Sync e introduce la URL del servidor.');
     return;
   }
+  cleanDupAppointments();
   if (status) status.textContent = '🔄 Sincronizando con web...';
   const webProducts = data.products.filter(p => !p._deleted && p.showOnWeb).length;
   const webOffers = data.projects.filter(p => !p._deleted && p.showOnWeb).length;
