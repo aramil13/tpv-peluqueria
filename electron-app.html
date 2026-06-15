@@ -1718,8 +1718,16 @@ function saveOnlineOpeningTime() {
   if (!data.settings.onlineOpening) data.settings.onlineOpening = {};
   data.settings.onlineOpening[agendaSelectedDate] = data.settings.onlineOpening[agendaSelectedDate] || {};
   data.settings.onlineOpening[agendaSelectedDate].time = val;
+  const d = new Date(agendaSelectedDate + 'T12:00:00').getDay();
+  if (!data.settings.openingHours) data.settings.openingHours = {};
+  if (!data.settings.openingHours[d]) data.settings.openingHours[d] = { open: '09:00', close: '19:00', closed: false };
+  if (data.settings.openingHours[d].closed) {
+    data.settings.openingHours[d].closed = false;
+    data.settings.openingHours[d].open = val;
+  }
   saveKey('settings');
   syncPush();
+  syncWebNow();
   const saved = document.getElementById('onlineOpeningSaved');
   saved.style.display = 'inline';
   setTimeout(() => { saved.style.display = 'none'; }, 2000);
@@ -1732,11 +1740,18 @@ function saveOnlineBookingToggle() {
   if (agendaSelectedDate) {
     data.settings.onlineOpening[agendaSelectedDate] = data.settings.onlineOpening[agendaSelectedDate] || {};
     data.settings.onlineOpening[agendaSelectedDate].enabled = checked;
+    const d = new Date(agendaSelectedDate + 'T12:00:00').getDay();
+    if (!data.settings.openingHours) data.settings.openingHours = {};
+    if (!data.settings.openingHours[d]) data.settings.openingHours[d] = { open: '09:00', close: '19:00', closed: false };
+    if (data.settings.openingHours[d].closed) {
+      data.settings.openingHours[d].closed = false;
+    }
   } else {
     data.settings.onlineBookingEnabled = checked;
   }
   saveKey('settings');
   syncPush();
+  syncWebNow();
 }
 
 function loadOnlineOpeningForDay(dateStr) {
