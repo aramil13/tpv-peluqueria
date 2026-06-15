@@ -4744,10 +4744,25 @@ function printReport() {
 
 // ============ DASHBOARD ============
 // ============ PENDING CONFIRMATIONS ============
+function getPendingAppts() {
+  const raw = data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified));
+  const seenBlock = new Set();
+  const seenId = new Set();
+  const result = [];
+  raw.forEach(a => {
+    if (seenId.has(a.id)) return;
+    seenId.add(a.id);
+    if (a.blockGroupId) {
+      if (seenBlock.has(a.blockGroupId)) return;
+      seenBlock.add(a.blockGroupId);
+    }
+    result.push(a);
+  });
+  return result;
+}
+
 function countPendingConfirmations() {
-  const seen = new Set();
-  return data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified) && !a.blockGroupId).length +
-    data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified) && a.blockGroupId && !seen.has(a.blockGroupId) && seen.add(a.blockGroupId)).length;
+  return getPendingAppts().length;
 }
 
 function updatePendingBadge() {
@@ -4782,15 +4797,10 @@ function confirmPendingItem(id) {
 
 function renderPendingConfirmations() {
   const today = new Date().toISOString().split('T')[0];
-  const raw = data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified));
+  const raw = getPendingAppts();
 
   const grouped = {};
-  const seenBlock = new Set();
   raw.forEach(a => {
-    if (a.blockGroupId) {
-      if (seenBlock.has(a.blockGroupId)) return;
-      seenBlock.add(a.blockGroupId);
-    }
     const d = a.date || 'sin-fecha';
     if (!grouped[d]) grouped[d] = [];
     grouped[d].push(a);
