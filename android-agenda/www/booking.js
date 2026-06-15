@@ -227,7 +227,7 @@ function renderMyAppts() {
         (pendingClientMod ? '<div style="color:#f39c12;font-weight:600;font-size:13px;margin-top:6px;">⏳ Pendiente de aprobación del salón</div>'+
           '<div style="color:#f39c12;font-size:12px;margin-top:3px;">'+esc(a.date)+' '+esc(a.time)+' → '+esc(a.pendingDate||a.date)+' '+esc(a.pendingTime||a.time)+'</div>'+
           (a.pendingEmployeeId && a.employeeId !== a.pendingEmployeeId ? '<div style="color:#f39c12;font-size:12px;">👤 '+esc(a.employeeName||'?')+' → '+esc(a.pendingEmployeeName||'?')+'</div>' : '') : '')+
-        (pendingSalonConfirm ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">⏳ Pendiente de confirmar por el salón</div>' : '')+ 
+        (pendingSalonConfirm ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">⏳ Cita pendiente de confirmar por el Salon</div>' : '')+ 
         (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 Esta cita ha sido anulada por el salón.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+ 
       '</div>'+ 
       (!isPast && a.source==='online' && !cancelledByClient && !pendingSalonConfirm ? '<div class="appt-card-actions">'+ 
