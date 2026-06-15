@@ -35,15 +35,10 @@ const { processWhatsAppMessage } = require('./lib/ai-assistant');
 const { loadConversation, clearConversation } = require('./lib/conversation');
 const { readData, writeData, mergeArray } = require('./lib/kv-data');
 
-const useDeepSeek = !!process.env.DEEPSEEK_API_KEY;
-const useGroq = !!process.env.GROQ_API_KEY;
 const useGemini = !!process.env.GEMINI_API_KEY;
 const syncUrl = process.env.SYNC_URL || process.env.VERCEL_SYNC_URL || '';
-let aiMode = 'Ninguna';
-if (useDeepSeek) aiMode = 'DeepSeek';
-else if (useGroq) aiMode = 'Groq';
-else if (useGemini) aiMode = 'Gemini';
-console.log('AI: DeepSeek='+useDeepSeek+', Groq='+useGroq+', Gemini='+useGemini+' → '+aiMode);
+let aiMode = useGemini ? 'Gemini' : 'Ninguna';
+console.log('[RENDER-BRIDGE] AI: Gemini='+(useGemini ? 'SI' : 'NO (configurar GEMINI_API_KEY en Render)'));
 console.log('SYNC URL: '+(syncUrl ? syncUrl : 'NO CONFIGURADO'));
 console.log('DATA_DIR:', DATA_DIR);
 console.log('AUTH_DIR:', AUTH_DIR);

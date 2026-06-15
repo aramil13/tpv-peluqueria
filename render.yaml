@@ -7,7 +7,7 @@ services:
     envVars:
       - key: DATA_DIR
         value: /data
-      - key: DEEPSEEK_API_KEY
+      - key: GEMINI_API_KEY
         sync: false
       - key: BUSINESS_NAME
         value: "Nymara Estilistas"
