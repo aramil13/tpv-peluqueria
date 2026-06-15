@@ -4866,10 +4866,13 @@ function renderDashboard() {
   const todaySales = visibleSales.filter(s => s.date.startsWith(today));
   const todayTotal = todaySales.reduce((sum, s) => sum + s.total, 0);
   const todayIva = todaySales.reduce((sum, s) => sum + (s.iva||0), 0);
-  const rawCount = data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon');
-  const countMap = {};
-  rawCount.forEach(a => { countMap[a.id] = true; });
-  const todayAppts = Object.keys(countMap).length;
+  const todayCountMap = new Map();
+  data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon').forEach(a => {
+    const key = a.clientId + '|' + a.time + '|' + a.employeeId + '|' + (a.blockGroupId || '');
+    const existing = todayCountMap.get(key);
+    if (!existing || (a._modified||0) > (existing._modified||0)) todayCountMap.set(key, a);
+  });
+  const todayAppts = todayCountMap.size;
   const totalSalesSum = visibleSales.reduce((sum, s) => sum + s.total, 0);
   const lowStock = data.products.filter(p => !p._deleted && (p.stock||0) <= (p.minStock||5)).length;
   
@@ -4905,20 +4908,16 @@ function renderDashboard() {
       }).join('') + '</tbody></table></div>';
   }
   
-  // Today's appointments (con dedup)
+  // Today's appointments (con dedup fuerte por cliente+hora+empleado+bloque)
   const apptsDiv = document.getElementById('dashboardAppts');
-  const rawAppts = data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon').sort((a,b) => (a.time||'').localeCompare(b.time||''));
-  const seenAppt = new Set();
-  const tAppts = [];
+  const rawAppts = data.appointments.filter(a => a.date === today && !a._deleted && a.cancelledBy !== 'salon');
+  const dedupMap = new Map();
   rawAppts.forEach(a => {
-    const k = a.id;
-    if (seenAppt.has(k)) return;
-    seenAppt.add(k);
-    const dk = a.clientId+'|'+a.date+'|'+a.time+'|'+a.employeeId+'|'+(a.blockGroupId||'');
-    if (seenAppt.has(dk)) return;
-    seenAppt.add(dk);
-    tAppts.push(a);
+    const key = a.clientId + '|' + a.time + '|' + a.employeeId + '|' + (a.blockGroupId || '');
+    const existing = dedupMap.get(key);
+    if (!existing || (a._modified||0) > (existing._modified||0)) dedupMap.set(key, a);
   });
+  const tAppts = [...dedupMap.values()].sort((a,b) => (a.time||'').localeCompare(b.time||''));
   if (!tAppts.length) { apptsDiv.innerHTML = '<div class="empty-state"><p>Sin citas para hoy</p></div>'; }
   else {
     apptsDiv.innerHTML = tAppts.map(a => {
