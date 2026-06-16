@@ -760,7 +760,6 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         appt._deleted = true;
         appt._modified = Date.now();
         appt.cancelledBy = 'client';
-        appt.notes = (appt.notes||'') + ' [Cancelada por cliente]';
       }
       await writeData(d);
       res.json({ ok: true });
@@ -857,8 +856,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       appt.pendingTime = b.newTime;
       appt.pendingEmployeeId = newEmpId;
       appt._modified = Date.now();
-      appt.notes = (appt.notes||'') + ' [Modificada por cliente - pendiente]';
-      await writeData(d);
+        await writeData(d);
       res.json({ ok: true, appointment: { id: appt.id, pendingDate: appt.pendingDate, pendingTime: appt.pendingTime } });
     } catch (e) {
       res.status(400).json({ error: e.message });
@@ -900,10 +898,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         const newEndM = Math.round((reqEnd - newEndH) * 60);
         appt.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
         appt.employeeId = appt.pendingEmployeeId || appt.employeeId;
-        appt.notes = (appt.notes||'') + ' [Modificación aceptada por el salón]';
-      } else {
-        appt.notes = (appt.notes||'') + ' [Modificación rechazada por el salón]';
-      }
+        } else {
+        }
       appt.clientModified = false;
       delete appt.pendingDate;
       delete appt.pendingTime;

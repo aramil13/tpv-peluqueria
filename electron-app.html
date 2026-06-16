@@ -756,14 +756,14 @@ tr:hover td { background: #f8f9fa; }
     </div>
     <div id="settingsIA" style="display:none;">
       <div class="card" style="box-shadow:none;padding:0;margin-bottom:20px;">
-        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">🧠 Agente IA (Gemini)</div>
-        <div class="form-group"><label>API Key de Gemini</label>
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">🧠 Agente IA (GitHub Models)</div>
+        <div class="form-group"><label>GitHub Token</label>
           <div style="display:flex;gap:8px;">
-            <input type="password" id="deepseekApiKey" placeholder="AIza..." style="flex:1;font-family:monospace;">
-            <button class="btn btn-secondary btn-sm" onclick="toggleDeepSeekKeyVisibility()" title="Mostrar/Ocultar">👁️</button>
+            <input type="password" id="githubToken" placeholder="github_pat_..." style="flex:1;font-family:monospace;">
+            <button class="btn btn-secondary btn-sm" onclick="toggleGitHubTokenVisibility()" title="Mostrar/Ocultar">👁️</button>
           </div>
         </div>
-        <div style="font-size:12px;color:var(--text-light);margin-top:-6px;">Obtén tu API key en <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a></div>
+        <div style="font-size:12px;color:var(--text-light);margin-top:-6px;">Obtén tu token en <a href="https://github.com/settings/tokens" target="_blank">github.com/settings/tokens</a> (permiso: Models:Read)</div>
       </div>
       <div class="card" style="box-shadow:none;padding:0;">
         <div style="font-size:13px;font-weight:600;margin-bottom:12px;">📱 WhatsApp Bridge</div>
@@ -779,7 +779,7 @@ tr:hover td { background: #f8f9fa; }
           <button class="btn btn-danger btn-sm" id="waBridgeStopBtn" onclick="stopWaBridge()" style="display:none;">⛔ Desvincular</button>
         </div>
         <div style="font-size:12px;color:var(--text-light);margin-top:8px;line-height:1.5;">
-          El bridge permite que la IA (Gemini) converse con los clientes vía WhatsApp y gestione citas automáticamente.
+          El bridge permite que la IA (GitHub Models) converse con los clientes vía WhatsApp y gestione citas automáticamente.
         </div>
       </div>
     </div>
@@ -1309,7 +1309,7 @@ function openSettings() {
   document.getElementById('bloque1Duration').value = bloques.bloque1Duration || 60;
   document.getElementById('bloque2Duration').value = bloques.bloque2Duration || 60;
   document.getElementById('bloqueGap').value = bloques.bloqueGap || 45;
-  document.getElementById('deepseekApiKey').value = s.deepseekApiKey || '';
+  document.getElementById('githubToken').value = s.githubToken || '';
   updateBridgeStatusUI();
   switchSettingsTab('business', document.querySelector('#settingsModal .tab'));
   openModal('settingsModal');
@@ -1442,11 +1442,11 @@ function saveSettings() {
       bloque2Duration: parseInt(document.getElementById('bloque2Duration').value) || 60,
       bloqueGap: parseInt(document.getElementById('bloqueGap').value) || 45
     },
-    deepseekApiKey: document.getElementById('deepseekApiKey').value.trim()
+    githubToken: document.getElementById('githubToken').value.trim()
   };
-  const dsk = document.getElementById('deepseekApiKey').value.trim();
-  if (window.electronAPI && window.electronAPI.setDeepSeekKey) {
-    window.electronAPI.setDeepSeekKey(dsk);
+  const gt = document.getElementById('githubToken').value.trim();
+  if (window.electronAPI && window.electronAPI.setGitHubToken) {
+    window.electronAPI.setGitHubToken(gt);
   }
   saveKey('ivaRate'); saveKey('settings');
   updateAppHeader();
@@ -1497,8 +1497,8 @@ function stopWaBridge() {
   window.electronAPI.stopBridge();
 }
 
-function toggleDeepSeekKeyVisibility() {
-  const el = document.getElementById('deepseekApiKey');
+function toggleGitHubTokenVisibility() {
+  const el = document.getElementById('githubToken');
   el.type = el.type === 'password' ? 'text' : 'password';
 }
 
@@ -3192,7 +3192,6 @@ function acceptClientMod(id) {
   const newEndM = reqEnd % 60;
   a.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
   a.employeeId = a.pendingEmployeeId || a.employeeId;
-  a.notes = (a.notes||'') + ' [Modificación aceptada por el salón]';
   a.clientModified = false;
   a.pendingSalonConfirm = false;
   a.status = 'confirmed';
@@ -3303,7 +3302,6 @@ async function confirmCancelWhatsApp(id) {
     a.cancelledBy = '';
     a._whatsappCancelRejectedPending = true;
     a._whatsappCancelRejectedSent = false;
-    a.notes = (a.notes||'') + ' [Cancelación rechazada por el salón]';
     a._modified = Date.now();
     saveAll();
     renderAgenda();
@@ -3319,7 +3317,6 @@ async function confirmCancelWhatsApp(id) {
   a.pendingSalonConfirm = false;
   a._whatsappCancelledPending = true;
   a._whatsappCancelledSent = false;
-  a.notes = (a.notes||'') + ' [Cancelada por cliente vía WhatsApp]';
   a._modified = Date.now();
   saveAll();
   renderAgenda();
@@ -4896,17 +4893,6 @@ function renderDashboard() {
     <div class="stat-card" style="${pendingCount > 0 ? 'cursor:pointer;border:2px solid #e74c3c;' : ''}" onclick="${pendingCount > 0 ? "document.querySelector('.nav-item[data-section=\\'pending-confirmations\\']').click()" : ''}"><div class="stat-number" style="${pendingCount > 0 ? 'color:#e74c3c;' : ''}">${pendingCount}</div><div class="stat-label">Confirmaciones Pendientes ⏳</div></div>
     <div class="stat-card"><div class="stat-number">${data.clients.filter(c=>!c._deleted).length}</div><div class="stat-label">Clientes</div></div>
     <div class="stat-card"><div class="stat-number">${data.employees.filter(e=>!e._deleted).length}</div><div class="stat-label">Empleados</div></div>`;
-  
-  // Pending confirmations alert
-  if (pendingCount > 0) {
-    const pendingDiv = document.createElement('div');
-    pendingDiv.innerHTML = `<div class="alert alert-danger" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;" onclick="document.querySelector('.nav-item[data-section=\\'pending-confirmations\\']').click()">
-      <span><strong>⏳ ${pendingCount} confirmación${pendingCount !== 1 ? 'es' : ''} pendiente${pendingCount !== 1 ? 's' : ''}</strong> — Citas de WhatsApp / modificaciones por revisar</span>
-      <span style="font-size:12px;font-weight:500;">Ver todas →</span>
-    </div>`;
-    document.getElementById('dashboardStats').after(pendingDiv.firstElementChild);
-  }
-
   // Recent sales
   const recentSales = visibleSales.sort((a,b) => new Date(b.date)-new Date(a.date)).slice(0,5);
   const salesDiv = document.getElementById('dashboardSales');

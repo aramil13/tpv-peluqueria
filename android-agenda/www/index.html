@@ -622,7 +622,6 @@ function acceptClientMod(id) {
   const newEndM = reqEnd % 60;
   a.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
   a.employeeId = a.pendingEmployeeId || a.employeeId;
-  a.notes = (a.notes||'') + ' [Modificación aceptada por el salón]';
   a.clientModified = false;
   delete a.pendingDate;
   delete a.pendingTime;

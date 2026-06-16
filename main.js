@@ -43,10 +43,10 @@ function startSyncHelper() {
   syncHelperProcess.on('error', e => console.error('sync-helper error:', e));
 }
 
-function getDeepSeekKeyFromSettings() {
+function getGitHubTokenFromSettings() {
   try {
     const data = readData();
-    return (data && data.settings && data.settings.deepseekApiKey) || '';
+    return (data && data.settings && data.settings.githubToken) || '';
   } catch { return ''; }
 }
 
@@ -61,8 +61,8 @@ function startBridge() {
     return;
   }
 
-  const key = getDeepSeekKeyFromSettings() || process.env.DEEPSEEK_API_KEY || '';
-  if (key) process.env.DEEPSEEK_API_KEY = key;
+  const key = getGitHubTokenFromSettings() || process.env.GITHUB_TOKEN || '';
+  if (key) process.env.GITHUB_TOKEN = key;
 
   try {
     const { createBridge } = require('./lib/wa-bridge-core');
@@ -126,13 +126,13 @@ ipcMain.handle('get-bridge-status', () => {
   return { connected: false, state: 'stopped', phone: '' };
 });
 
-ipcMain.handle('set-deepseek-key', async (event, key) => {
+ipcMain.handle('set-github-token', async (event, key) => {
   const data = readData();
   if (!data.settings) data.settings = {};
-  data.settings.deepseekApiKey = key;
+  data.settings.githubToken = key;
   writeData(data);
-  if (key) { process.env.DEEPSEEK_API_KEY = key; startBridge(); }
-  else { delete process.env.DEEPSEEK_API_KEY; stopBridge(); }
+  if (key) { process.env.GITHUB_TOKEN = key; startBridge(); }
+  else { delete process.env.GITHUB_TOKEN; stopBridge(); }
   return { ok: true };
 });
 
@@ -154,8 +154,8 @@ if (!gotTheLock) {
     ensureSyncEnv();
     startSyncHelper();
     createWindow();
-    const key = getDeepSeekKeyFromSettings() || process.env.DEEPSEEK_API_KEY;
-    if (key) { process.env.DEEPSEEK_API_KEY = key; startBridge(); }
+    const key = getGitHubTokenFromSettings() || process.env.GITHUB_TOKEN;
+    if (key) { process.env.GITHUB_TOKEN = key; startBridge(); }
   });
 }
 
