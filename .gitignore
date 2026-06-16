@@ -23,3 +23,5 @@ wa-bridge.log
 
 # Sync data (datos locales, no subir)
 sync/appointments.json
+.env
+.env.local
