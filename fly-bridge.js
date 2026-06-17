@@ -61,7 +61,9 @@ function loadJidMap() {
 function addJidMapping(phone, jid) { phoneJidMap.set(phone, jid); saveJidMap(); }
 let currentQr = null;
 let qrGeneratedThisSession = false;
+let currentQrTimestamp = 0;
 let lastDisconnectWas515 = false;
+const QR_STABLE_TIME = 120000; // 2 minutos mínimo sin regenerar QR
 const RECONNECT_DELAY = 15000;
 
 setInterval(() => {
@@ -80,12 +82,14 @@ async function start() {
     console.log('[FLY] Error 515 previo. NO limpiando auth, reconectando con credenciales guardadas...');
     lastDisconnectWas515 = false;
     qrGeneratedThisSession = false;
-  } else if (qrGeneratedThisSession) {
-    console.log('[FLY] Sesión previa corrupta. Limpiando auth...');
+  } else if (qrGeneratedThisSession && (Date.now() - currentQrTimestamp) > QR_STABLE_TIME) {
+    console.log('[FLY] QR expiró hace >2min. Limpiando auth y generando QR nuevo...');
     try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
     try { fs.mkdirSync(AUTH_DIR, { recursive: true }); } catch {}
     try { fs.unlinkSync(path.join(DATA_DIR, 'qr.png')); } catch {}
     qrGeneratedThisSession = false;
+  } else if (qrGeneratedThisSession) {
+    console.log('[FLY] QR aún vigente (<2min desde generación). Manteniendo auth y QR actual para que el usuario pueda escanear.');
   }
 
   const { makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
@@ -123,6 +127,7 @@ async function start() {
     if (qr) {
       currentQr = qr;
       qrGeneratedThisSession = true;
+      currentQrTimestamp = Date.now();
       bridgeState = 'awaiting_scan';
       console.log('\n[QR GENERADO] Escanea con WhatsApp (Ajustes > Dispositivos vinculados):');
       qrcode.generate(qr, { small: true });
@@ -149,10 +154,12 @@ async function start() {
         }
         return;
       }
-      if (qrGeneratedThisSession && !is515) {
-        console.log('[FLY] QR generado pero conexión falló. Limpiando auth corrupto...');
+      if (qrGeneratedThisSession && !is515 && (Date.now() - currentQrTimestamp) > QR_STABLE_TIME) {
+        console.log('[FLY] QR generado hace >2min sin ser escaneado. Limpiando auth para QR fresco...');
         try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch {}
         try { fs.mkdirSync(AUTH_DIR, { recursive: true }); } catch {}
+      } else if (qrGeneratedThisSession && !is515) {
+        console.log('[FLY] QR generado hace <2min. Manteniendo QR para que el usuario pueda escanearlo.');
       }
       if (is515) {
         lastDisconnectWas515 = true;
@@ -275,8 +282,10 @@ const server = http.createServer((req, res) => {
     if (req.method === 'GET' && (url === '/qr' || url === '/qr.html')) {
       const qrPath = path.join(DATA_DIR, 'qr.png');
       const hasQr = fs.existsSync(qrPath);
-      const stateLabel = isConnected ? 'Conectado' : bridgeState === 'awaiting_scan' ? 'Esperando escaneo...' : bridgeState === 'starting' || bridgeState === 'connecting' ? 'Conectando...' : 'Desconectado';
-      const stateColor = isConnected ? '#4ade80' : bridgeState === 'awaiting_scan' ? '#22d3ee' : '#f59e0b';
+      const qrAge = currentQrTimestamp ? Math.floor((Date.now() - currentQrTimestamp) / 1000) : 0;
+      const qrExpired = qrAge > 120;
+      const stateLabel = isConnected ? 'Conectado' : bridgeState === 'awaiting_scan' ? (qrExpired ? 'QR expirado - Regenera' : 'Esperando escaneo...') : bridgeState === 'starting' || bridgeState === 'connecting' ? 'Conectando...' : 'Desconectado';
+      const stateColor = isConnected ? '#4ade80' : bridgeState === 'awaiting_scan' ? (qrExpired ? '#f59e0b' : '#22d3ee') : '#f59e0b';
       const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>WhatsApp Bridge - QR</title>
@@ -288,9 +297,10 @@ p{font-size:14px;color:#aaa;margin-bottom:20px}
 #qrImg{width:280px;height:280px;border:3px solid #333;border-radius:12px;background:#fff;padding:10px;margin-bottom:20px;display:${hasQr?'block':'none'}}
 #loading{color:#888;font-size:14px;margin-bottom:20px;display:${hasQr?'none':'block'}}
 .steps{background:#1a1a1a;border-radius:8px;padding:16px;max-width:400px;font-size:13px;color:#ccc;line-height:1.6;text-align:left;margin-bottom:20px}
+#qrTimer{font-size:12px;color:#888;margin-bottom:10px;display:${hasQr?'block':'none'}}
 .status{font-size:12px;color:#666;margin-top:10px}
 #bridgeStatus{font-size:13px;margin-bottom:16px;padding:8px 16px;border-radius:8px;background:rgba(255,255,255,0.05);}
-#restartBtn{background:#333;color:#fff;border:1px solid #555;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:13px;margin-top:12px}
+#restartBtn{background:#333;color:#fff;border:1px solid #555;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:13px;margin-top:12px;display:none}
 #restartBtn:hover{background:#444}
 </style>
 </head><body>
@@ -307,17 +317,31 @@ p{font-size:14px;color:#aaa;margin-bottom:20px}
 </div>
 <img id="qrImg" src="/qr-img?t=${Date.now()}" alt="QR">
 <div id="loading">⏳ Generando QR, espera unos segundos...</div>
-<div id="statusMsg" class="status"></div>
-<button id="restartBtn" onclick="restartBridge()">🔄 Regenerar QR</button>
+  <div id="qrTimer" class="status"></div>
+  <div id="statusMsg" class="status"></div>
+  <button id="restartBtn" onclick="restartBridge()">🔄 Regenerar QR</button>
 <script>
 function restartBridge(){
   document.getElementById('statusMsg').textContent='Regenerando QR...';
   document.getElementById('statusMsg').style.color='#f59e0b';
   var x=new XMLHttpRequest();
   x.open('POST','/restart',true);
-  x.onload=function(){ document.getElementById('statusMsg').textContent='QR regenerado. Espera unos segundos...'; setTimeout(refresh,3000); };
+  x.onload=function(){ document.getElementById('statusMsg').textContent='QR regenerado. Espera unos segundos...'; document.getElementById('qrTimer').style.display='none'; setTimeout(refresh,3000); };
   x.onerror=function(){ document.getElementById('statusMsg').textContent='Error al regenerar. Recarga la página.'; document.getElementById('statusMsg').style.color='#ef4444'; };
   x.send();
+}
+function updateQrAge(){
+  var age=Math.floor((Date.now()-window._qrTs)/1000);
+  if(age<120){
+    var min=Math.floor(age/60), sec=age%60;
+    document.getElementById('qrTimer').textContent='⏱ QR generado hace '+min+'m '+sec+'s (válido 2 min)';
+    document.getElementById('qrTimer').style.color='#888';
+    document.getElementById('restartBtn').style.display='inline-block';
+  }else{
+    document.getElementById('qrTimer').textContent='⚠️ QR expirado. Pulsa "Regenerar QR" para uno nuevo.';
+    document.getElementById('qrTimer').style.color='#f59e0b';
+    document.getElementById('restartBtn').style.display='inline-block';
+  }
 }
 (function refresh(){
   var t=Date.now();
@@ -329,12 +353,16 @@ function restartBridge(){
   document.getElementById('qrImg').onload=function(){
     this.style.display='block';
     document.getElementById('loading').style.display='none';
+    window._qrTs=t;
     document.getElementById('statusMsg').textContent='✅ QR listo. Escanea con WhatsApp';
     document.getElementById('statusMsg').style.color='#22d3ee';
+    document.getElementById('qrTimer').style.display='block';
+    updateQrAge();
   };
   document.getElementById('qrImg').src='/qr-img?t='+t;
-  setTimeout(refresh,5000);
+  setTimeout(refresh,10000);
 })();
+setInterval(updateQrAge,1000);
 </script>
 </body></html>`;
       res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', ...noCache });
