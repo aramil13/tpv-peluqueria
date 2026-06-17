@@ -20,6 +20,7 @@ sync/appointments.json
 
 wa_auth/
 wa-bridge.log
+myeasylog.log
 
 # Sync data (datos locales, no subir)
 sync/appointments.json
