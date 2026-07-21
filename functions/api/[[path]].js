@@ -13,8 +13,8 @@ export async function onRequest(context) {
   const { request, env } = context;
 
   try {
-    if (!env['tpv-sync-data']) {
-      return new Response(JSON.stringify({ error: 'tpv-sync-data R2 bucket binding no configurado. Ve a Cloudflare Pages > Settings > Functions > R2 Bucket Bindings' }), {
+    if (!env.R2_DATA) {
+      return new Response(JSON.stringify({ error: 'R2_DATA binding no configurado. Ve a Cloudflare Pages > Settings > Functions > R2 Bucket Bindings' }), {
         status: 500, headers: { 'Content-Type': 'application/json' }
       });
     }
@@ -867,7 +867,7 @@ export async function onRequest(context) {
     // === API: DEBUG PRODUCTS (muestra todos los productos crudos) ===
     case '/api/debug-products': {
       const d = await readData();
-      const r2 = globalThis.__ENV && globalThis.__ENV['tpv-sync-data'];
+      const r2 = globalThis.__ENV && globalThis.__ENV.R2_DATA;
       return json({
         r2Binding: !!r2,
         totalProducts: (d.products||[]).length,
