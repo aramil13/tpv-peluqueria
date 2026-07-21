@@ -324,6 +324,17 @@ export async function onRequest(context) {
       if (request.method === 'POST') {
         try {
           const remote = await getBody();
+          if (remote._clearAll === true) {
+            const fresh = { appointments: [], clients: [], services: [], employees: [], products: [], projects: [], movements: [], sections: [], providers: [], settings: {}, lastModified: Date.now() };
+            await writeData(fresh);
+            return json({ ok: true, cleared: true });
+          }
+          if (remote._raw === true) {
+            delete remote._raw;
+            remote.lastModified = Date.now();
+            await writeData(remote);
+            return json({ ok: true, raw: true });
+          }
           const current = await readData();
           const merged = { ...current };
           const wasCancelledOrDeleted = new Set();
