@@ -13,14 +13,13 @@ export async function onRequest(context) {
   const { request, env } = context;
 
   try {
-    if (!env.KV_DATA) {
-      return new Response(JSON.stringify({ error: 'KV_DATA binding no configurado. Ve a Cloudflare Pages > Settings > Functions > KV Namespace Bindings' }), {
+    if (!env['tpv-sync-data']) {
+      return new Response(JSON.stringify({ error: 'tpv-sync-data R2 bucket binding no configurado. Ve a Cloudflare Pages > Settings > Functions > R2 Bucket Bindings' }), {
         status: 500, headers: { 'Content-Type': 'application/json' }
       });
     }
 
     globalThis.__ENV = env;
-    globalThis.__KV = env.KV_DATA;
 
     const CORS_ORIGIN = env.CORS_ORIGIN || '*';
     const WEB_API_KEY = env.WEB_API_KEY || '';
@@ -868,9 +867,9 @@ export async function onRequest(context) {
     // === API: DEBUG PRODUCTS (muestra todos los productos crudos) ===
     case '/api/debug-products': {
       const d = await readData();
-      const kv = globalThis.__KV;
+      const r2 = globalThis.__ENV && globalThis.__ENV['tpv-sync-data'];
       return json({
-        kvBinding: !!kv,
+        r2Binding: !!r2,
         totalProducts: (d.products||[]).length,
         totalAppointments: (d.appointments||[]).length,
         totalClients: (d.clients||[]).length,
