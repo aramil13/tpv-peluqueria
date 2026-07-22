@@ -186,12 +186,55 @@ export async function onRequest(context) {
     const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
     const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
     appointments.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
-    return json({
-      client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '', historialTecnico: client.historialTecnico || '', punctuality: client.punctuality || '' },
-      appointments: appointments.map(a => {
+    const processed = new Set();
+    const result = [];
+    for (const a of appointments) {
+      if (processed.has(a.id)) continue;
+      if (a.blockGroupId) {
+        const groupAppts = appointments.filter(x => x.blockGroupId === a.blockGroupId);
+        groupAppts.forEach(ga => processed.add(ga.id));
+        const b1 = groupAppts.find(x => x.blockNum === '1') || groupAppts[0];
+        const b2 = groupAppts.find(x => x.blockNum === '2');
+        const allSvcIds = [];
+        const allSvcNames = [];
+        const allEmpIds = new Set();
+        for (const ga of groupAppts) {
+          const sids = ga.serviceIds || (ga.serviceId ? [ga.serviceId] : []);
+          sids.forEach(id => {
+            if (!allSvcIds.includes(id)) allSvcIds.push(id);
+            if (svcMap[id] && !allSvcNames.includes(svcMap[id].name)) allSvcNames.push(svcMap[id].name);
+          });
+          if (ga.employeeId) allEmpIds.add(ga.employeeId);
+        }
+        const primaryEmp = b1.employeeId || '';
+        const pendingB1Time = b1.pendingTime || '';
+        const pendingB1Date = b1.pendingDate || '';
+        result.push({
+          id: b1.id, blockGroupId: a.blockGroupId, blockCount: groupAppts.length,
+          date: b1.date, time: b1.time, endTime: b2 ? b2.endTime : (b1.endTime || ''),
+          serviceIds: allSvcIds, serviceId: b1.serviceId || allSvcIds[0] || '',
+          serviceName: allSvcNames.join(' + '),
+          status: b1.status, source: b1.source || '',
+          employeeId: primaryEmp,
+          employeeName: primaryEmp && empMap[primaryEmp] ? empMap[primaryEmp].name : '',
+          notes: b1.notes || '',
+          _deleted: !!b1._deleted, cancelledBy: b1.cancelledBy || '',
+          salonModified: groupAppts.some(ga => ga.salonModified),
+          modificationCount: b1.modificationCount || 0,
+          clientModified: groupAppts.some(ga => ga.clientModified),
+          pendingTime: pendingB1Time, pendingDate: pendingB1Date,
+          pendingEndTime: b1.pendingEndTime || (b2 && b2.pendingTime ? b2.pendingEndTime || '' : ''),
+          pendingEmployeeId: b1.pendingEmployeeId || '',
+          pendingEmployeeName: b1.pendingEmployeeId && empMap[b1.pendingEmployeeId] ? empMap[b1.pendingEmployeeId].name : '',
+          pendingSalonConfirm: groupAppts.some(ga => ga.pendingSalonConfirm),
+          block2Time: b2 ? b2.time : '', block2EndTime: b2 ? b2.endTime : '',
+          block2PendingTime: b2 ? (b2.pendingTime || '') : ''
+        });
+      } else {
+        processed.add(a.id);
         const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
         const svcNames = svcIds.map(id => svcMap[id] ? svcMap[id].name : null).filter(Boolean);
-        return {
+        result.push({
           id: a.id, date: a.date, time: a.time, endTime: a.endTime || '',
           serviceIds: svcIds, serviceId: a.serviceId || svcIds[0] || '',
           serviceName: svcNames.join(', '),
@@ -205,8 +248,12 @@ export async function onRequest(context) {
           pendingEmployeeId: a.pendingEmployeeId || '',
           pendingEmployeeName: a.pendingEmployeeId && empMap[a.pendingEmployeeId] ? empMap[a.pendingEmployeeId].name : '',
           pendingSalonConfirm: !!a.pendingSalonConfirm
-        };
-      })
+        });
+      }
+    }
+    return json({
+      client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '', historialTecnico: client.historialTecnico || '', punctuality: client.punctuality || '' },
+      appointments: result
     });
   }
 
@@ -710,14 +757,16 @@ export async function onRequest(context) {
         if (appt.date < new Date().toISOString().split('T')[0]) {
           return json({ error: 'No puedes cancelar una cita pasada' }, 400);
         }
-        if (appt.cancelledBy === 'salon') {
-          appt._deleted = true;
-          appt.cancelledBy = '';
-          appt._modified = Date.now();
-        } else {
-          appt._deleted = true;
-          appt._modified = Date.now();
-          appt.cancelledBy = 'client';
+        const toCancel = appt.blockGroupId ? (d.appointments||[]).filter(a => a.blockGroupId === appt.blockGroupId && !a._deleted) : [appt];
+        for (const tc of toCancel) {
+          if (tc.cancelledBy === 'salon') {
+            tc._deleted = true;
+            tc.cancelledBy = '';
+          } else {
+            tc._deleted = true;
+            tc.cancelledBy = 'client';
+          }
+          tc._modified = Date.now();
         }
         await writeData(d);
         return json({ ok: true });
@@ -780,31 +829,105 @@ export async function onRequest(context) {
         }
         const newDate = b.newDate || appt.date;
         const newEmpId = b.newEmployeeId !== undefined ? b.newEmployeeId : appt.employeeId;
-        const newSvcId = b.newServiceId || appt.serviceId;
-        const srv = (d.services||[]).find(s => s.id === newSvcId);
-        const srvDuration = srv ? srv.duration : 30;
-        const reqStart = parseTime(b.newTime);
-        const reqEnd = reqStart + srvDuration / 60;
-        const conflict = (d.appointments||[]).some(a => a.id !== appt.id && !a._deleted && a.date === newDate && (!a.employeeId || a.employeeId === (newEmpId||'')) && (() => {
-          const as = (d.services||[]).find(s => s.id === a.serviceId);
-          const aStart = parseTime(a.time);
-          const aEnd = aStart + (as ? (as.duration || 30) : 30) / 60;
-          return reqStart < aEnd && reqEnd > aStart;
-        })());
-        if (conflict) {
-          return json({ error: 'El nuevo horario no está disponible' }, 409);
+        const isBlockGroup = !!appt.blockGroupId;
+        const gap = (d.settings && d.settings.bloques && d.settings.bloques.bloqueGap) ? d.settings.bloques.bloqueGap : 45;
+        const allApptsToModify = [];
+        let block1NewTime = b.newTime;
+        let block1NewDate = newDate;
+        let block1SrvDuration = 30;
+        if (isBlockGroup) {
+          const groupAppts = (d.appointments||[]).filter(a => a.blockGroupId === appt.blockGroupId && !a._deleted);
+          const b1 = groupAppts.find(a => a.blockNum === '1');
+          const b2 = groupAppts.find(a => a.blockNum === '2');
+          if (b1) {
+            const srv1 = (d.services||[]).find(s => s.id === b1.serviceId);
+            block1SrvDuration = srv1 ? (srv1.duration || 30) : 30;
+          }
+          if (appt.blockNum === '2' && b1) {
+            block1NewTime = b.newTime;
+            const b1StartMin = parseTime(block1NewTime);
+            const b1EndMin = b1StartMin + block1SrvDuration / 60;
+            const b2StartMin = b1EndMin + gap;
+            const b2H = Math.floor(b2StartMin / 60);
+            const b2M = Math.round((b2StartMin - b2H) * 60);
+            const b2NewTime = String(b2H).padStart(2,'0') + ':' + String(b2M).padStart(2,'0');
+            const srv2 = (d.services||[]).find(s => s.id === (b2 ? b2.serviceId : appt.serviceId));
+            const b2Dur = srv2 ? (srv2.duration || 30) : 30;
+            const b2EndMin = b2StartMin + b2Dur / 60;
+            const b2EndH = Math.floor(b2EndMin / 60);
+            const b2EndM = Math.round((b2EndMin - b2EndH) * 60);
+            if (b2) {
+              allApptsToModify.push({ appt: b2, pendingTime: b2NewTime, pendingDate: newDate, endTime: String(b2EndH).padStart(2,'0') + ':' + String(b2EndM).padStart(2,'0') });
+            }
+            if (b1) {
+              const b1EndH2 = Math.floor(b1EndMin / 60);
+              const b1EndM2 = Math.round((b1EndMin - b1EndH2) * 60);
+              allApptsToModify.push({ appt: b1, pendingTime: block1NewTime, pendingDate: newDate, endTime: String(b1EndH2).padStart(2,'0') + ':' + String(b1EndM2).padStart(2,'0') });
+            }
+          } else {
+            const b1StartMin = parseTime(b.newTime);
+            const b1EndMin = b1StartMin + block1SrvDuration / 60;
+            const b1EndH = Math.floor(b1EndMin / 60);
+            const b1EndM = Math.round((b1EndMin - b1EndH) * 60);
+            allApptsToModify.push({ appt: b1 || appt, pendingTime: b.newTime, pendingDate: newDate, endTime: String(b1EndH).padStart(2,'0') + ':' + String(b1EndM).padStart(2,'0') });
+            if (b2) {
+              const b2StartMin = b1EndMin + gap;
+              const b2H = Math.floor(b2StartMin / 60);
+              const b2M = Math.round((b2StartMin - b2H) * 60);
+              const b2NewTime = String(b2H).padStart(2,'0') + ':' + String(b2M).padStart(2,'0');
+              const srv2 = (d.services||[]).find(s => s.id === b2.serviceId);
+              const b2Dur = srv2 ? (srv2.duration || 30) : 30;
+              const b2EndMin = b2StartMin + b2Dur / 60;
+              const b2EndH = Math.floor(b2EndMin / 60);
+              const b2EndM = Math.round((b2EndMin - b2EndH) * 60);
+              allApptsToModify.push({ appt: b2, pendingTime: b2NewTime, pendingDate: newDate, endTime: String(b2EndH).padStart(2,'0') + ':' + String(b2EndM).padStart(2,'0') });
+            }
+          }
+        } else {
+          const srv = (d.services||[]).find(s => s.id === appt.serviceId);
+          const srvDuration = srv ? srv.duration : 30;
+          const reqStart = parseTime(b.newTime);
+          const reqEnd = reqStart + srvDuration / 60;
+          const b1EndH = Math.floor(reqEnd / 60);
+          const b1EndM = Math.round((reqEnd - b1EndH) * 60);
+          allApptsToModify.push({ appt: appt, pendingTime: b.newTime, pendingDate: newDate, endTime: String(b1EndH).padStart(2,'0') + ':' + String(b1EndM).padStart(2,'0') });
         }
+        for (const item of allApptsToModify) {
+          const reqStart = parseTime(item.pendingTime);
+          const refAppt = item.appt;
+          const refSrv = (d.services||[]).find(s => s.id === refAppt.serviceId);
+          const refDur = refSrv ? (refSrv.duration || 30) : 30;
+          const reqEnd = reqStart + refDur / 60;
+          const conflict = (d.appointments||[]).some(a => {
+            if (a._deleted || a.id === refAppt.id) return false;
+            if (isBlockGroup && allApptsToModify.some(m => m.appt.id === a.id)) return false;
+            if (a.date !== item.pendingDate) return false;
+            if (a.employeeId && newEmpId && a.employeeId !== newEmpId) return false;
+            const as = (d.services||[]).find(s => s.id === a.serviceId);
+            const aStart = parseTime(a.time);
+            const aEnd = aStart + (as ? (as.duration || 30) : 30) / 60;
+            return reqStart < aEnd && reqEnd > aStart;
+          });
+          if (conflict) {
+            return json({ error: 'El nuevo horario no está disponible para el bloque ' + (item.appt.blockNum || '1') }, 409);
+          }
+        }
+        const modTarget = allApptsToModify.find(m => m.appt.id === appt.id) || allApptsToModify[0];
         if ((appt.modificationCount || 0) >= 1) {
           return json({ error: 'Ya has modificado esta cita anteriormente. Solo puedes modificarla una vez.' }, 403);
         }
+        for (const item of allApptsToModify) {
+          const a = item.appt;
+          a.clientModified = true;
+          a.pendingDate = item.pendingDate;
+          a.pendingTime = item.pendingTime;
+          a.pendingEmployeeId = newEmpId;
+          if (item.endTime) a.pendingEndTime = item.endTime;
+          a._modified = Date.now();
+        }
         appt.modificationCount = (appt.modificationCount || 0) + 1;
-        appt.clientModified = true;
-        appt.pendingDate = newDate;
-        appt.pendingTime = b.newTime;
-        appt.pendingEmployeeId = newEmpId;
-        appt._modified = Date.now();
         await writeData(d);
-        return json({ ok: true, appointment: { id: appt.id, pendingDate: appt.pendingDate, pendingTime: appt.pendingTime } });
+        return json({ ok: true, appointment: { id: appt.id, pendingDate: modTarget.pendingDate, pendingTime: modTarget.pendingTime } });
       } catch (e) {
         return json({ error: e.message }, 400);
       }
@@ -815,39 +938,38 @@ export async function onRequest(context) {
       if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
       try {
         const b = await getBody();
-        if (!b.appointmentId || !b.phone) {
-          return json({ error: 'appointmentId and phone required' }, 400);
-        }
+        if (!b.appointmentId || !b.phone) return json({ error: 'appointmentId and phone required' }, 400);
         const d = await readData();
         const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
-        if (!client) {
-          return json({ error: 'Cliente no encontrado' }, 403);
-        }
+        if (!client) return json({ error: 'Cliente no encontrado' }, 403);
         const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && !a._deleted);
-        if (!appt) {
-          return json({ error: 'Cita no encontrada' }, 404);
-        }
-        if (!appt.clientModified) {
-          return json({ error: 'La cita no tiene modificaciones pendientes del cliente' }, 400);
-        }
+        if (!appt) return json({ error: 'Cita no encontrada' }, 404);
+        if (!appt.clientModified) return json({ error: 'La cita no tiene modificaciones pendientes del cliente' }, 400);
+        const groupAppts = appt.blockGroupId ? (d.appointments||[]).filter(a => a.blockGroupId === appt.blockGroupId && !a._deleted) : [appt];
         if (b.action === 'accept') {
-          appt.date = appt.pendingDate || appt.date;
-          appt.time = appt.pendingTime || appt.time;
-          const srv = (d.services||[]).find(s => s.id === appt.serviceId);
-          const dur = srv ? srv.duration : 30;
-          const reqStart = parseTime(appt.time);
-          const reqEnd = reqStart + dur / 60;
-          const newEndH = Math.floor(reqEnd);
-          const newEndM = Math.round((reqEnd - newEndH) * 60);
-          appt.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
-          appt.employeeId = appt.pendingEmployeeId || appt.employeeId;
+          for (const a of groupAppts) {
+            if (!a.clientModified && !a.pendingTime) continue;
+            if (a.pendingDate) a.date = a.pendingDate;
+            if (a.pendingTime) a.time = a.pendingTime;
+            if (a.pendingEndTime) a.endTime = a.pendingEndTime;
+            if (a.pendingEmployeeId) a.employeeId = a.pendingEmployeeId;
+            a.clientModified = false;
+            delete a.pendingDate;
+            delete a.pendingTime;
+            delete a.pendingEndTime;
+            delete a.pendingEmployeeId;
+            a._modified = Date.now();
+          }
         } else {
+          for (const a of groupAppts) {
+            a.clientModified = false;
+            delete a.pendingDate;
+            delete a.pendingTime;
+            delete a.pendingEndTime;
+            delete a.pendingEmployeeId;
+            a._modified = Date.now();
+          }
         }
-        appt.clientModified = false;
-        delete appt.pendingDate;
-        delete appt.pendingTime;
-        delete appt.pendingEmployeeId;
-        appt._modified = Date.now();
         await writeData(d);
         return json({ ok: true, appointment: { id: appt.id, date: appt.date, time: appt.time } });
       } catch (e) {

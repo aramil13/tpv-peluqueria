@@ -3215,29 +3215,44 @@ function acceptClientMod(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   const client = data.clients.find(c => c.id === a.clientId);
+  const groupAppts = a.blockGroupId ? data.appointments.filter(x => x.blockGroupId === a.blockGroupId && !x._deleted) : [a];
+  const b1 = groupAppts.find(x => x.blockNum === '1');
+  const b2 = groupAppts.find(x => x.blockNum === '2');
   const msg = `El cliente ${client?client.name:'?'} solicita modificar esta cita:\n\n`+
     `Original: ${a.date} ${a.time}\n`+
     `Solicitado: ${a.pendingDate||a.date} ${a.pendingTime||a.time}\n\n`+
+    (b2 ? `Bloque 2 se recalculará automáticamente.\n\n` : '')+
     `¿Aceptar la modificación?`;
   if (!confirm(msg)) return;
-  a.date = a.pendingDate || a.date;
-  a.time = a.pendingTime || a.time;
-  const acSvcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
-  const acSvcNames = acSvcIds.map(sid => (data.services||[]).find(s => s.id === sid)).filter(Boolean);
-  const acDur = acSvcNames.reduce((sum, s) => sum + (s.duration || 30), 0);
-  const reqStart = timeToMinutes(a.time);
-  const reqEnd = reqStart + acDur;
-  const newEndH = Math.floor(reqEnd/60);
-  const newEndM = reqEnd % 60;
-  a.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
-  a.employeeId = a.pendingEmployeeId || a.employeeId;
-  a.clientModified = false;
-  a.pendingSalonConfirm = false;
-  a.status = 'confirmed';
-  delete a.pendingDate;
-  delete a.pendingTime;
-  delete a.pendingEmployeeId;
-  a._modified = Date.now();
+  const gap = (data.settings && data.settings.bloques && data.settings.bloques.bloqueGap) ? data.settings.bloques.bloqueGap : 45;
+  for (const ga of groupAppts) {
+    if (ga.pendingDate) ga.date = ga.pendingDate;
+    if (ga.pendingTime) ga.time = ga.pendingTime;
+    if (ga.pendingEndTime) ga.endTime = ga.pendingEndTime;
+    if (ga.pendingEmployeeId) ga.employeeId = ga.pendingEmployeeId;
+    ga.clientModified = false;
+    ga.pendingSalonConfirm = false;
+    ga.status = 'confirmed';
+    delete ga.pendingDate;
+    delete ga.pendingTime;
+    delete ga.pendingEndTime;
+    delete ga.pendingEmployeeId;
+    ga._modified = Date.now();
+  }
+  if (b1 && b2) {
+    const b1SvcIds = b1.serviceIds || (b1.serviceId ? [b1.serviceId] : []);
+    const b1Svcs = b1SvcIds.map(sid => (data.services||[]).find(s => s.id === sid)).filter(Boolean);
+    const b1Dur = b1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+    const b2StartMin = timeToMinutes(b1.time) + b1Dur + gap;
+    const b2H = Math.floor(b2StartMin / 60);
+    const b2M = b2StartMin % 60;
+    b2.time = String(b2H).padStart(2,'0') + ':' + String(b2M).padStart(2,'0');
+    const b2SvcIds = b2.serviceIds || (b2.serviceId ? [b2.serviceId] : []);
+    const b2Svcs = b2SvcIds.map(sid => (data.services||[]).find(s => s.id === sid)).filter(Boolean);
+    const b2Dur = b2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+    const b2EndMin = b2StartMin + b2Dur;
+    b2.endTime = String(Math.floor(b2EndMin/60)).padStart(2,'0') + ':' + String(b2EndMin%60).padStart(2,'0');
+  }
   saveAll();
   syncWebNow();
   renderAgenda();
@@ -3245,9 +3260,11 @@ function acceptClientMod(id) {
   if (document.getElementById('sec-pending-confirmations')?.classList.contains('active')) renderPendingConfirmations();
   const c = getSyncCfg();
   if (c.enabled && c.url && client) {
-    const dateFmt = (a.pendingDate || a.date).split('-').reverse().join('-');
-    const acNamesStr = acSvcNames.map(s => s.name).join(', ');
-    const text = `✅ Tu solicitud de modificación ha sido ACEPTADA:\n\n📅 ${dateFmt}\n⏰ ${a.pendingTime || a.time}\n💇 ${acNamesStr || 'Servicio'}\n\n¡Te esperamos!`;
+    const b1Ref = b1 || a;
+    const dateFmt = b1Ref.date.split('-').reverse().join('-');
+    const acSvcIds = b1Ref.serviceIds || (b1Ref.serviceId ? [b1Ref.serviceId] : []);
+    const acNames = acSvcIds.map(sid => (data.services||[]).find(s => s.id === sid)).filter(Boolean).map(s => s.name).join(', ');
+    const text = `✅ Tu solicitud de modificación ha sido ACEPTADA:\n\n📅 ${dateFmt}\n⏰ ${b1Ref.time}\n💇 ${acNames || 'Servicio'}\n\n¡Te esperamos!`;
     fetch(c.url.replace(/\/+$/,'') + '/api/send-whatsapp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3405,19 +3422,24 @@ function editApptBlock(id, blockNum) {
   if (!a.blockGroupId) { editAppt(id); return; }
   const blockAppts = data.appointments.filter(x => x.blockGroupId === a.blockGroupId && !x._deleted);
   const bloque1Appt = blockAppts.find(x => x.blockNum === '1');
-  const bloque2Appt = blockAppts.find(x => x.blockNum === '2');
-  const targetAppt = blockNum === '2' ? bloque2Appt : bloque1Appt;
-  if (!targetAppt) { editAppt(id); return; }
+  if (!bloque1Appt) { editAppt(id); return; }
+  const allBlockSvcs = [];
+  blockAppts.forEach(ba => {
+    (ba.serviceIds || []).forEach(sid => {
+      const svc = data.services.find(s => s.id === sid);
+      if (svc && !allBlockSvcs.find(s => s.id === sid)) allBlockSvcs.push(svc);
+    });
+  });
   fillAppointmentSelects();
-  document.getElementById('apptEditId').value = targetAppt.id;
-  document.getElementById('apptDate').value = targetAppt.date;
-  document.getElementById('apptTime').value = targetAppt.time;
-  document.getElementById('apptEndTime').value = targetAppt.endTime || '';
-  document.getElementById('apptEmployee').value = targetAppt.employeeId||'';
-  document.getElementById('apptNotes').value = targetAppt.notes||'';
-  document.getElementById('appointmentModalTitle').textContent = 'Editar Bloque ' + blockNum;
-  document.getElementById('apptClient').value = targetAppt.clientId;
-  apptSelectedServices = (targetAppt.serviceIds||[]).map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
+  document.getElementById('apptEditId').value = bloque1Appt.id;
+  document.getElementById('apptDate').value = bloque1Appt.date;
+  document.getElementById('apptTime').value = bloque1Appt.time;
+  document.getElementById('apptEndTime').value = bloque1Appt.endTime || '';
+  document.getElementById('apptEmployee').value = bloque1Appt.employeeId||'';
+  document.getElementById('apptNotes').value = bloque1Appt.notes||'';
+  document.getElementById('appointmentModalTitle').textContent = 'Editar Cita (2 bloques)';
+  document.getElementById('apptClient').value = bloque1Appt.clientId;
+  apptSelectedServices = allBlockSvcs;
   renderApptServices();
   const secSel = document.getElementById('apptSection');
   if (secSel && apptSelectedServices.length) {
@@ -3430,7 +3452,7 @@ function editApptBlock(id, blockNum) {
   document.getElementById('cancelApptBtn').style.display = '';
   const btnWa = document.getElementById('whatsappApptBtn');
   if (btnWa) {
-    const cl = data.clients.find(c => c.id === targetAppt.clientId);
+    const cl = data.clients.find(c => c.id === bloque1Appt.clientId);
     btnWa.style.display = (cl && cl.phone) ? 'inline-flex' : 'none';
   }
   editingBlockNum = blockNum;
@@ -3476,6 +3498,7 @@ function saveAppointment() {
     const block1Appt = data.appointments.find(x => x.id === id_);
     if (!block1Appt) { alert('Cita no encontrada'); return; }
     const blockGroupId = block1Appt.blockGroupId || id_ || id();
+    const isOnline = block1Appt.source === 'online';
     Object.assign(block1Appt, {
       clientId, employeeId, date, time,
       endTime: block1End,
@@ -3483,7 +3506,8 @@ function saveAppointment() {
       serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
       serviceIds: bloque1Svcs.map(s => s.id),
       _modified: Date.now(), _deleted: false,
-      blockGroupId, blockNum: '1'
+      blockGroupId, blockNum: '1',
+      salonModified: isOnline ? true : block1Appt.salonModified
     });
     if (bloque2Svcs.length) {
       const block2StartMin = timeToMinutes(time) + block1Dur + gap;
@@ -3498,6 +3522,7 @@ function saveAppointment() {
           serviceIds: bloque2Svcs.map(s => s.id),
           _modified: Date.now()
         });
+        if (block1Appt.source === 'online') { block2Appt.salonModified = true; }
       } else {
         data.appointments.push({
           id: id(), clientId, employeeId,

@@ -258,8 +258,9 @@ async function cancelAppt(id) {
     const d = await r.json();
     if (!d.ok) { alert(d.error||'Error al cancelar'); showLoading(false); return; }
     showLoading(false);
-    if (isSalonCancelled) {
-      currentAppointments = currentAppointments.filter(a => a.id !== id);
+    if (isSalonCancelled || (appt && appt.blockGroupId)) {
+      const gid = appt ? appt.blockGroupId : null;
+      currentAppointments = currentAppointments.filter(a => a.id !== id && (!gid || a.blockGroupId !== gid));
       renderMyAppts();
     } else {
       appt._deleted = true;
