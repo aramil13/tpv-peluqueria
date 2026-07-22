@@ -15,10 +15,11 @@ function Extract-Code($internalId, $prefix) {
 }
 
 function Parse-Time($timeStr) {
-    if (-not $timeStr) { return [DateTime]::Parse("1899-12-30 00:00:00") }
+    if (-not $timeStr -or $timeStr -notmatch '^\d{1,2}:\d{2}$') { return [DateTime]::Parse("1899-12-30 00:00:00") }
     $parts = $timeStr -split ':'
     $h = [int]$parts[0]
     $m = [int]$parts[1]
+    if ($h -lt 0 -or $h -gt 23 -or $m -lt 0 -or $m -gt 59) { return [DateTime]::Parse("1899-12-30 00:00:00") }
     return [DateTime]::Parse("1899-12-30 ${h}:${m}:00")
 }
 
@@ -56,22 +57,12 @@ try {
     $conn = New-Object System.Data.OleDb.OleDbConnection($connStr)
     $conn.Open()
 
-    # Build maps from ALL Access records (active + cancelled) so we can re-activate
-    $uidMap = @{}       # client_uid -> num_cita (last one wins)
+    # Build uidMap: active records FIRST, then cancelled (active wins over cancelled)
+    $uidMap = @{}       # client_uid -> num_cita (active preferred)
     $keyMap = @{}       # "date|time|employee" -> num_cita (active only, for fallback)
     $allAccessActive = @{} # num_cita -> client_uid (active only)
 
-    $cmd = $conn.CreateCommand()
-    $cmd.CommandText = "SELECT num_cita, client_uid, Fecha, Hora_Inicio, Empleado FROM Agenda"
-    $r = $cmd.ExecuteReader()
-    while ($r.Read()) {
-        $nc = $r['num_cita']
-        $uid = $r['client_uid']
-        if ($uid -and $uid -ne '') { $uidMap[$uid] = $nc }
-    }
-    $r.Close()
-
-    # Build keyMap from active records only
+    # First pass: active records (wins for uidMap)
     $cmd2 = $conn.CreateCommand()
     $cmd2.CommandText = "SELECT num_cita, client_uid, Fecha, Hora_Inicio, Empleado FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
     $r2 = $cmd2.ExecuteReader()
@@ -79,6 +70,7 @@ try {
         $nc = $r2['num_cita']
         $uid = $r2['client_uid']
         $allAccessActive[$nc] = $uid
+        if ($uid -and $uid -ne '' -and -not $uidMap.ContainsKey($uid)) { $uidMap[$uid] = $nc }
         $f = $r2['Fecha']
         $fi = $r2['Hora_Inicio']
         $emp = $r2['Empleado']
@@ -88,6 +80,17 @@ try {
         }
     }
     $r2.Close()
+
+    # Second pass: cancelled records (only fill gaps, never overwrite active)
+    $cmd = $conn.CreateCommand()
+    $cmd.CommandText = "SELECT num_cita, client_uid FROM Agenda WHERE (Anulado = True AND client_uid IS NOT NULL AND client_uid <> '')"
+    $r = $cmd.ExecuteReader()
+    while ($r.Read()) {
+        $nc = $r['num_cita']
+        $uid = $r['client_uid']
+        if ($uid -and $uid -ne '' -and -not $uidMap.ContainsKey($uid)) { $uidMap[$uid] = $nc }
+    }
+    $r.Close()
 
     # Get max num_cita for new inserts
     $maxCmd = $conn.CreateCommand()
@@ -141,7 +144,7 @@ try {
         if ($existingNumCita -ne $null) {
             # UPDATE existing (handles modifications + re-activation)
             $upd = $conn.CreateCommand()
-            $upd.CommandText = "UPDATE Agenda SET Cliente=?, Empleado=?, Servicio=?, Fecha=?, Hora_Inicio=?, Hora_Final=?, Motivo=?, Anulado=0, client_uid=? WHERE num_cita=?"
+            $upd.CommandText = "UPDATE Agenda SET Cliente=?, Empleado=?, Servicio=?, Fecha=?, Hora_Inicio=?, Hora_Final=?, Motivo=?, client_uid=? WHERE num_cita=?"
             Add-Param $upd $clienteCode
             Add-Param $upd $empleadoCode
             Add-Param $upd $servicioCode
@@ -180,10 +183,10 @@ try {
     $cancelCmd.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL)"
     $cancelCmd.ExecuteNonQuery() | Out-Null
 
-    # Re-activate only the matched ones (skip Reserva Online to prevent re-activation of old online bookings)
+    # Re-activate only the matched ones
     foreach ($nc in $matchedNumCitas.Keys) {
         $reactCmd = $conn.CreateCommand()
-        $reactCmd.CommandText = "UPDATE Agenda SET Anulado=0 WHERE num_cita=? AND (Motivo IS NULL OR Motivo NOT LIKE '%Reserva Online%')"
+        $reactCmd.CommandText = "UPDATE Agenda SET Anulado=0 WHERE num_cita=?"
         Add-Param $reactCmd $nc
         $reactCmd.ExecuteNonQuery() | Out-Null
     }
