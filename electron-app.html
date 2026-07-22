@@ -3279,61 +3279,77 @@ async function confirmWhatsAppAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   const client = data.clients.find(c => c.id === a.clientId);
-  const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+  const groupAppts = a.blockGroupId ? data.appointments.filter(x => x.blockGroupId === a.blockGroupId && !x._deleted) : [a];
+  const b1 = groupAppts.find(x => x.blockNum === '1') || a;
+  const svcIds = b1.serviceIds || (b1.serviceId ? [b1.serviceId] : []);
   const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
-  const emp = data.employees.find(e => e.id === a.employeeId);
+  const emp = data.employees.find(e => e.id === b1.employeeId);
   const isModification = !!a.clientModified;
 
   let msg;
   if (isModification) {
     const pendEmp = a.pendingEmployeeId ? (data.employees.find(e=>e.id===a.pendingEmployeeId)?.name||'') : '';
-    msg = `El cliente solicita MODIFICAR esta cita:\n\n`+
+    msg = `El cliente solicita MODIFICAR esta cita${groupAppts.length > 1 ? ' (2 bloques)' : ''}:\n\n`+
       `Cliente: ${client?client.name:'?'}\n`+
-      `Servicio: ${svcNames}\n`+
+      `Servicio: ${svcNames}${groupAppts.length > 1 ? ' (+ más servicios en bloque 2)' : ''}\n`+
       `Original: ${a.date} ${a.time} ${emp?emp.name:''}\n`+
       `Solicitado: ${a.pendingDate||a.date} ${a.pendingTime||a.time} ${pendEmp||''}\n\n`+
       `¿Confirmar la modificación?`;
   } else {
-    msg = `¿Confirmar esta cita de WhatsApp?\n\n`+
+    msg = `¿Confirmar esta cita de WhatsApp${groupAppts.length > 1 ? ' (2 bloques)' : ''}?\n\n`+
       `Cliente: ${client?client.name:'?'}\n`+
-      `Servicio: ${svcNames}\n`+
+      `Servicio: ${svcNames}${groupAppts.length > 1 ? ' (+ más servicios en bloque 2)' : ''}\n`+
       `Fecha: ${a.date} ${a.time}\n`+
       `Empleado: ${emp?emp.name:'Sin asignar'}`;
   }
   if (!confirm(msg)) return;
 
-  // Apply modification changes if any
-  if (isModification) {
-    a.date = a.pendingDate || a.date;
-    a.time = a.pendingTime || a.time;
-    if (a.pendingEmployeeId) a.employeeId = a.pendingEmployeeId;
-    if (a.pendingDate || a.pendingTime) {
-      const ids2 = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
-      const dur = ids2.map(id => (data.services||[]).find(s => s.id === id)).reduce((sum, s) => sum + (s ? s.duration : 30), 0);
-      const reqStart = timeToMinutes(a.time);
-      const reqEnd = reqStart + dur;
-      const newEndH = Math.floor(reqEnd/60);
-      const newEndM = reqEnd % 60;
-      a.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
+  const gap = (data.settings && data.settings.bloques && data.settings.bloques.bloqueGap) ? data.settings.bloques.bloqueGap : 45;
+
+  for (const ga of groupAppts) {
+    if (isModification) {
+      if (ga.pendingDate) ga.date = ga.pendingDate;
+      if (ga.pendingTime) ga.time = ga.pendingTime;
+      if (ga.pendingEmployeeId) ga.employeeId = ga.pendingEmployeeId;
+      if (ga.pendingDate || ga.pendingTime) {
+        const ids2 = ga.serviceIds || (ga.serviceId ? [ga.serviceId] : []);
+        const dur = ids2.map(id => (data.services||[]).find(s => s.id === id)).reduce((sum, s) => sum + (s ? s.duration : 30), 0);
+        const reqStart = timeToMinutes(ga.time);
+        const reqEnd = reqStart + dur;
+        ga.endTime = String(Math.floor(reqEnd/60)).padStart(2,'0')+':'+String(reqEnd%60).padStart(2,'0');
+      }
+      delete ga.pendingDate;
+      delete ga.pendingTime;
+      delete ga.pendingEmployeeId;
+      ga.clientModified = false;
     }
-    delete a.pendingDate;
-    delete a.pendingTime;
-    delete a.pendingEmployeeId;
-    a.clientModified = false;
+    ga.pendingSalonConfirm = false;
+    ga.status = 'confirmed';
+    ga.notes = (ga.notes||'').replace('PENDIENTE - ', '');
+    ga._modified = Date.now();
   }
 
-  a.pendingSalonConfirm = false;
-  a.status = 'confirmed';
-  a.notes = (a.notes||'').replace('PENDIENTE - ', '');
-  a._modified = Date.now();
+  if (groupAppts.length > 1) {
+    const b1All = groupAppts.find(x => x.blockNum === '1');
+    const b2All = groupAppts.find(x => x.blockNum === '2');
+    if (b1All && b2All) {
+      const b1SvcIds = b1All.serviceIds || (b1All.serviceId ? [b1All.serviceId] : []);
+      const b1Svcs = b1SvcIds.map(sid => (data.services||[]).find(s => s.id === sid)).filter(Boolean);
+      const b1Dur = b1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+      const b2StartMin = timeToMinutes(b1All.time) + b1Dur + gap;
+      b2All.time = String(Math.floor(b2StartMin/60)).padStart(2,'0') + ':' + String(b2StartMin%60).padStart(2,'0');
+      const b2SvcIds = b2All.serviceIds || (b2All.serviceId ? [b2All.serviceId] : []);
+      const b2Svcs = b2SvcIds.map(sid => (data.services||[]).find(s => s.id === sid)).filter(Boolean);
+      const b2Dur = b2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+      b2All.endTime = String(Math.floor((b2StartMin + b2Dur)/60)).padStart(2,'0') + ':' + String((b2StartMin + b2Dur)%60).padStart(2,'0');
+    }
+  }
+
   saveAll();
   renderAgenda();
   updatePendingBadge();
   if (document.getElementById('sec-pending-confirmations')?.classList.contains('active')) renderPendingConfirmations();
 
-  // Sincronizar con Cloudflare y ESPERAR a que termine.
-  // El bridge (wa-bridge.js / wa-bridge-core.js) detecta el cambio
-  // vía polling cada 10s y envía el WhatsApp de confirmación al cliente.
   const syncDone = syncWebNow();
   if (syncDone) await syncDone.catch(() => {});
 }
@@ -3342,23 +3358,27 @@ async function confirmCancelWhatsApp(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   const client = data.clients.find(c => c.id === a.clientId);
-  const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+  const groupAppts = a.blockGroupId ? data.appointments.filter(x => x.blockGroupId === a.blockGroupId && !x._deleted) : [a];
+  const b1 = groupAppts.find(x => x.blockNum === '1') || a;
+  const svcIds = b1.serviceIds || (b1.serviceId ? [b1.serviceId] : []);
   const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
-  const emp = data.employees.find(e => e.id === a.employeeId);
-  const msg = `El cliente solicita CANCELAR esta cita de WhatsApp:\n\n`+
+  const emp = data.employees.find(e => e.id === b1.employeeId);
+  const msg = `El cliente solicita CANCELAR esta cita${groupAppts.length > 1 ? ' (2 bloques)' : ''} de WhatsApp:\n\n`+
     `Cliente: ${client?client.name:'?'}\n`+
     `Servicio: ${svcNames}\n`+
-    `Fecha: ${a.date} ${a.time}\n`+
+    `Fecha: ${b1.date} ${b1.time}\n`+
     `Empleado: ${emp?emp.name:'Sin asignar'}\n\n`+
     `¿Aceptar la cancelación?`;
   if (!confirm(msg)) {
     if (!confirm('¿RECHAZAR la cancelación? La cita seguirá activa.')) return;
-    a.pendingCancelWhatsApp = false;
-    a.pendingSalonConfirm = false;
-    a.cancelledBy = '';
-    a._whatsappCancelRejectedPending = true;
-    a._whatsappCancelRejectedSent = false;
-    a._modified = Date.now();
+    for (const ga of groupAppts) {
+      ga.pendingCancelWhatsApp = false;
+      ga.pendingSalonConfirm = false;
+      ga.cancelledBy = '';
+      ga._whatsappCancelRejectedPending = true;
+      ga._whatsappCancelRejectedSent = false;
+      ga._modified = Date.now();
+    }
     saveAll();
     renderAgenda();
     updatePendingBadge();
@@ -3367,13 +3387,15 @@ async function confirmCancelWhatsApp(id) {
     if (syncDone) await syncDone.catch(() => {});
     return;
   }
-  a._deleted = true;
-  a.cancelledBy = 'client';
-  a.pendingCancelWhatsApp = false;
-  a.pendingSalonConfirm = false;
-  a._whatsappCancelledPending = true;
-  a._whatsappCancelledSent = false;
-  a._modified = Date.now();
+  for (const ga of groupAppts) {
+    ga._deleted = true;
+    ga.cancelledBy = 'client';
+    ga.pendingCancelWhatsApp = false;
+    ga.pendingSalonConfirm = false;
+    ga._whatsappCancelledPending = true;
+    ga._whatsappCancelledSent = false;
+    ga._modified = Date.now();
+  }
   saveAll();
   renderAgenda();
   updatePendingBadge();

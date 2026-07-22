@@ -33,6 +33,26 @@ try {
     $json = $raw | ConvertFrom-Json
     $activeAppts = @($json.appointments | Where-Object { -not $_._deleted })
 
+    # Build lookup maps for client/service/employee names
+    $clientMap = @{}
+    if ($json.clients) {
+        foreach ($c in $json.clients) {
+            if ($c.id) { $clientMap[$c.id] = $c.name }
+        }
+    }
+    $serviceMap = @{}
+    if ($json.services) {
+        foreach ($s in $json.services) {
+            if ($s.id) { $serviceMap[$s.id] = $s.name }
+        }
+    }
+    $employeeMap = @{}
+    if ($json.employees) {
+        foreach ($e in $json.employees) {
+            if ($e.id) { $employeeMap[$e.id] = $e.name }
+        }
+    }
+
     $conn = New-Object System.Data.OleDb.OleDbConnection($connStr)
     $conn.Open()
 
@@ -90,7 +110,15 @@ try {
         $fecha = [DateTime]::Parse($appt.date)
         $horaInicio = Parse-Time $appt.time
         $horaFinal = Parse-Time $appt.endTime
-        $motivo = if ($appt.notes) { [string]$appt.notes } else { '' }
+        $motivo = 'Reserva Online'
+        $clientName = if ($appt.clientId -and $clientMap.ContainsKey($appt.clientId)) { $clientMap[$appt.clientId] } else { '' }
+        $serviceName = if ($appt.serviceId -and $serviceMap.ContainsKey($appt.serviceId)) { $serviceMap[$appt.serviceId] } else { '' }
+        $employeeName = if ($appt.employeeId -and $employeeMap.ContainsKey($appt.employeeId)) { $employeeMap[$appt.employeeId] } else { '' }
+        $parts = @('Reserva Online')
+        if ($clientName) { $parts += "Cliente: $clientName" }
+        if ($serviceName) { $parts += "Servicio: $serviceName" }
+        if ($employeeName) { $parts += "Empleada: $employeeName" }
+        $motivo = $parts -join ' - '
 
         $existingNumCita = $null
 
