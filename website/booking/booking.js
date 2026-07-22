@@ -229,12 +229,12 @@ function renderMyAppts() {
         (pendingSalonConfirm ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">⏳ Cita pendiente de confirmar por el Salon</div>' : '')+ 
         (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 Esta cita ha sido anulada por el salón.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+ 
       '</div>'+ 
-      (!isPast && a.source==='online' && !pendingSalonConfirm ? '<div class="appt-card-actions">'+ 
-        (!cancelledBySalon && !cancelledByClient && !modifiedBySalon && !pendingClientMod ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+ 
+      ((cancelledByClient || (!isPast && a.source==='online' && !pendingSalonConfirm)) ? '<div class="appt-card-actions">'+ 
+        (!cancelledBySalon && !cancelledByClient && !modifiedBySalon && !pendingClientMod && !isPast ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+ 
         (modifiedBySalon ? '<button class="btn btn-sm btn-success" onclick="acceptModification(\''+a.id+'\')">✔ Aceptar modificación</button>' : '')+
         (cancelledByClient ? '<button class="btn btn-sm btn-success" onclick="dismissCancelledAppt(\''+a.id+'\')">VISTO</button>' :
-        '<button class="btn btn-sm '+(cancelledBySalon?'btn-success':'btn-danger')+'" onclick="cancelAppt(\''+a.id+'\')">'+
-          (cancelledBySalon ? 'VISTO' : 'Cancelar')+'</button>')+
+        (!isPast && a.source==='online' ? '<button class="btn btn-sm '+(cancelledBySalon?'btn-success':'btn-danger')+'" onclick="cancelAppt(\''+a.id+'\')">'+
+          (cancelledBySalon ? 'VISTO' : 'Cancelar')+'</button>' : ''))+
       '</div>' : '')+ 
     '</div>';
   }).join('');
