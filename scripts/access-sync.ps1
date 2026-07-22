@@ -36,26 +36,38 @@ try {
     $conn = New-Object System.Data.OleDb.OleDbConnection($connStr)
     $conn.Open()
 
-    # Build maps for matching
-    $uidMap = @{}   # client_uid -> num_cita
-    $keyMap = @{}   # "date|time|employee" -> num_cita (for fallback matching)
+    # Build maps from ALL Access records (active + cancelled) so we can re-activate
+    $uidMap = @{}       # client_uid -> num_cita (last one wins)
+    $keyMap = @{}       # "date|time|employee" -> num_cita (active only, for fallback)
+    $allAccessActive = @{} # num_cita -> client_uid (active only)
+
     $cmd = $conn.CreateCommand()
-    $cmd.CommandText = "SELECT num_cita, client_uid, Fecha, Hora_Inicio, Empleado FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
+    $cmd.CommandText = "SELECT num_cita, client_uid, Fecha, Hora_Inicio, Empleado FROM Agenda"
     $r = $cmd.ExecuteReader()
     while ($r.Read()) {
         $nc = $r['num_cita']
         $uid = $r['client_uid']
         if ($uid -and $uid -ne '') { $uidMap[$uid] = $nc }
-        # Fallback key
-        $f = $r['Fecha']
-        $fi = $r['Hora_Inicio']
-        $emp = $r['Empleado']
+    }
+    $r.Close()
+
+    # Build keyMap from active records only
+    $cmd2 = $conn.CreateCommand()
+    $cmd2.CommandText = "SELECT num_cita, client_uid, Fecha, Hora_Inicio, Empleado FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
+    $r2 = $cmd2.ExecuteReader()
+    while ($r2.Read()) {
+        $nc = $r2['num_cita']
+        $uid = $r2['client_uid']
+        $allAccessActive[$nc] = $uid
+        $f = $r2['Fecha']
+        $fi = $r2['Hora_Inicio']
+        $emp = $r2['Empleado']
         if ($f -is [DateTime] -and $fi -is [DateTime]) {
             $key = "$($f.ToString('yyyy-MM-dd'))|$($fi.ToString('HH:mm'))|$emp"
             $keyMap[$key] = $nc
         }
     }
-    $r.Close()
+    $r2.Close()
 
     # Get max num_cita for new inserts
     $maxCmd = $conn.CreateCommand()
@@ -65,7 +77,8 @@ try {
 
     $inserted = 0
     $updated = 0
-    $matchedByExisting = 0
+    $reactivated = 0
+    $matchedNumCitas = @{}
 
     foreach ($appt in $activeAppts) {
         $uid = $appt.id
@@ -81,15 +94,14 @@ try {
 
         $existingNumCita = $null
 
-        # Try matching by client_uid first
+        # Try matching by client_uid first (searches ALL records including cancelled)
         if ($uidMap.ContainsKey($uid)) {
             $existingNumCita = $uidMap[$uid]
         } else {
-            # Fallback: match by date+time+employee
+            # Fallback: match by date+time+employee (active records only)
             $key = "$($appt.date)|$($appt.time)|$empleadoCode"
             if ($keyMap.ContainsKey($key)) {
                 $existingNumCita = $keyMap[$key]
-                # Update the existing record's client_uid so next time it matches
                 $fixUid = $conn.CreateCommand()
                 $fixUid.CommandText = "UPDATE Agenda SET client_uid=? WHERE num_cita=?"
                 Add-Param $fixUid $uid
@@ -99,7 +111,7 @@ try {
         }
 
         if ($existingNumCita -ne $null) {
-            # UPDATE existing
+            # UPDATE existing (handles modifications + re-activation)
             $upd = $conn.CreateCommand()
             $upd.CommandText = "UPDATE Agenda SET Cliente=?, Empleado=?, Servicio=?, Fecha=?, Hora_Inicio=?, Hora_Final=?, Motivo=?, Anulado=0, client_uid=? WHERE num_cita=?"
             Add-Param $upd $clienteCode
@@ -112,9 +124,10 @@ try {
             Add-Param $upd $uid
             Add-Param $upd $existingNumCita
             $upd.ExecuteNonQuery() | Out-Null
-            $updated++
+            $matchedNumCitas[$existingNumCita] = $true
+            if ($allAccessActive.ContainsKey($existingNumCita)) { $updated++ } else { $reactivated++ }
         } else {
-            # INSERT new - generate num_cita
+            # INSERT new
             $ins = $conn.CreateCommand()
             $ins.CommandText = "INSERT INTO Agenda (num_cita, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo, Anulado, client_uid) VALUES (?,?,?,?,?,?,?,?,?,?)"
             Add-Param $ins $nextNumCita
@@ -128,29 +141,44 @@ try {
             Add-Param $ins ([int]0)
             Add-Param $ins $uid
             $ins.ExecuteNonQuery() | Out-Null
-            # Also store back as svap_XXXX in the JSON for future matching
-            $appt | Add-Member -NotePropertyName 'accessNumCita' -NotePropertyValue $nextNumCita -Force
+            $matchedNumCitas[$nextNumCita] = $true
             $nextNumCita++
             $inserted++
         }
     }
 
-    # Write back any accessNumCita fields to the JSON
-    $anyBackref = $false
-    foreach ($appt in $json.appointments) {
-        if ($appt.accessNumCita) { $anyBackref = $true }
-    }
-    if ($anyBackref) {
-        $json | ConvertTo-Json -Depth 20 | Set-Content -Path $JsonFile -Encoding UTF8
+    # Cancel ALL active Access records NOT in the matched set
+    $cancelCmd = $conn.CreateCommand()
+    $cancelCmd.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL)"
+    $cancelCmd.ExecuteNonQuery() | Out-Null
+
+    # Re-activate only the matched ones
+    foreach ($nc in $matchedNumCitas.Keys) {
+        $reactCmd = $conn.CreateCommand()
+        $reactCmd.CommandText = "UPDATE Agenda SET Anulado=0 WHERE num_cita=?"
+        Add-Param $reactCmd $nc
+        $reactCmd.ExecuteNonQuery() | Out-Null
     }
 
-    # Mark orphaned records (no client_uid and not matched by key) as deleted
-    $orphan = $conn.CreateCommand()
-    $orphan.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (client_uid IS NULL OR client_uid = '') AND (Anulado = False OR Anulado IS NULL)"
-    $orphaned = $orphan.ExecuteNonQuery()
+    # Clean up duplicate cancelled records: for each UID that now has an active record, delete old cancelled ones
+    $findDupes = $conn.CreateCommand()
+    $findDupes.CommandText = "SELECT DISTINCT client_uid FROM Agenda WHERE client_uid IS NOT NULL AND client_uid <> '' AND Anulado=0"
+    $activeUids = @()
+    $rd = $findDupes.ExecuteReader()
+    while ($rd.Read()) { $activeUids += $rd[0] }
+    $rd.Close()
+    $cleaned = 0
+    foreach ($uid in $activeUids) {
+        $delDup = $conn.CreateCommand()
+        $delDup.CommandText = "DELETE FROM Agenda WHERE client_uid=? AND Anulado=True"
+        Add-Param $delDup $uid
+        $cleaned += $delDup.ExecuteNonQuery()
+    }
 
     $conn.Close()
-    Write-Host "OK: $inserted inserted, $updated updated, $orphaned orphans cleaned (total active: $($activeAppts.Count))"
+    $wasAccess = $allAccessActive.Count
+    $cancelled = $wasAccess - $updated
+    Write-Host "OK: $inserted inserted, $updated updated, $reactivated reactivated, $cancelled cancelled, $cleaned duplicates cleaned (JSON: $($activeAppts.Count), Access: $wasAccess)"
 } catch {
     Write-Host "ERROR: $($_.Exception.Message)"
     Write-Host $_.ScriptStackTrace
