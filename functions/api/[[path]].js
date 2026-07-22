@@ -182,7 +182,7 @@ export async function onRequest(context) {
       return json({ error: 'Cliente no encontrado. ¿El teléfono está registrado?' }, 404);
     }
     const today = new Date().toISOString().split('T')[0];
-    const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || a.cancelledBy === 'client' || a.cancelledBy === 'salon')).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+    const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && !a._deleted).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
     const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
     const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
     appointments.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
@@ -350,6 +350,7 @@ export async function onRequest(context) {
               a._deleted = true; delete a.cancelledBy; a._modified = Date.now();
             }
           });
+          merged.appointments = (merged.appointments||[]).filter(a => !a._deleted);
           await writeData(merged);
           return json({
             ok: true,
@@ -1052,6 +1053,19 @@ export async function onRequest(context) {
         });
         await writeData(d);
         return json({ ok: true, deleted, remaining: d.appointments.length });
+      } catch (e) { return json({ error: e.message }, 400); }
+    }
+
+    // === API: ADMIN PURGE ALL DELETED APPOINTMENTS ===
+    case '/api/admin/purge-deleted': {
+      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+      try {
+        const d = await readData();
+        const before = (d.appointments||[]).length;
+        d.appointments = (d.appointments||[]).filter(a => !a._deleted && !a.cancelledBy);
+        const after = d.appointments.length;
+        await writeData(d);
+        return json({ ok: true, purged: before - after, remaining: after });
       } catch (e) { return json({ error: e.message }, 400); }
     }
 

@@ -129,7 +129,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 .btn-sm { padding: 8px 16px; font-size: 13px; }
 
 /* Salon-cancelled watermark */
-.appt-card.appt-cancelled-by-salon { position: relative; overflow: hidden; border-color: #e74c3c !important; }
+.appt-card.appt-cancelled-by-salon { position: relative; border-color: #e74c3c !important; }
 .appt-card.appt-cancelled-by-salon::before {
   content: "ANULADA POR EL SALÓN";
   position: absolute;
