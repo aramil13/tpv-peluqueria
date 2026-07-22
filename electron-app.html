@@ -4792,7 +4792,10 @@ function printReport() {
 // ============ DASHBOARD ============
 // ============ PENDING CONFIRMATIONS ============
 function getPendingAppts() {
-  const raw = data.appointments.filter(a => !a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified));
+  const raw = data.appointments.filter(a =>
+    (!a._deleted && (a.pendingSalonConfirm || a.pendingCancelWhatsApp || a.clientModified)) ||
+    (a._deleted && a.cancelledBy === 'client' && (a.source === 'online' || a.source === 'whatsapp') && !a._clientCancelledAck)
+  );
   const seenBlock = new Set();
   const seenId = new Set();
   const seenDup = new Set();
@@ -4848,6 +4851,16 @@ function confirmPendingItem(id) {
   if (sec && sec.classList.contains('active')) renderPendingConfirmations();
 }
 
+function ackClientCancel(id) {
+  const a = data.appointments.find(x => x.id === id);
+  if (!a) return;
+  a._clientCancelledAck = true;
+  a._modified = Date.now();
+  saveAll();
+  updatePendingBadge();
+  if (document.getElementById('sec-pending-confirmations')?.classList.contains('active')) renderPendingConfirmations();
+}
+
 function renderPendingConfirmations() {
   const today = new Date().toISOString().split('T')[0];
   const raw = getPendingAppts();
@@ -4879,15 +4892,18 @@ function renderPendingConfirmations() {
         const client = data.clients.find(c => c.id === a.clientId);
         const employee = data.employees.find(e => e.id === a.employeeId);
         const isOnline = a.source === 'online';
-        const typeIcon = a.pendingCancelWhatsApp ? '❌' : (a.clientModified ? '✏️' : (isOnline ? '🌐' : '📱'));
-        const typeText = a.pendingCancelWhatsApp ? 'Cancelación solicitada' : (a.clientModified ? 'Modificación solicitada' : (isOnline ? 'Nueva cita Online' : 'Nueva cita WhatsApp'));
-        const btnClass = a.pendingCancelWhatsApp ? 'btn-danger' : 'btn-success';
-        const btnIcon = a.pendingCancelWhatsApp ? '✔️ Aceptar cancelación' : (a.clientModified ? '✔️ Aceptar modificación' : '✅ Confirmar cita');
+        const isClientCancelled = a._deleted && a.cancelledBy === 'client';
+        const typeIcon = isClientCancelled ? '🚫' : (a.pendingCancelWhatsApp ? '❌' : (a.clientModified ? '✏️' : (isOnline ? '🌐' : '📱')));
+        const typeText = isClientCancelled ? 'Cancelada por cliente' : (a.pendingCancelWhatsApp ? 'Cancelación solicitada' : (a.clientModified ? 'Modificación solicitada' : (isOnline ? 'Nueva cita Online' : 'Nueva cita WhatsApp')));
+        const btnClass = isClientCancelled ? 'btn-warning' : (a.pendingCancelWhatsApp ? 'btn-danger' : 'btn-success');
+        const btnAction = isClientCancelled ? `ackClientCancel('${a.id}')` : `confirmPendingItem('${a.id}')`;
+        const btnIcon = isClientCancelled ? '👁️ VISTO' : (a.pendingCancelWhatsApp ? '✔️ Aceptar cancelación' : (a.clientModified ? '✔️ Aceptar modificación' : '✅ Confirmar cita'));
         const svcNames = (a.serviceIds || (a.serviceId ? [a.serviceId] : [])).map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
-        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-bottom:4px;border:1px solid var(--border);border-radius:6px;">
+        const borderColor = isClientCancelled ? '#e74c3c' : 'var(--border)';
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 10px;margin-bottom:4px;border:1px solid ${borderColor};border-radius:6px;${isClientCancelled?'background:#fef2f2;':''}">
           <div style="flex:1;cursor:pointer;" onclick="goToAgendaDay('${a.date||today}')" title="Ir a agenda">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
-              <span class="badge badge-info" style="font-size:10px;">${typeIcon} ${typeText}</span>
+              <span class="badge badge-info" style="font-size:10px;${isClientCancelled?'background:#e74c3c;color:#fff;':''}">${typeIcon} ${typeText}</span>
               <strong style="font-size:13px;">${esc(client ? client.name : '?')}</strong>
               ${a.time ? `<span style="color:var(--text-light);font-size:12px;">⏰ ${a.time}</span>` : ''}
             </div>
@@ -4898,7 +4914,7 @@ function renderPendingConfirmations() {
             </div>
           </div>
           <div style="display:flex;gap:4px;flex-shrink:0;">
-            <button class="btn ${btnClass} btn-sm" onclick="event.stopPropagation();confirmPendingItem('${a.id}')" style="font-size:11px;padding:5px 10px;">${btnIcon}</button>
+            <button class="btn ${btnClass} btn-sm" onclick="event.stopPropagation();${btnAction}" style="font-size:11px;padding:5px 10px;">${btnIcon}</button>
             <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();goToAgendaDay('${a.date||today}')" style="font-size:11px;padding:5px 8px;" title="Ver en agenda">📅</button>
           </div>
         </div>`;
