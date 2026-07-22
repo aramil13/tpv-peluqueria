@@ -1,4 +1,4 @@
-const { readData, writeData, mergeArray } = require('../../lib/kv-data');
+const { readData, writeData, mergeArray, dedupClients } = require('../../lib/kv-data');
 
 function getSendMessage() {
   return require('../../lib/whatsapp').sendMessage;
@@ -333,6 +333,7 @@ export async function onRequest(context) {
             }
           });
           merged.settings = remote.settings || current.settings || {};
+          merged.clients = dedupClients(merged.clients);
           (merged.appointments||[]).forEach(a => {
             if (a && !a.cancelledBy && !a._deleted && wasCancelledOrDeleted.has(a.id)) {
               const orig = (current.appointments||[]).find(x => x && x.id === a.id);

@@ -1003,6 +1003,7 @@ function saveAll() {
 function saveKey(k) { DB.set(k, data[k]) }
 
 function id() { return Date.now().toString(36)+Math.random().toString(36).substr(2,4) }
+function normPhone(p) { const d = (p || '').replace(/[^0-9]/g, ''); return d.length > 9 ? d.slice(-9) : d; }
 
 function handleLocalPhoto(input, targetId) {
   const file = input.files[0];
@@ -1924,7 +1925,26 @@ function syncPull() {
         });
         data.appointments = dedupAppts;
       }
-      if (Array.isArray(remote.clients) && remote.clients.length > 0) data.clients = [...remote.clients];
+      if (Array.isArray(remote.clients) && remote.clients.length > 0) {
+        const mergedClients = [...remote.clients];
+        const phoneMap = new Map();
+        mergedClients.forEach(c => { if (c.phone) phoneMap.set(normPhone(c.phone), c); });
+        (data.clients||[]).forEach(c => {
+          const np = c.phone ? normPhone(c.phone) : '';
+          if (np && phoneMap.has(np)) {
+            const remote = phoneMap.get(np);
+            if ((c._modified||0) > (remote._modified||0)) {
+              Object.assign(remote, c);
+            }
+          } else if (np) {
+            phoneMap.set(np, c);
+            mergedClients.push(c);
+          } else {
+            mergedClients.push(c);
+          }
+        });
+        data.clients = mergedClients;
+      }
       if (Array.isArray(remote.employees) && remote.employees.length > 0) data.employees = [...remote.employees];
       if (Array.isArray(remote.sections) && remote.sections.length > 0) data.sections = [...remote.sections];
       if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
@@ -2144,6 +2164,25 @@ function saveClient() {
     if (c) Object.assign(c, obj);
   } else {
     obj.id = id(); obj.visits = 0; obj.totalSpent = 0; obj.created = new Date().toISOString();
+    if (obj.phone) {
+      const np = normPhone(obj.phone);
+      const existing = data.clients.find(c => normPhone(c.phone) === np);
+      if (existing) {
+        if (!confirm('Ya existe un cliente con el teléfono ' + obj.phone + ' (' + existing.name + '). ¿Deseas fusionar?')) return;
+        existing.name = obj.name;
+        existing.nif = obj.nif;
+        existing.address = obj.address;
+        existing.city = obj.city;
+        existing.province = obj.province;
+        existing.zip = obj.zip;
+        existing.email = obj.email;
+        existing.notes = obj.notes;
+        existing.historialTecnico = obj.historialTecnico;
+        existing._modified = Date.now();
+        saveKey('clients'); clearClientForm(); closeModal('clientModal'); renderClients(); syncPush();
+        return;
+      }
+    }
     data.clients.push(obj);
   }
   saveKey('clients'); clearClientForm(); closeModal('clientModal'); renderClients(); syncPush();

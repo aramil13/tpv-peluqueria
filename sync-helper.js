@@ -133,6 +133,7 @@ function fetchFromSync() {
           LIST_KEYS.forEach(k => {
             if (Array.isArray(remote[k])) current[k] = mergeArray(Array.isArray(current[k])?current[k]:[], remote[k]);
           });
+          current.clients = dedupClients(current.clients);
           writeData(current);
           resolve(true);
         } catch(e) { resolve(false); }
@@ -194,9 +195,30 @@ function writeData(data) {
   }
 }
 
+function normPhone(p) {
+  const d = (p || '').replace(/[^0-9]/g, '');
+  return d.length > 9 ? d.slice(-9) : d;
+}
+
+function dedupClients(clients) {
+  const seen = new Map();
+  return (clients || []).filter(c => {
+    if (!c || !c.phone) return true;
+    const np = normPhone(c.phone);
+    if (!np) return true;
+    if (seen.has(np)) return false;
+    seen.set(np, c);
+    return true;
+  });
+}
+
 function mergeArray(local, remote) {
   const map = new Map();
-  if (Array.isArray(local)) local.forEach(item => map.set(item.id, item));
+  const phoneMap = new Map();
+  if (Array.isArray(local)) local.forEach(item => {
+    map.set(item.id, item);
+    if (item.phone) phoneMap.set(normPhone(item.phone), item.id);
+  });
   if (Array.isArray(remote)) remote.forEach(item => {
     if (map.has(item.id)) {
       const existing = map.get(item.id);
@@ -214,6 +236,20 @@ function mergeArray(local, remote) {
         map.set(item.id, item);
       }
     } else {
+      if (item.phone) {
+        const np = normPhone(item.phone);
+        if (phoneMap.has(np)) {
+          const existingId = phoneMap.get(np);
+          const existing = map.get(existingId);
+          if (existing && (item._modified || 0) > (existing._modified || 0)) {
+            map.delete(existingId);
+            map.set(item.id, item);
+            phoneMap.set(np, item.id);
+          }
+          return;
+        }
+        phoneMap.set(np, item.id);
+      }
       map.set(item.id, item);
     }
   });
@@ -319,6 +355,7 @@ const server = http.createServer((req, res) => {
             }
           });
     merged.settings = remote.settings || current.settings || {};
+    merged.clients = dedupClients(merged.clients);
     (merged.appointments||[]).forEach(a => {
       if (a && !a.cancelledBy && !a._deleted && wasCancelledOrDeleted.has(a.id)) {
         const orig = (current.appointments||[]).find(x => x && x.id === a.id);
@@ -1104,6 +1141,7 @@ function pullFromSync() {
             if (current[k].length !== before) changed = true;
           }
         });
+        current.clients = dedupClients(current.clients);
         if (Array.isArray(remote.appointments)) {
           const remoteMap = {};
           remote.appointments.forEach(a => { if (a.id) remoteMap[a.id] = a; });
