@@ -180,10 +180,10 @@ try {
     $cancelCmd.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL)"
     $cancelCmd.ExecuteNonQuery() | Out-Null
 
-    # Re-activate only the matched ones
+    # Re-activate only the matched ones (skip Reserva Online to prevent re-activation of old online bookings)
     foreach ($nc in $matchedNumCitas.Keys) {
         $reactCmd = $conn.CreateCommand()
-        $reactCmd.CommandText = "UPDATE Agenda SET Anulado=0 WHERE num_cita=?"
+        $reactCmd.CommandText = "UPDATE Agenda SET Anulado=0 WHERE num_cita=? AND (Motivo IS NULL OR Motivo NOT LIKE '%Reserva Online%')"
         Add-Param $reactCmd $nc
         $reactCmd.ExecuteNonQuery() | Out-Null
     }
