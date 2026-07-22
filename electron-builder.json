@@ -11,6 +11,7 @@
     "package.json",
     "booking/**",
     "lib/**",
+    "scripts/**",
     "website/**",
     "conversations/"
   ],
