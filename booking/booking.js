@@ -262,8 +262,9 @@ async function cancelAppt(id) {
       currentAppointments = currentAppointments.filter(a => a.id !== id);
       renderMyAppts();
     } else {
-      alert('Cita cancelada correctamente');
-      refreshMyAppts();
+      appt._deleted = true;
+      appt.cancelledBy = 'client';
+      renderMyAppts();
     }
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
