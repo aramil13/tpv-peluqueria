@@ -3,6 +3,7 @@ const https = require('https');
 const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
+const { syncToAccess } = require('./lib/access-sync');
 
 process.env.TZ = 'Europe/Madrid';
 console.log('Starting sync-helper... Forward URL:', process.env.SYNC_FORWARD_URL || '(none)');
@@ -188,6 +189,7 @@ function writeData(data) {
     (data.appointments||[]).forEach(a => { if (a.date < today) { a._deleted = true; a._modified = Date.now(); } });
     data.lastModified = Date.now();
     fs.writeFileSync(SYNC_FILE, JSON.stringify(data, null, 2), 'utf8');
+    syncToAccess(SYNC_FILE).catch(e => console.error('[AccessSync] writeData hook failed:', e.message || e));
     return true;
   } catch (e) {
     console.error('Error writing data:', e);
