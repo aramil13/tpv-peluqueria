@@ -181,6 +181,24 @@ try {
         }
     }
 
+    # Phase 1.5: Detect Access cancellations and propagate to JSON
+    $accessCancelled = 0
+    $cancelDetect = $conn.CreateCommand()
+    $cancelDetect.CommandText = "SELECT client_uid FROM Agenda WHERE Anulado=True AND client_uid IS NOT NULL AND client_uid <> ''"
+    $cancelReader = $cancelDetect.ExecuteReader()
+    while ($cancelReader.Read()) {
+        $cuid = $cancelReader['client_uid'].ToString().Trim()
+        foreach ($appt in $json.appointments) {
+            if ($appt.id -eq $cuid -and -not $appt._deleted) {
+                $appt | Add-Member -NotePropertyName '_deleted' -NotePropertyValue $true -Force
+                $appt | Add-Member -NotePropertyName '_modified' -NotePropertyValue ([DateTimeOffset]::Now.ToUnixTimeMilliseconds()) -Force
+                $appt | Add-Member -NotePropertyName 'cancelledBy' -NotePropertyValue 'salon' -Force
+                $accessCancelled++
+            }
+        }
+    }
+    $cancelReader.Close()
+
     # Phase 2: Access → JSON (pull new Access appointments into JSON)
     $pulledFromAccess = 0
     $pullCmd = $conn.CreateCommand()
@@ -278,7 +296,7 @@ try {
 
     $wasAccess = $allAccessActive.Count
     $cancelled = $wasAccess - $updated
-    Write-Host "OK: $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled from Access, $cancelled cancelled, $cleaned duplicates cleaned (JSON: $($activeAppts.Count), Access: $wasAccess)"
+    Write-Host "OK: $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled, $accessCancelled access-cancelled, $cancelled cancelled, $cleaned dupes (JSON: $($activeAppts.Count), Access: $wasAccess)"
 } catch {
     Write-Host "ERROR: $($_.Exception.Message)"
     Write-Host $_.ScriptStackTrace

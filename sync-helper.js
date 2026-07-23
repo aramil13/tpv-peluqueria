@@ -193,7 +193,21 @@ function writeData(data) {
     return true;
   } catch (e) {
     console.error('Error writing data:', e);
-    throw e; // Re-throw to be caught by the POST handler
+    throw e;
+  }
+}
+
+function writeDataSilent(data) {
+  try {
+    ensureDir(SYNC_FILE);
+    const today = new Date().toISOString().split('T')[0];
+    (data.appointments||[]).forEach(a => { if (a.date < today) { a._deleted = true; a._modified = Date.now(); } });
+    data.lastModified = Date.now();
+    fs.writeFileSync(SYNC_FILE, JSON.stringify(data, null, 2), 'utf8');
+    return true;
+  } catch (e) {
+    console.error('Error writing data (silent):', e);
+    return false;
   }
 }
 
@@ -1200,6 +1214,15 @@ if (SYNC_FORWARD_URL) {
 } else {
   console.log('Sync pull: disabled (no SYNC_FORWARD_URL set)');
 }
+
+setInterval(() => {
+  if (!fs.existsSync(SYNC_FILE)) return;
+  syncToAccess(SYNC_FILE).then(() => {
+    const fresh = readData();
+    if (fresh) writeDataSilent(fresh);
+  }).catch(e => console.error('[AccessSync] periodic pull failed:', e.message || e));
+}, 30000);
+console.log('Access sync: bidirectional polling every 30s');
 
 server.listen(PORT, HOST, () => {
   const addr = typeof HOST === 'string' && HOST === '0.0.0.0'
