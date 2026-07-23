@@ -1219,7 +1219,28 @@ setInterval(() => {
   if (!fs.existsSync(SYNC_FILE)) return;
   syncToAccess(SYNC_FILE).then(() => {
     const fresh = readData();
-    if (fresh) writeDataSilent(fresh);
+    if (!fresh) return;
+    writeDataSilent(fresh);
+    if (SYNC_FORWARD_URL) {
+      const fwdUrl = SYNC_FORWARD_URL.replace(/\/+$/, '') + '/sync';
+      const fwdHeaders = { 'Content-Type': 'application/json' };
+      if (SYNC_FORWARD_KEY) fwdHeaders['Authorization'] = 'Bearer ' + SYNC_FORWARD_KEY;
+      const fwdMod = fwdUrl.startsWith('https') ? https : http;
+      const fwdBody = JSON.stringify({
+        appointments: (fresh.appointments||[]).filter(a => !a._deleted),
+        clients: fresh.clients||[],
+        services: fresh.services||[],
+        employees: fresh.employees||[]
+      });
+      const fwdReq = fwdMod.request(fwdUrl, { method: 'POST', headers: fwdHeaders }, (fwdRes) => {
+        let d = '';
+        fwdRes.on('data', c => d += c);
+        fwdRes.on('end', () => { if (fwdRes.statusCode === 200) console.log('[AccessSync] pushed to cloud OK'); else console.warn('[AccessSync] cloud push HTTP', fwdRes.statusCode); });
+      });
+      fwdReq.on('error', e => console.error('[AccessSync] cloud push error:', e.message));
+      fwdReq.write(fwdBody);
+      fwdReq.end();
+    }
   }).catch(e => console.error('[AccessSync] periodic pull failed:', e.message || e));
 }, 30000);
 console.log('Access sync: bidirectional polling every 30s');
