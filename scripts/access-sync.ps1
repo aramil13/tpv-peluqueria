@@ -184,15 +184,17 @@ try {
     # Phase 1.5: Detect Access cancellations and propagate to JSON
     $accessCancelled = 0
     $cancelDetect = $conn.CreateCommand()
-    $cancelDetect.CommandText = "SELECT client_uid FROM Agenda WHERE Anulado=True AND client_uid IS NOT NULL AND client_uid <> ''"
+    $cancelDetect.CommandText = "SELECT num_cita, client_uid FROM Agenda WHERE Anulado=True AND client_uid IS NOT NULL AND client_uid <> ''"
     $cancelReader = $cancelDetect.ExecuteReader()
     while ($cancelReader.Read()) {
         $cuid = $cancelReader['client_uid'].ToString().Trim()
+        $cnc = $cancelReader['num_cita']
         foreach ($appt in $json.appointments) {
             if ($appt.id -eq $cuid -and -not $appt._deleted) {
                 $appt | Add-Member -NotePropertyName '_deleted' -NotePropertyValue $true -Force
                 $appt | Add-Member -NotePropertyName '_modified' -NotePropertyValue ([DateTimeOffset]::Now.ToUnixTimeMilliseconds()) -Force
                 $appt | Add-Member -NotePropertyName 'cancelledBy' -NotePropertyValue 'salon' -Force
+                if ($matchedNumCitas.ContainsKey($cnc)) { $matchedNumCitas.Remove($cnc) }
                 $accessCancelled++
             }
         }
