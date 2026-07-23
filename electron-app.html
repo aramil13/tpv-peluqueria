@@ -3298,7 +3298,7 @@ async function confirmWhatsAppAppt(id) {
       `Solicitado: ${a.pendingDate||a.date} ${a.pendingTime||a.time} ${pendEmp||''}\n\n`+
       `¿Confirmar la modificación?`;
   } else {
-    msg = `¿Confirmar esta cita de WhatsApp${groupAppts.length > 1 ? ' (2 bloques)' : ''}?\n\n`+
+    msg = `¿Confirmar esta cita online${groupAppts.length > 1 ? ' (2 bloques)' : ''}?\n\n`+
       `Cliente: ${client?client.name:'?'}\n`+
       `Servicio: ${svcNames}${groupAppts.length > 1 ? ' (+ más servicios en bloque 2)' : ''}\n`+
       `Fecha: ${a.date} ${a.time}\n`+
