@@ -798,8 +798,30 @@ export async function onRequest(context) {
         if (!appt.salonModified) {
           return json({ error: 'La cita no tiene modificaciones pendientes' }, 400);
         }
-        appt.salonModified = false;
-        appt._modified = Date.now();
+        const groupAppts = appt.blockGroupId ? (d.appointments||[]).filter(a => a.blockGroupId === appt.blockGroupId && !a._deleted) : [appt];
+        for (const a of groupAppts) {
+          a.salonModified = false;
+          a._modified = Date.now();
+        }
+        const gap = (d.settings && d.settings.bloques && d.settings.bloques.bloqueGap) ? d.settings.bloques.bloqueGap : 45;
+        if (groupAppts.length > 1) {
+          const b1 = groupAppts.find(x => x.blockNum === '1');
+          const b2 = groupAppts.find(x => x.blockNum === '2');
+          if (b1 && b2) {
+            const b1SvcIds = b1.serviceIds || (b1.serviceId ? [b1.serviceId] : []);
+            const b1Svcs = b1SvcIds.map(sid => (d.services||[]).find(s => s.id === sid)).filter(Boolean);
+            const b1Dur = b1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+            const b1EndMin = parseTime(b1.time) * 60 + b1Dur;
+            b1.endTime = String(Math.floor(b1EndMin/60)).padStart(2,'0') + ':' + String(b1EndMin%60).padStart(2,'0');
+            const b2StartMin = parseTime(b1.time) * 60 + b1Dur + gap;
+            b2.time = String(Math.floor(b2StartMin/60)).padStart(2,'0') + ':' + String(b2StartMin%60).padStart(2,'0');
+            const b2SvcIds = b2.serviceIds || (b2.serviceId ? [b2.serviceId] : []);
+            const b2Svcs = b2SvcIds.map(sid => (d.services||[]).find(s => s.id === sid)).filter(Boolean);
+            const b2Dur = b2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+            const b2EndMin = b2StartMin + b2Dur;
+            b2.endTime = String(Math.floor(b2EndMin/60)).padStart(2,'0') + ':' + String(b2EndMin%60).padStart(2,'0');
+          }
+        }
         await writeData(d);
         return json({ ok: true });
       } catch (e) {
