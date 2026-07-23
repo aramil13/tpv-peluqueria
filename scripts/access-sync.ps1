@@ -181,6 +181,66 @@ try {
         }
     }
 
+    # Phase 2: Access → JSON (pull new Access appointments into JSON)
+    $pulledFromAccess = 0
+    $pullCmd = $conn.CreateCommand()
+    $pullCmd.CommandText = "SELECT num_cita, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo, client_uid FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
+    $pullReader = $pullCmd.ExecuteReader()
+    while ($pullReader.Read()) {
+        $nc = $pullReader['num_cita']
+        if ($matchedNumCitas.ContainsKey($nc)) { continue }
+        $existingUid = if ($pullReader['client_uid']) { $pullReader['client_uid'].ToString().Trim() } else { '' }
+        if ($existingUid -and ($json.appointments | Where-Object { $_.id -eq $existingUid -and -not $_._deleted })) { continue }
+        $newUid = if ($existingUid) { $existingUid } else { "svap_$nc" }
+        $cliCode = if ($pullReader['Cliente']) { [int]$pullReader['Cliente'] } else { 0 }
+        $empCode = if ($pullReader['Empleado']) { [int]$pullReader['Empleado'] } else { 0 }
+        $svcCode = if ($pullReader['Servicio']) { [int]$pullReader['Servicio'] } else { 0 }
+        $fechaVal = $pullReader['Fecha']
+        $hiVal = $pullReader['Hora_Inicio']
+        $hfVal = $pullReader['Hora_Final']
+        $dateStr = if ($fechaVal -is [DateTime]) { $fechaVal.ToString('yyyy-MM-dd') } else { '' }
+        $timeStr = if ($hiVal -is [DateTime]) { $hiVal.ToString('HH:mm') } else { '' }
+        $endTimeStr = if ($hfVal -is [DateTime]) { $hfVal.ToString('HH:mm') } else { '' }
+        $motivoText = if ($pullReader['Motivo']) { $pullReader['Motivo'].ToString() } else { '' }
+        $newAppt = [ordered]@{
+            id = $newUid
+            clientId = if ($cliCode -gt 0) { "svcl_$cliCode" } else { '' }
+            employeeId = if ($empCode -gt 0) { "svem_$empCode" } else { '' }
+            serviceId = if ($svcCode -gt 0) { "svsv_$svcCode" } else { '' }
+            serviceIds = @()
+            date = $dateStr
+            time = $timeStr
+            endTime = $endTimeStr
+            notes = $motivoText
+            source = 'access'
+            status = 'confirmed'
+            _deleted = $false
+            _modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+            cancelledBy = ''
+            salonModified = $false
+            clientModified = $false
+            modificationCount = 0
+            blockGroupId = ''
+            blockNum = ''
+            pendingEmployeeId = ''
+            pendingDate = ''
+            pendingTime = ''
+        }
+        if (-not ($json.appointments | Where-Object { $_.id -eq $newUid })) {
+            $json.appointments += [PSCustomObject]$newAppt
+            if (-not $existingUid) {
+                $fixUid = $conn.CreateCommand()
+                $fixUid.CommandText = "UPDATE Agenda SET client_uid=? WHERE num_cita=?"
+                Add-Param $fixUid $newUid
+                Add-Param $fixUid $nc
+                $fixUid.ExecuteNonQuery() | Out-Null
+            }
+            $matchedNumCitas[$nc] = $true
+            $pulledFromAccess++
+        }
+    }
+    $pullReader.Close()
+
     # Cancel ALL active Access records NOT in the matched set
     $cancelCmd = $conn.CreateCommand()
     $cancelCmd.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL)"
@@ -210,9 +270,15 @@ try {
     }
 
     $conn.Close()
+
+    if ($pulledFromAccess -gt 0) {
+        $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+        [System.IO.File]::WriteAllText($JsonFile, ($json | ConvertTo-Json -Depth 10), $utf8NoBom)
+    }
+
     $wasAccess = $allAccessActive.Count
     $cancelled = $wasAccess - $updated
-    Write-Host "OK: $inserted inserted, $updated updated, $reactivated reactivated, $cancelled cancelled, $cleaned duplicates cleaned (JSON: $($activeAppts.Count), Access: $wasAccess)"
+    Write-Host "OK: $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled from Access, $cancelled cancelled, $cleaned duplicates cleaned (JSON: $($activeAppts.Count), Access: $wasAccess)"
 } catch {
     Write-Host "ERROR: $($_.Exception.Message)"
     Write-Host $_.ScriptStackTrace
