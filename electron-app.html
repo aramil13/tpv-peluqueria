@@ -3243,6 +3243,8 @@ function acceptClientMod(id) {
     const b1SvcIds = b1.serviceIds || (b1.serviceId ? [b1.serviceId] : []);
     const b1Svcs = b1SvcIds.map(sid => (data.services||[]).find(s => s.id === sid)).filter(Boolean);
     const b1Dur = b1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+    const b1EndMin = timeToMinutes(b1.time) + b1Dur;
+    b1.endTime = String(Math.floor(b1EndMin/60)).padStart(2,'0') + ':' + String(b1EndMin%60).padStart(2,'0');
     const b2StartMin = timeToMinutes(b1.time) + b1Dur + gap;
     const b2H = Math.floor(b2StartMin / 60);
     const b2M = b2StartMin % 60;
