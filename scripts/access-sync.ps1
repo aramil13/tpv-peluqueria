@@ -124,6 +124,7 @@ try {
         if ($serviceName) { $parts += "Servicio: $serviceName" }
         if ($employeeName) { $parts += "Empleada: $employeeName" }
         $motivo = $parts -join ' - '
+        if (-not $clientName -and -not $serviceName -and $notes) { $motivo = $notes }
 
         $existingNumCita = $null
 

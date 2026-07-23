@@ -227,7 +227,7 @@ function mergeArray(local, remote) {
       // Only apply remote changes if remote is newer
       if ((item._modified || 0) > (existing._modified || 0)) {
         if (item.cancelledBy) {
-          if (item.cancelledBy !== 'client') delete item._deleted;
+          if (!item._deleted) item._deleted = true;
           if (existing._deleted && !existing.cancelledBy) return;
           map.set(item.id, item); return;
         }
