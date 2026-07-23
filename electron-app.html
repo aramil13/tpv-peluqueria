@@ -3541,6 +3541,7 @@ function saveAppointment() {
       let block2Appt = data.appointments.find(x => x.blockGroupId === blockGroupId && x.blockNum === '2');
       if (block2Appt) {
         Object.assign(block2Appt, {
+          date, employeeId,
           time: block2Start, endTime: block2End,
           serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
           serviceIds: bloque2Svcs.map(s => s.id),
