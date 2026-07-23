@@ -291,7 +291,7 @@ try {
 
     $conn.Close()
 
-    if ($pulledFromAccess -gt 0) {
+    if ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0) {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         [System.IO.File]::WriteAllText($JsonFile, ($json | ConvertTo-Json -Depth 10), $utf8NoBom)
     }
