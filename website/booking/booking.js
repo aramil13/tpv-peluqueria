@@ -485,7 +485,7 @@ function onSectionChange() {
 function renderServiceDropdown(q) {
   const dd = document.getElementById('serviceDropdown');
   let list = getFilteredServices();
-  if (q) list = list.filter(s => s.name.toLowerCase().includes(q));
+  if (q) list = list.filter(s => s.name.toLowerCase().includes(q.toLowerCase()));
   list = list.filter(s => !selectedServices.find(x => x.id === s.id));
   if (!list.length) { dd.style.display = 'none'; return; }
   dd.innerHTML = list.map(s => {
