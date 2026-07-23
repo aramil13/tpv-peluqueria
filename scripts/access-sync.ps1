@@ -32,7 +32,7 @@ function Add-Param($cmd, $value) {
 try {
     $raw = Get-Content -Path $JsonFile -Encoding UTF8 -Raw
     $json = $raw | ConvertFrom-Json
-    $activeAppts = @($json.appointments | Where-Object { -not $_._deleted -and $_.source -ne 'online' })
+    $activeAppts = @($json.appointments | Where-Object { -not $_._deleted })
 
     # Build lookup maps for client/service/employee names
     $clientMap = @{}
@@ -115,18 +115,15 @@ try {
         $horaFinal = Parse-Time $appt.endTime
         $notes = if ($appt.notes) { $appt.notes } else { '' }
         $isOnline = ($appt.source -eq 'online') -or ($notes -match 'Reserva online')
-        if ($isOnline) {
-            $clientName = if ($appt.clientId -and $clientMap.ContainsKey($appt.clientId)) { $clientMap[$appt.clientId] } else { '' }
-            $serviceName = if ($appt.serviceId -and $serviceMap.ContainsKey($appt.serviceId)) { $serviceMap[$appt.serviceId] } else { '' }
-            $employeeName = if ($appt.employeeId -and $employeeMap.ContainsKey($appt.employeeId)) { $employeeMap[$appt.employeeId] } else { '' }
-            $parts = @('Reserva Online')
-            if ($clientName) { $parts += "Cliente: $clientName" }
-            if ($serviceName) { $parts += "Servicio: $serviceName" }
-            if ($employeeName) { $parts += "Empleada: $employeeName" }
-            $motivo = $parts -join ' - '
-        } else {
-            $motivo = $notes
-        }
+        $clientName = if ($appt.clientId -and $clientMap.ContainsKey($appt.clientId)) { $clientMap[$appt.clientId] } else { '' }
+        $serviceName = if ($appt.serviceId -and $serviceMap.ContainsKey($appt.serviceId)) { $serviceMap[$appt.serviceId] } else { '' }
+        $employeeName = if ($appt.employeeId -and $employeeMap.ContainsKey($appt.employeeId)) { $employeeMap[$appt.employeeId] } else { '' }
+        $parts = @()
+        if ($isOnline) { $parts += 'Reserva online' }
+        if ($clientName) { $parts += "Cliente: $clientName" }
+        if ($serviceName) { $parts += "Servicio: $serviceName" }
+        if ($employeeName) { $parts += "Empleada: $employeeName" }
+        $motivo = $parts -join ' - '
 
         $existingNumCita = $null
 
