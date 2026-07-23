@@ -3176,7 +3176,7 @@ function showDayAppts(dateStr) {
         const isPendingCancelWhatsApp = !!appt.pendingCancelWhatsApp;
         const colorKey = appt.blockGroupId || appt.id;
         const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : (isPendingCancelWhatsApp ? '#d4a5a5' : (isPendingWhatsApp ? '#95a5a1' : colorMap[colorKey]));
-        const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingCancelWhatsApp ? ' | ❌ Cancelación pendiente (WhatsApp)' : (isPendingWhatsApp ? ' | 📱 Pendiente de confirmar (WhatsApp)' : ''));
+        const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingCancelWhatsApp ? ' | ❌ Cancelación pendiente' : (isPendingWhatsApp ? ' | ⏳ Pendiente de confirmar' : ''));
         const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
         const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
         const clientPhone = appt.clientPhone || client?.phone || '';
@@ -3194,7 +3194,7 @@ function showDayAppts(dateStr) {
           }
         }
         const extraClass = isPendingCancelWhatsApp ? ' appt-pending-cancel-whatsapp' : (isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : ''));
-        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">📱</span>' : ''}${isPendingCancelWhatsApp ? '<span class="pending-watermark">❌</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">🌐</span>' : ''}${isPendingCancelWhatsApp ? '<span class="pending-watermark">❌</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       }
       if (!appt) {
         const empId = e ? e.id : '';
