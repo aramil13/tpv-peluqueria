@@ -257,6 +257,20 @@ try {
             }
             $matchedNumCitas[$nc] = $true
             $pulledFromAccess++
+        } else {
+            # Re-activate deleted JSON entry if Access record is still active
+            $existingAppt = $json.appointments | Where-Object { $_.id -eq $newUid }
+            if ($existingAppt) {
+                $isDeleted = $existingAppt._deleted -eq $true -or $existingAppt.cancelledBy -ne '' -and $existingAppt.cancelledBy -ne $null
+                if ($isDeleted) {
+                    $existingAppt | Add-Member -NotePropertyName '_deleted' -NotePropertyValue $false -Force
+                    $existingAppt | Add-Member -NotePropertyName 'cancelledBy' -NotePropertyValue '' -Force
+                    $existingAppt | Add-Member -NotePropertyName 'notes' -NotePropertyValue $motivoText -Force
+                    $existingAppt | Add-Member -NotePropertyName '_modified' -NotePropertyValue ([DateTimeOffset]::Now.ToUnixTimeMilliseconds()) -Force
+                    $matchedNumCitas[$nc] = $true
+                    $pulledFromAccess++
+                }
+            }
         }
     }
     $pullReader.Close()
