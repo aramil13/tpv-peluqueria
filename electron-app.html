@@ -924,15 +924,7 @@ if (data.settings && data.settings.openingHours) {
   if (migrated) { DB.set('settings', data.settings); console.log('Migrated openingHours to split format'); }
 }
 
-// Migrate old Vercel sync URLs to Cloudflare
-if (data.settings && data.settings.sync && data.settings.sync.url) {
-  const oldUrl = data.settings.sync.url;
-  if (oldUrl.includes('vercel.app')) {
-    data.settings.sync.url = 'https://nymaraestilistas.es/api';
-    DB.set('settings', data.settings);
-    console.log('Migrated sync URL:', oldUrl, '→', data.settings.sync.url);
-  }
-}
+// Vercel URLs disabled — sync goes to local helper (localhost:3456) and cloud (nymaraestilistas.es/api)
 
 // Clean up any corrupted entries in main entities (caused by importing binary files as CSV)
 ['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'].forEach(k => {
@@ -1765,6 +1757,7 @@ function loadOnlineOpeningForDay(dateStr) {
 }
 
 // ============ SYNC ============
+const LOCAL_SYNC_URL = 'http://localhost:3456';
 function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: true, url: 'https://nymaraestilistas.es/api' } }
 
 function toggleSyncTimeWindows() {
@@ -1815,14 +1808,15 @@ function syncPush() {
     providers: Array.isArray(data.providers) ? data.providers : [],
     settings: data.settings || {}
   });
-  return fetch(c.url.replace(/\/+$/,'') + '/sync', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body
-  }).then(async r => {
-    if (r.ok && status) status.textContent = '✅ Sincronizado';
-    else if (status) {
-      const errData = await r.json().catch(() => ({}));
-      status.textContent = '❌ Error: ' + (errData.error || r.status);
-    }
+  const headers = { 'Content-Type': 'application/json' };
+  const localUrl = LOCAL_SYNC_URL.replace(/\/+$/,'') + '/sync';
+  const cloudUrl = c.url.replace(/\/+$/,'') + '/sync';
+  Promise.all([
+    fetch(localUrl, { method: 'POST', headers, body }).then(r => ({ ok: r.ok, status: r.status })),
+    fetch(cloudUrl, { method: 'POST', headers, body }).then(r => ({ ok: r.ok, status: r.status }))
+  ]).then(results => {
+    const anyOk = results.some(r => r.ok);
+    if (status) status.textContent = anyOk ? '✅ Sincronizado' : '❌ Error';
     setTimeout(() => { if (status) status.textContent = ''; }, 5000);
   }).catch(e => {
     if (status) status.textContent = '❌ ' + e.message;
@@ -1876,112 +1870,114 @@ function updateSyncErrorIndicator() {
   }
 }
 
+function mergeRemoteData(remote) {
+  if (Array.isArray(remote.services) && remote.services.length > 0) {
+    const localSvcs = {};
+    (data.services||[]).forEach(s => localSvcs[s.id] = s);
+    const mergedSvcs = remote.services.map(r => {
+      const l = localSvcs[r.id];
+      return (l && (l._modified||0) > (r._modified||0)) ? l : r;
+    });
+    remote.services.forEach(r => delete localSvcs[r.id]);
+    Object.values(localSvcs).forEach(s => mergedSvcs.push(s));
+    data.services = mergedSvcs;
+  }
+  if (Array.isArray(remote.appointments) && remote.appointments.length > 0) {
+    const localAppts = {};
+    (data.appointments||[]).forEach(a => localAppts[a.id] = a);
+    const mergedAppts = remote.appointments.map(r => {
+      const l = localAppts[r.id];
+      if (!l) return r;
+      if (l.cancelledBy && !r.cancelledBy && (l._modified||0) > (r._modified||0)) return l;
+      if ((l._modified||0) > (r._modified||0)) return l;
+      return r;
+    });
+    remote.appointments.forEach(r => delete localAppts[r.id]);
+    Object.values(localAppts).forEach(a => mergedAppts.push(a));
+    const dupSeen = new Set();
+    const dedupAppts = [];
+    mergedAppts.forEach(a => {
+      const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'');
+      if (dupSeen.has(key)) return;
+      dupSeen.add(key);
+      dedupAppts.push(a);
+    });
+    data.appointments = dedupAppts;
+  }
+  if (Array.isArray(remote.clients) && remote.clients.length > 0) {
+    const mergedClients = [...remote.clients];
+    const phoneMap = new Map();
+    mergedClients.forEach(c => { if (c.phone) phoneMap.set(normPhone(c.phone), c); });
+    (data.clients||[]).forEach(c => {
+      const np = c.phone ? normPhone(c.phone) : '';
+      if (np && phoneMap.has(np)) {
+        const remote = phoneMap.get(np);
+        if ((c._modified||0) > (remote._modified||0)) {
+          Object.assign(remote, c);
+        }
+      } else if (np) {
+        phoneMap.set(np, c);
+        mergedClients.push(c);
+      } else {
+        mergedClients.push(c);
+      }
+    });
+    data.clients = mergedClients;
+  }
+  if (Array.isArray(remote.employees) && remote.employees.length > 0) data.employees = [...remote.employees];
+  if (Array.isArray(remote.sections) && remote.sections.length > 0) data.sections = [...remote.sections];
+  if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
+  if (Array.isArray(remote.projects) && remote.projects.length > 0) data.projects = [...remote.projects];
+  if (Array.isArray(remote.providers) && remote.providers.length > 0) data.providers = [...remote.providers];
+}
+
 function syncPull() {
   const c = getSyncCfg();
   if (!c.enabled) return;
-  fetch(c.url.replace(/\/+$/,'') + '/sync')
-    .then(r => {
-      if (!r.ok) throw new Error(String(r.status));
-      return r.json();
-    }).then(remote => {
-      syncErrorCount = 0;
-      updateSyncErrorIndicator();
-      if (syncErrorTimer) { clearTimeout(syncErrorTimer); syncErrorTimer = null; }
-      const status = document.getElementById('syncStatus');
-      if (status) { status.textContent = '✅ Sincronizado'; status.style.color = ''; status.style.fontWeight = ''; }
-      setTimeout(() => { if (status) status.textContent = ''; }, 3000);
-
-      if (Array.isArray(remote.services) && remote.services.length > 0) {
-        const localSvcs = {};
-        (data.services||[]).forEach(s => localSvcs[s.id] = s);
-        const mergedSvcs = remote.services.map(r => {
-          const l = localSvcs[r.id];
-          return (l && (l._modified||0) > (r._modified||0)) ? l : r;
-        });
-        remote.services.forEach(r => delete localSvcs[r.id]);
-        Object.values(localSvcs).forEach(s => mergedSvcs.push(s));
-        data.services = mergedSvcs;
-      }
-      if (Array.isArray(remote.appointments) && remote.appointments.length > 0) {
-        const localAppts = {};
-        (data.appointments||[]).forEach(a => localAppts[a.id] = a);
-        const mergedAppts = remote.appointments.map(r => {
-          const l = localAppts[r.id];
-          if (!l) return r;
-          if (l.cancelledBy && !r.cancelledBy && (l._modified||0) > (r._modified||0)) return l;
-          if ((l._modified||0) > (r._modified||0)) return l;
-          return r;
-        });
-        remote.appointments.forEach(r => delete localAppts[r.id]);
-        Object.values(localAppts).forEach(a => mergedAppts.push(a));
-        // Eliminar duplicados logicos (mismo cliente+fecha+hora+empleado+bloque)
-        const dupSeen = new Set();
-        const dedupAppts = [];
-        mergedAppts.forEach(a => {
-          const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'');
-          if (dupSeen.has(key)) return;
-          dupSeen.add(key);
-          dedupAppts.push(a);
-        });
-        data.appointments = dedupAppts;
-      }
-      if (Array.isArray(remote.clients) && remote.clients.length > 0) {
-        const mergedClients = [...remote.clients];
-        const phoneMap = new Map();
-        mergedClients.forEach(c => { if (c.phone) phoneMap.set(normPhone(c.phone), c); });
-        (data.clients||[]).forEach(c => {
-          const np = c.phone ? normPhone(c.phone) : '';
-          if (np && phoneMap.has(np)) {
-            const remote = phoneMap.get(np);
-            if ((c._modified||0) > (remote._modified||0)) {
-              Object.assign(remote, c);
-            }
-          } else if (np) {
-            phoneMap.set(np, c);
-            mergedClients.push(c);
-          } else {
-            mergedClients.push(c);
-          }
-        });
-        data.clients = mergedClients;
-      }
-      if (Array.isArray(remote.employees) && remote.employees.length > 0) data.employees = [...remote.employees];
-      if (Array.isArray(remote.sections) && remote.sections.length > 0) data.sections = [...remote.sections];
-      if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
-      if (Array.isArray(remote.projects) && remote.projects.length > 0) data.projects = [...remote.projects];
-      if (Array.isArray(remote.providers) && remote.providers.length > 0) data.providers = [...remote.providers];
-
-      try {
-        saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
-        saveKey('clients'); saveKey('projects'); saveKey('providers'); saveKey('appointments');
-      } catch(e) {
-        console.error('SAVE ERROR:', e);
-      }
-
-      const active = document.querySelector('.nav-item.active');
-      if (active) {
-        const sec = active.dataset.section;
-        if (sec === 'agenda') renderAgenda();
-        else if (sec === 'clients') renderClients();
-        else if (sec === 'services') renderServices();
-        else if (sec === 'sections') renderSections();
-        else if (sec === 'employees') renderEmployees();
-        else if (sec === 'products') { renderProducts(); renderWarehouse(); }
-        else if (sec === 'projects') renderProjects();
-        else if (sec === 'dashboard') renderDashboard();
-      }
-    }).catch(e => {
-      console.error('SYNC PULL ERROR:', e);
-      syncErrorCount++;
-      updateSyncErrorIndicator();
-      const status = document.getElementById('syncStatus');
-      if (status) {
-        status.textContent = '❌ Sync error ' + (e.message || 'desconocido');
-        status.style.color = '#e74c3c';
-        status.style.fontWeight = '600';
-        syncErrorTimer = setTimeout(() => { if (syncErrorCount === 0 && status) { status.textContent = ''; status.style.color = ''; status.style.fontWeight = ''; } }, 10000);
-      }
-    });
+  const localUrl = LOCAL_SYNC_URL.replace(/\/+$/,'') + '/sync';
+  const cloudUrl = c.url.replace(/\/+$/,'') + '/sync';
+  const status = document.getElementById('syncStatus');
+  Promise.all([
+    fetch(localUrl).then(r => r.ok ? r.json() : null).catch(() => null),
+    fetch(cloudUrl).then(r => r.ok ? r.json() : null).catch(() => null)
+  ]).then(([localData, cloudData]) => {
+    if (!localData && !cloudData) { syncErrorCount++; updateSyncErrorIndicator(); if (status) { status.textContent = '❌ Sync: sin conexión'; status.style.color = '#e74c3c'; setTimeout(() => { if (status) status.textContent = ''; }, 5000); } return; }
+    syncErrorCount = 0;
+    updateSyncErrorIndicator();
+    if (syncErrorTimer) { clearTimeout(syncErrorTimer); syncErrorTimer = null; }
+    if (status) { status.textContent = '✅ Sincronizado'; status.style.color = ''; status.style.fontWeight = ''; }
+    setTimeout(() => { if (status) status.textContent = ''; }, 3000);
+    if (localData) mergeRemoteData(localData);
+    if (cloudData) mergeRemoteData(cloudData);
+    try {
+      saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
+      saveKey('clients'); saveKey('projects'); saveKey('providers'); saveKey('appointments');
+    } catch(e) {
+      console.error('SAVE ERROR:', e);
+    }
+    const active = document.querySelector('.nav-item.active');
+    if (active) {
+      const sec = active.dataset.section;
+      if (sec === 'agenda') renderAgenda();
+      else if (sec === 'clients') renderClients();
+      else if (sec === 'services') renderServices();
+      else if (sec === 'sections') renderSections();
+      else if (sec === 'employees') renderEmployees();
+      else if (sec === 'products') { renderProducts(); renderWarehouse(); }
+      else if (sec === 'projects') renderProjects();
+      else if (sec === 'dashboard') renderDashboard();
+    }
+  }).catch(e => {
+    console.error('SYNC PULL ERROR:', e);
+    syncErrorCount++;
+    updateSyncErrorIndicator();
+    if (status) {
+      status.textContent = '❌ Sync error ' + (e.message || 'desconocido');
+      status.style.color = '#e74c3c';
+      status.style.fontWeight = '600';
+      syncErrorTimer = setTimeout(() => { if (syncErrorCount === 0 && status) { status.textContent = ''; status.style.color = ''; status.style.fontWeight = ''; } }, 10000);
+    }
+  });
 }
 
 let syncTimer = null;
@@ -3497,7 +3493,7 @@ function saveAppointment() {
   const overlap = checkApptOverlap(date, time, endTime, employeeId, id_);
   let msg = '';
   if (overlap) {
-    msg = '⚠️ El empleado tiene otra cita en ese horario:\n' + overlap.client + ' - ' + overlap.service + '\n' + overlap.time + '-' + overlap.endTime + '\n\n';
+    msg = '⚠️ El empleado tiene otra cita en ese horario:\n' + overlap.label + '\n' + overlap.time + '-' + overlap.endTime + '\n\n';
     if (overlap.suggestions && overlap.suggestions.length > 0) {
       msg += 'Horarios disponibles: ' + overlap.suggestions.join(', ') + '\n\n';
     }
@@ -3821,7 +3817,9 @@ function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
       const cli = data.clients.find(c => c.id === a.clientId);
       const srv = data.services.find(s => s.id === a.serviceId);
       const slots = findFreeSlots(date, employeeId, (e1 - t1) * 60);
-      return { client: cli?.name || '?', service: srv?.name || '?', time: a.time, endTime: a.endTime, suggestions: slots };
+      const label = (a.source === 'access') ? '📅 Cita de Access' : ((cli?.name || '?') + ' - ' + (srv?.name || '?'));
+      const detail = (a.source === 'access' && a.notes) ? a.notes : label;
+      return { client: cli?.name || '?', service: srv?.name || '?', time: a.time, endTime: a.endTime, suggestions: slots, source: a.source, label: detail };
     }
   }
   return null;

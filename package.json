@@ -23,8 +23,10 @@
     "package.json",
     "booking/**",
     "lib/**",
+    "scripts/**",
     "website/**",
-    "conversations/"
+    "conversations/",
+    ".env*"
   ],
   "win": {
     "target": "portable",
