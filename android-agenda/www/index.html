@@ -1532,12 +1532,22 @@ function testSync() {
   if (!c.url) { alert('Introduce una URL de sync'); return; }
   updateSyncStatus('🔄 Probando conexión...');
   fetchWithTimeout(syncBase()+'/health', {}, 30000)
-    .then(r => r.json()).then(d => {
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => {
       alert('✅ Conectado con éxito\n📅 Citas: ' + (d.appointments||0) + '\n👤 Clientes: ' + (d.clients||0) + '\n💇 Servicios: ' + (d.services||0) + '\n👥 Empleados: ' + (d.employees||0));
       updateSyncStatus('✅ Conectado');
-    }).catch(e => {
-      alert('❌ Error: ' + e.message + '\nVerifica la URL y que el servidor esté activo');
-      updateSyncStatus('❌ ' + e.message, true);
+    }).catch(() => {
+      fetchWithTimeout(syncBase()+'/sync', {}, 30000)
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); }).then(d => {
+          const appts = Array.isArray(d.appointments) ? d.appointments.filter(a => !a._deleted).length : 0;
+          const clients = Array.isArray(d.clients) ? d.clients.filter(c => !c._deleted).length : 0;
+          const services = Array.isArray(d.services) ? d.services.filter(s => !s._deleted).length : 0;
+          const employees = Array.isArray(d.employees) ? d.employees.filter(e => !e._deleted).length : 0;
+          alert('✅ Conectado con éxito\n📅 Citas: ' + appts + '\n👤 Clientes: ' + clients + '\n💇 Servicios: ' + services + '\n👥 Empleados: ' + employees);
+          updateSyncStatus('✅ Conectado');
+        }).catch(e => {
+          alert('❌ Error: ' + e.message + '\nVerifica la URL y que el servidor esté activo');
+          updateSyncStatus('❌ ' + e.message, true);
+        });
     });
 }
 
