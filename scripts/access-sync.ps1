@@ -29,7 +29,18 @@ function Add-Param($cmd, $value) {
     $cmd.Parameters.Add($p) | Out-Null
 }
 
+function Reset-Params($cmd) {
+    $cmd.Parameters.Clear() | Out-Null
+}
+
+function Set-Params($cmd, $values) {
+    Reset-Params $cmd
+    foreach ($v in $values) { Add-Param $cmd $v }
+}
+
 try {
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+
     $raw = Get-Content -Path $JsonFile -Encoding UTF8 -Raw
     $json = $raw | ConvertFrom-Json
     $activeAppts = @($json.appointments | Where-Object { -not $_._deleted })
@@ -54,8 +65,21 @@ try {
         }
     }
 
+    # === BUILD JSON HASHTABLES FOR O(1) LOOKUP (replaces O(n) Where-Object) ===
+    $jsonUidActive = @{}     # uid -> appointment (non-deleted only)
+    $jsonUidAll = @{}        # uid -> appointment (all, for existence check)
+    foreach ($appt in $json.appointments) {
+        if ($appt.id) {
+            $jsonUidAll[$appt.id] = $appt
+            if (-not $appt._deleted) {
+                $jsonUidActive[$appt.id] = $appt
+            }
+        }
+    }
+
     $conn = New-Object System.Data.OleDb.OleDbConnection($connStr)
     $conn.Open()
+    $tx = $conn.BeginTransaction()
 
     # Build uidMap: active records FIRST, then cancelled (active wins over cancelled)
     $uidMap = @{}       # client_uid -> num_cita (active preferred)
@@ -65,6 +89,7 @@ try {
 
     # First pass: active records (wins for uidMap)
     $cmd2 = $conn.CreateCommand()
+    $cmd2.Transaction = $tx
     $cmd2.CommandText = "SELECT num_cita, client_uid, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
     $r2 = $cmd2.ExecuteReader()
     while ($r2.Read()) {
@@ -94,6 +119,7 @@ try {
 
     # Second pass: cancelled records (only fill gaps, never overwrite active)
     $cmd = $conn.CreateCommand()
+    $cmd.Transaction = $tx
     $cmd.CommandText = "SELECT num_cita, client_uid FROM Agenda WHERE (Anulado = True AND client_uid IS NOT NULL AND client_uid <> '')"
     $r = $cmd.ExecuteReader()
     while ($r.Read()) {
@@ -105,6 +131,7 @@ try {
 
     # Get max num_cita for new inserts
     $maxCmd = $conn.CreateCommand()
+    $maxCmd.Transaction = $tx
     $maxCmd.CommandText = "SELECT MAX(num_cita) FROM Agenda"
     $maxResult = $maxCmd.ExecuteScalar()
     $nextNumCita = if ($maxResult -is [int]) { $maxResult + 1 } else { 10001 }
@@ -114,6 +141,31 @@ try {
     $reactivated = 0
     $pulledFromAccess = 0
     $matchedNumCitas = @{}
+
+    # === REUSABLE COMMAND OBJECTS ===
+    $cmdFixUid = $conn.CreateCommand()
+    $cmdFixUid.Transaction = $tx
+    $cmdFixUid.CommandText = "UPDATE Agenda SET client_uid=? WHERE num_cita=?"
+    $pUid = $cmdFixUid.CreateParameter()
+    $cmdFixUid.Parameters.Add($pUid) | Out-Null
+    $pNc = $cmdFixUid.CreateParameter()
+    $cmdFixUid.Parameters.Add($pNc) | Out-Null
+
+    $cmdUpdate = $conn.CreateCommand()
+    $cmdUpdate.Transaction = $tx
+    $cmdUpdate.CommandText = "UPDATE Agenda SET Cliente=?, Empleado=?, Servicio=?, Fecha=?, Hora_Inicio=?, Hora_Final=?, Motivo=?, client_uid=? WHERE num_cita=?"
+    for ($i = 0; $i -lt 9; $i++) { $cmdUpdate.Parameters.Add($cmdUpdate.CreateParameter()) | Out-Null }
+
+    $cmdInsert = $conn.CreateCommand()
+    $cmdInsert.Transaction = $tx
+    $cmdInsert.CommandText = "INSERT INTO Agenda (num_cita, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo, Anulado, client_uid) VALUES (?,?,?,?,?,?,?,?,?,?)"
+    for ($i = 0; $i -lt 10; $i++) { $cmdInsert.Parameters.Add($cmdInsert.CreateParameter()) | Out-Null }
+
+    $cmdReactivate = $conn.CreateCommand()
+    $cmdReactivate.Transaction = $tx
+    $cmdReactivate.CommandText = "UPDATE Agenda SET Anulado=0 WHERE num_cita=?"
+    $pReactNc = $cmdReactivate.CreateParameter()
+    $cmdReactivate.Parameters.Add($pReactNc) | Out-Null
 
     foreach ($appt in $activeAppts) {
         $uid = $appt.id
@@ -140,7 +192,7 @@ try {
 
         $existingNumCita = $null
 
-        # Try matching by client_uid first (searches ALL records including cancelled)
+        # Try matching by client_uid first
         if ($uidMap.ContainsKey($uid)) {
             $existingNumCita = $uidMap[$uid]
         } else {
@@ -148,16 +200,14 @@ try {
             $key = "$($appt.date)|$($appt.time)|$empleadoCode"
             if ($keyMap.ContainsKey($key)) {
                 $existingNumCita = $keyMap[$key]
-                $fixUid = $conn.CreateCommand()
-                $fixUid.CommandText = "UPDATE Agenda SET client_uid=? WHERE num_cita=?"
-                Add-Param $fixUid $uid
-                Add-Param $fixUid $existingNumCita
-                $fixUid.ExecuteNonQuery() | Out-Null
+                $pUid.Value = $uid
+                $pNc.Value = $existingNumCita
+                $cmdFixUid.ExecuteNonQuery() | Out-Null
             }
         }
 
         if ($existingNumCita -ne $null) {
-            # Detect if Access was modified externally (before we overwrite it)
+            # Detect if Access was modified externally
             $snap = $accessSnapshot[$existingNumCita]
             $accessChanged = $false
             if ($snap) {
@@ -171,57 +221,50 @@ try {
             }
 
             if ($accessChanged) {
-                # Access was modified externally -> pull changes INTO JSON instead of overwriting Access
-                $appt | Add-Member -NotePropertyName 'clientId' -NotePropertyValue $(if ($snap.cliente -gt 0) { "svcl_$($snap.cliente)" } else { $appt.clientId }) -Force
-                $appt | Add-Member -NotePropertyName 'employeeId' -NotePropertyValue $(if ($snap.empleado -gt 0) { "svem_$($snap.empleado)" } else { $appt.employeeId }) -Force
-                $appt | Add-Member -NotePropertyName 'serviceId' -NotePropertyValue $(if ($snap.servicio -gt 0) { "svsv_$($snap.servicio)" } else { $appt.serviceId }) -Force
-                $appt | Add-Member -NotePropertyName 'date' -NotePropertyValue $snapDate -Force
-                $appt | Add-Member -NotePropertyName 'time' -NotePropertyValue $snapTime -Force
-                $appt | Add-Member -NotePropertyName 'endTime' -NotePropertyValue $snapEndTime -Force
-                $appt | Add-Member -NotePropertyName 'notes' -NotePropertyValue $snap.motivo -Force
-                $appt | Add-Member -NotePropertyName '_modified' -NotePropertyValue ([DateTimeOffset]::Now.ToUnixTimeMilliseconds()) -Force
+                # Pull changes INTO JSON instead of overwriting Access
+                $appt.clientId = $(if ($snap.cliente -gt 0) { "svcl_$($snap.cliente)" } else { $appt.clientId })
+                $appt.employeeId = $(if ($snap.empleado -gt 0) { "svem_$($snap.empleado)" } else { $appt.employeeId })
+                $appt.serviceId = $(if ($snap.servicio -gt 0) { "svsv_$($snap.servicio)" } else { $appt.serviceId })
+                $appt.date = $snapDate
+                $appt.time = $snapTime
+                $appt.endTime = $snapEndTime
+                $appt.notes = $snap.motivo
+                $appt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
                 $matchedNumCitas[$existingNumCita] = $true
                 $pulledFromAccess++
-                # Ensure client_uid is set in Access if missing
                 if (-not $snap.uid -or $snap.uid -eq '') {
-                    $fixUid = $conn.CreateCommand()
-                    $fixUid.CommandText = "UPDATE Agenda SET client_uid=? WHERE num_cita=?"
-                    Add-Param $fixUid $uid
-                    Add-Param $fixUid $existingNumCita
-                    $fixUid.ExecuteNonQuery() | Out-Null
+                    $pUid.Value = $uid
+                    $pNc.Value = $existingNumCita
+                    $cmdFixUid.ExecuteNonQuery() | Out-Null
                 }
             } else {
-                # No Access change -> push JSON to Access (existing behavior)
-                $upd = $conn.CreateCommand()
-                $upd.CommandText = "UPDATE Agenda SET Cliente=?, Empleado=?, Servicio=?, Fecha=?, Hora_Inicio=?, Hora_Final=?, Motivo=?, client_uid=? WHERE num_cita=?"
-                Add-Param $upd $clienteCode
-                Add-Param $upd $empleadoCode
-                Add-Param $upd $servicioCode
-                Add-Param $upd $fecha
-                Add-Param $upd $horaInicio
-                Add-Param $upd $horaFinal
-                Add-Param $upd $motivo
-                Add-Param $upd $uid
-                Add-Param $upd $existingNumCita
-                $upd.ExecuteNonQuery() | Out-Null
+                # Push JSON to Access
+                $cmdUpdate.Parameters[0].Value = $clienteCode
+                $cmdUpdate.Parameters[1].Value = $empleadoCode
+                $cmdUpdate.Parameters[2].Value = $servicioCode
+                $cmdUpdate.Parameters[3].Value = $fecha
+                $cmdUpdate.Parameters[4].Value = $horaInicio
+                $cmdUpdate.Parameters[5].Value = $horaFinal
+                $cmdUpdate.Parameters[6].Value = $motivo
+                $cmdUpdate.Parameters[7].Value = $uid
+                $cmdUpdate.Parameters[8].Value = $existingNumCita
+                $cmdUpdate.ExecuteNonQuery() | Out-Null
                 $matchedNumCitas[$existingNumCita] = $true
                 if ($allAccessActive.ContainsKey($existingNumCita)) { $updated++ } else { $reactivated++ }
             }
         } else {
             # INSERT new
-            $ins = $conn.CreateCommand()
-            $ins.CommandText = "INSERT INTO Agenda (num_cita, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo, Anulado, client_uid) VALUES (?,?,?,?,?,?,?,?,?,?)"
-            Add-Param $ins $nextNumCita
-            Add-Param $ins $clienteCode
-            Add-Param $ins $empleadoCode
-            Add-Param $ins $servicioCode
-            Add-Param $ins $fecha
-            Add-Param $ins $horaInicio
-            Add-Param $ins $horaFinal
-            Add-Param $ins $motivo
-            Add-Param $ins ([int]0)
-            Add-Param $ins $uid
-            $ins.ExecuteNonQuery() | Out-Null
+            $cmdInsert.Parameters[0].Value = $nextNumCita
+            $cmdInsert.Parameters[1].Value = $clienteCode
+            $cmdInsert.Parameters[2].Value = $empleadoCode
+            $cmdInsert.Parameters[3].Value = $servicioCode
+            $cmdInsert.Parameters[4].Value = $fecha
+            $cmdInsert.Parameters[5].Value = $horaInicio
+            $cmdInsert.Parameters[6].Value = $horaFinal
+            $cmdInsert.Parameters[7].Value = $motivo
+            $cmdInsert.Parameters[8].Value = ([int]0)
+            $cmdInsert.Parameters[9].Value = $uid
+            $cmdInsert.ExecuteNonQuery() | Out-Null
             $matchedNumCitas[$nextNumCita] = $true
             $nextNumCita++
             $inserted++
@@ -229,34 +272,39 @@ try {
     }
 
     # Phase 1.5: Detect Access cancellations and propagate to JSON
+    # USE HASHTABLE LOOKUP instead of O(n) Where-Object
     $accessCancelled = 0
     $cancelDetect = $conn.CreateCommand()
+    $cancelDetect.Transaction = $tx
     $cancelDetect.CommandText = "SELECT num_cita, client_uid FROM Agenda WHERE Anulado=True AND client_uid IS NOT NULL AND client_uid <> ''"
     $cancelReader = $cancelDetect.ExecuteReader()
     while ($cancelReader.Read()) {
         $cuid = $cancelReader['client_uid'].ToString().Trim()
         $cnc = $cancelReader['num_cita']
-        foreach ($appt in $json.appointments) {
-            if ($appt.id -eq $cuid -and -not $appt._deleted) {
-                $appt | Add-Member -NotePropertyName '_deleted' -NotePropertyValue $true -Force
-                $appt | Add-Member -NotePropertyName '_modified' -NotePropertyValue ([DateTimeOffset]::Now.ToUnixTimeMilliseconds()) -Force
-                $appt | Add-Member -NotePropertyName 'cancelledBy' -NotePropertyValue 'salon' -Force
-                if ($matchedNumCitas.ContainsKey($cnc)) { $matchedNumCitas.Remove($cnc) }
-                $accessCancelled++
-            }
+        if ($jsonUidActive.ContainsKey($cuid)) {
+            $appt = $jsonUidActive[$cuid]
+            $appt._deleted = $true
+            $appt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+            $appt.cancelledBy = 'salon'
+            # Remove from active map so it doesn't match again
+            $jsonUidActive.Remove($cuid)
+            if ($matchedNumCitas.ContainsKey($cnc)) { $matchedNumCitas.Remove($cnc) }
+            $accessCancelled++
         }
     }
     $cancelReader.Close()
 
-    # Phase 2: Access → JSON (pull new Access appointments into JSON)
-    $pullCmd = $conn.CreateCommand()
-    $pullCmd.CommandText = "SELECT num_cita, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo, client_uid FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
-    $pullReader = $pullCmd.ExecuteReader()
+    # Phase 2: Access -> JSON (pull new Access appointments into JSON)
+    # USE HASHTABLE LOOKUP instead of O(n) Where-Object
+    $cmdPull = $conn.CreateCommand()
+    $cmdPull.Transaction = $tx
+    $cmdPull.CommandText = "SELECT num_cita, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo, client_uid FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
+    $pullReader = $cmdPull.ExecuteReader()
     while ($pullReader.Read()) {
         $nc = $pullReader['num_cita']
         if ($matchedNumCitas.ContainsKey($nc)) { continue }
         $existingUid = if ($pullReader['client_uid']) { $pullReader['client_uid'].ToString().Trim() } else { '' }
-        if ($existingUid -and ($json.appointments | Where-Object { $_.id -eq $existingUid -and -not $_._deleted })) { continue }
+        if ($existingUid -and $jsonUidActive.ContainsKey($existingUid)) { continue }
         $newUid = if ($existingUid) { $existingUid } else { "svap_$nc" }
         $cliCode = if ($pullReader['Cliente']) { [int]$pullReader['Cliente'] } else { 0 }
         $empCode = if ($pullReader['Empleado']) { [int]$pullReader['Empleado'] } else { 0 }
@@ -268,51 +316,52 @@ try {
         $timeStr = if ($hiVal -is [DateTime]) { $hiVal.ToString('HH:mm') } else { '' }
         $endTimeStr = if ($hfVal -is [DateTime]) { $hfVal.ToString('HH:mm') } else { '' }
         $motivoText = if ($pullReader['Motivo']) { $pullReader['Motivo'].ToString() } else { '' }
-        $newAppt = [ordered]@{
-            id = $newUid
-            clientId = if ($cliCode -gt 0) { "svcl_$cliCode" } else { '' }
-            employeeId = if ($empCode -gt 0) { "svem_$empCode" } else { '' }
-            serviceId = if ($svcCode -gt 0) { "svsv_$svcCode" } else { '' }
-            serviceIds = @()
-            date = $dateStr
-            time = $timeStr
-            endTime = $endTimeStr
-            notes = $motivoText
-            source = 'access'
-            status = 'confirmed'
-            _deleted = $false
-            _modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
-            cancelledBy = ''
-            salonModified = $false
-            clientModified = $false
-            modificationCount = 0
-            blockGroupId = ''
-            blockNum = ''
-            pendingEmployeeId = ''
-            pendingDate = ''
-            pendingTime = ''
-        }
-        if (-not ($json.appointments | Where-Object { $_.id -eq $newUid })) {
+        if (-not $jsonUidAll.ContainsKey($newUid)) {
+            $newAppt = [ordered]@{
+                id = $newUid
+                clientId = if ($cliCode -gt 0) { "svcl_$cliCode" } else { '' }
+                employeeId = if ($empCode -gt 0) { "svem_$empCode" } else { '' }
+                serviceId = if ($svcCode -gt 0) { "svsv_$svcCode" } else { '' }
+                serviceIds = @()
+                date = $dateStr
+                time = $timeStr
+                endTime = $endTimeStr
+                notes = $motivoText
+                source = 'access'
+                status = 'confirmed'
+                _deleted = $false
+                _modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                cancelledBy = ''
+                salonModified = $false
+                clientModified = $false
+                modificationCount = 0
+                blockGroupId = ''
+                blockNum = ''
+                pendingEmployeeId = ''
+                pendingDate = ''
+                pendingTime = ''
+            }
             $json.appointments += [PSCustomObject]$newAppt
+            $jsonUidAll[$newUid] = $json.appointments[-1]
+            $jsonUidActive[$newUid] = $json.appointments[-1]
             if (-not $existingUid) {
-                $fixUid = $conn.CreateCommand()
-                $fixUid.CommandText = "UPDATE Agenda SET client_uid=? WHERE num_cita=?"
-                Add-Param $fixUid $newUid
-                Add-Param $fixUid $nc
-                $fixUid.ExecuteNonQuery() | Out-Null
+                $pUid.Value = $newUid
+                $pNc.Value = $nc
+                $cmdFixUid.ExecuteNonQuery() | Out-Null
             }
             $matchedNumCitas[$nc] = $true
             $pulledFromAccess++
         } else {
             # Re-activate deleted JSON entry if Access record is still active
-            $existingAppt = $json.appointments | Where-Object { $_.id -eq $newUid }
+            $existingAppt = $jsonUidAll[$newUid]
             if ($existingAppt) {
-                $isDeleted = $existingAppt._deleted -eq $true -or $existingAppt.cancelledBy -ne '' -and $existingAppt.cancelledBy -ne $null
+                $isDeleted = $existingAppt._deleted -eq $true -or ($existingAppt.cancelledBy -ne '' -and $existingAppt.cancelledBy -ne $null)
                 if ($isDeleted) {
-                    $existingAppt | Add-Member -NotePropertyName '_deleted' -NotePropertyValue $false -Force
-                    $existingAppt | Add-Member -NotePropertyName 'cancelledBy' -NotePropertyValue '' -Force
-                    $existingAppt | Add-Member -NotePropertyName 'notes' -NotePropertyValue $motivoText -Force
-                    $existingAppt | Add-Member -NotePropertyName '_modified' -NotePropertyValue ([DateTimeOffset]::Now.ToUnixTimeMilliseconds()) -Force
+                    $existingAppt._deleted = $false
+                    $existingAppt.cancelledBy = ''
+                    $existingAppt.notes = $motivoText
+                    $existingAppt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                    $jsonUidActive[$newUid] = $existingAppt
                     $matchedNumCitas[$nc] = $true
                     $pulledFromAccess++
                 }
@@ -321,34 +370,51 @@ try {
     }
     $pullReader.Close()
 
-    # Cancel ALL active Access records NOT in the matched set
-    $cancelCmd = $conn.CreateCommand()
-    $cancelCmd.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL)"
-    $cancelCmd.ExecuteNonQuery() | Out-Null
+    # Phase 3: Cancel unmatched, reactivate matched - BATCH OPERATIONS
+    if ($matchedNumCitas.Count -gt 0) {
+        # Build list of matched num_cita values
+        $matchedNcs = @($matchedNumCitas.Keys)
+        $placeholders = ($matchedNcs | ForEach-Object { '?' }) -join ','
 
-    # Re-activate only the matched ones
-    foreach ($nc in $matchedNumCitas.Keys) {
-        $reactCmd = $conn.CreateCommand()
-        $reactCmd.CommandText = "UPDATE Agenda SET Anulado=0 WHERE num_cita=?"
-        Add-Param $reactCmd $nc
-        $reactCmd.ExecuteNonQuery() | Out-Null
+        # Cancel all active NOT in matched set
+        $cancelAll = $conn.CreateCommand()
+        $cancelAll.Transaction = $tx
+        $cancelAll.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL) AND num_cita NOT IN ($placeholders)"
+        foreach ($nc in $matchedNcs) {
+            Add-Param $cancelAll $nc
+        }
+        $cancelAll.ExecuteNonQuery() | Out-Null
+    } else {
+        # No matches at all - cancel everything
+        $cancelAll = $conn.CreateCommand()
+        $cancelAll.Transaction = $tx
+        $cancelAll.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL)"
+        $cancelAll.ExecuteNonQuery() | Out-Null
     }
 
-    # Clean up duplicate cancelled records: for each UID that now has an active record, delete old cancelled ones
+    # Clean up duplicate cancelled records: batch DELETE
     $findDupes = $conn.CreateCommand()
+    $findDupes.Transaction = $tx
     $findDupes.CommandText = "SELECT DISTINCT client_uid FROM Agenda WHERE client_uid IS NOT NULL AND client_uid <> '' AND Anulado=0"
     $activeUids = @()
     $rd = $findDupes.ExecuteReader()
     while ($rd.Read()) { $activeUids += $rd[0] }
     $rd.Close()
+
     $cleaned = 0
-    foreach ($uid in $activeUids) {
+    if ($activeUids.Count -gt 0) {
+        $uidPlaceholders = ($activeUids | ForEach-Object { '?' }) -join ','
         $delDup = $conn.CreateCommand()
-        $delDup.CommandText = "DELETE FROM Agenda WHERE client_uid=? AND Anulado=True"
-        Add-Param $delDup $uid
-        $cleaned += $delDup.ExecuteNonQuery()
+        $delDup.Transaction = $tx
+        $delDup.CommandText = "DELETE FROM Agenda WHERE client_uid IN ($uidPlaceholders) AND Anulado=True"
+        foreach ($u in $activeUids) {
+            Add-Param $delDup $u
+        }
+        $cleaned = $delDup.ExecuteNonQuery()
     }
 
+    # Commit transaction
+    $tx.Commit()
     $conn.Close()
 
     if ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0) {
@@ -356,10 +422,13 @@ try {
         [System.IO.File]::WriteAllText($JsonFile, ($json | ConvertTo-Json -Depth 10), $utf8NoBom)
     }
 
+    $sw.Stop()
     $wasAccess = $allAccessActive.Count
     $cancelled = $wasAccess - $updated
-    Write-Host "OK: $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled, $accessCancelled access-cancelled, $cancelled cancelled, $cleaned dupes (JSON: $($activeAppts.Count), Access: $wasAccess)"
+    Write-Host "OK (${($sw.Elapsed.TotalSeconds.ToString('0.00'))}s): $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled, $accessCancelled access-cancelled, $cancelled cancelled, $cleaned dupes (JSON: $($activeAppts.Count), Access: $wasAccess)"
 } catch {
+    if ($tx) { try { $tx.Rollback() } catch {} }
+    if ($conn -and $conn.State -ne 'Closed') { try { $conn.Close() } catch {} }
     Write-Host "ERROR: $($_.Exception.Message)"
     Write-Host $_.ScriptStackTrace
     exit 1
