@@ -7,6 +7,7 @@ function escXml(s) {
   return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
 }
 
+// Deployed
 module.exports = async (req, res) => {
   res.setHeader('Content-Type', 'text/xml; charset=utf-8');
 

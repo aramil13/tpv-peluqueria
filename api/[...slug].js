@@ -196,7 +196,7 @@ module.exports = async (req, res) => {
   const url = req.url.split('?')[0].split('#')[0];
 
   // === DEBUG: check env + Twilio ===
-  if (url === '/api/debug' && req.method === 'GET') {
+  if ((url === '/api/debug' || url === '/api/version') && req.method === 'GET') {
     const wa = process.env.TWILIO_WHATSAPP_NUMBER || '';
     const ph = process.env.TWILIO_PHONE_NUMBER || '';
     const sid = process.env.TWILIO_ACCOUNT_SID || '';
