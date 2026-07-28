@@ -19,6 +19,7 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const SYNC_FORWARD_URL = process.env.SYNC_FORWARD_URL || '';
 const SYNC_FORWARD_KEY = process.env.SYNC_FORWARD_KEY || '';
 const WEB_API_KEY = process.env.WEB_API_KEY || '';
+let lastAccessSyncTs = 0;
 
 // Email config
 const SMTP_HOST = process.env.SMTP_HOST || '';
@@ -348,9 +349,18 @@ const server = http.createServer((req, res) => {
 
   if (url === '/sync' || url === '/sync/') {
     if (req.method === 'GET') {
-      const data = readData();
-      res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(data));
+      const serveData = () => {
+        const data = readData();
+        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(data));
+      };
+      const now = Date.now();
+      if (fs.existsSync(SYNC_FILE) && (now - lastAccessSyncTs) > 5000) {
+        lastAccessSyncTs = now;
+        syncToAccess(SYNC_FILE).then(serveData).catch(serveData);
+      } else {
+        serveData();
+      }
       return;
     }
 
