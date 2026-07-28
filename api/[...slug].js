@@ -319,13 +319,14 @@ module.exports = async (req, res) => {
             }
           }
         });
-        // Auto-clean old salon-cancelled appointments
+        // Auto-clean: keep only today+future appointments in cloud (past stored in local sync-helper only)
         const today = new Date().toISOString().split('T')[0];
         (merged.appointments||[]).forEach(a => {
           if (a.cancelledBy === 'salon' && (a.date < today || a.source !== 'online')) {
             a._deleted = true; delete a.cancelledBy; a._modified = Date.now();
           }
         });
+        merged.appointments = (merged.appointments||[]).filter(a => a.date >= today);
         await writeData(merged);
 
         // Notificar por email al salón si llegan nuevas citas pendientes por WhatsApp
