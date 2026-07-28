@@ -378,13 +378,11 @@ let data = {
 };
 ['appointments','clients','services','employees','products','sections','providers'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
-// Auto-clean: hard-delete past appointments + repair non-online cancelledBy='salon'
+// Auto-clean: repair non-online cancelledBy='salon' only (NO auto-delete past)
 const todayC = new Date().toISOString().split('T')[0];
 let cleanedC = 0;
 (data.appointments||[]).forEach(a => {
-  if (a.date < todayC) {
-    a._deleted = true; a._modified = Date.now(); cleanedC++;
-  } else if (a.cancelledBy === 'salon' && a.source !== 'online') {
+  if (a.cancelledBy === 'salon' && a.source !== 'online') {
     a._deleted = true; delete a.cancelledBy; a._modified = Date.now(); cleanedC++;
   }
 });
@@ -438,6 +436,7 @@ document.querySelectorAll('.bottom-nav .tab').forEach(tab => {
     if (this.dataset.tab === 'pageServices') renderServices();
     if (this.dataset.tab === 'pageEmployees') renderEmployees();
     if (this.dataset.tab === 'pageProducts') renderProducts();
+    if (this.dataset.tab === 'pageAgenda') renderAgenda();
     if (this.dataset.tab === 'pageConfig') { loadSyncSettings(); updateSyncStatus(); }
   });
 });
