@@ -61,10 +61,11 @@ try {
     $uidMap = @{}       # client_uid -> num_cita (active preferred)
     $keyMap = @{}       # "date|time|employee" -> num_cita (active only, for fallback)
     $allAccessActive = @{} # num_cita -> client_uid (active only)
+    $accessSnapshot = @{}  # num_cita -> {fields} for detecting Access-side changes
 
     # First pass: active records (wins for uidMap)
     $cmd2 = $conn.CreateCommand()
-    $cmd2.CommandText = "SELECT num_cita, client_uid, Fecha, Hora_Inicio, Empleado FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
+    $cmd2.CommandText = "SELECT num_cita, client_uid, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
     $r2 = $cmd2.ExecuteReader()
     while ($r2.Read()) {
         $nc = $r2['num_cita']
@@ -77,6 +78,16 @@ try {
         if ($f -is [DateTime] -and $fi -is [DateTime]) {
             $key = "$($f.ToString('yyyy-MM-dd'))|$($fi.ToString('HH:mm'))|$emp"
             $keyMap[$key] = $nc
+        }
+        $accessSnapshot[$nc] = @{
+            uid = if ($uid) { $uid.ToString().Trim() } else { '' }
+            cliente = if ($r2['Cliente']) { [int]$r2['Cliente'] } else { 0 }
+            empleado = if ($r2['Empleado']) { [int]$r2['Empleado'] } else { 0 }
+            servicio = if ($r2['Servicio']) { [int]$r2['Servicio'] } else { 0 }
+            fecha = $f
+            horaInicio = $fi
+            horaFinal = $r2['Hora_Final']
+            motivo = if ($r2['Motivo']) { $r2['Motivo'].ToString() } else { '' }
         }
     }
     $r2.Close()
@@ -101,6 +112,7 @@ try {
     $inserted = 0
     $updated = 0
     $reactivated = 0
+    $pulledFromAccess = 0
     $matchedNumCitas = @{}
 
     foreach ($appt in $activeAppts) {
@@ -145,21 +157,56 @@ try {
         }
 
         if ($existingNumCita -ne $null) {
-            # UPDATE existing (handles modifications + re-activation)
-            $upd = $conn.CreateCommand()
-            $upd.CommandText = "UPDATE Agenda SET Cliente=?, Empleado=?, Servicio=?, Fecha=?, Hora_Inicio=?, Hora_Final=?, Motivo=?, client_uid=? WHERE num_cita=?"
-            Add-Param $upd $clienteCode
-            Add-Param $upd $empleadoCode
-            Add-Param $upd $servicioCode
-            Add-Param $upd $fecha
-            Add-Param $upd $horaInicio
-            Add-Param $upd $horaFinal
-            Add-Param $upd $motivo
-            Add-Param $upd $uid
-            Add-Param $upd $existingNumCita
-            $upd.ExecuteNonQuery() | Out-Null
-            $matchedNumCitas[$existingNumCita] = $true
-            if ($allAccessActive.ContainsKey($existingNumCita)) { $updated++ } else { $reactivated++ }
+            # Detect if Access was modified externally (before we overwrite it)
+            $snap = $accessSnapshot[$existingNumCita]
+            $accessChanged = $false
+            if ($snap) {
+                $snapDate = if ($snap.fecha -is [DateTime]) { $snap.fecha.ToString('yyyy-MM-dd') } else { '' }
+                $snapTime = if ($snap.horaInicio -is [DateTime]) { $snap.horaInicio.ToString('HH:mm') } else { '' }
+                $snapEndTime = if ($snap.horaFinal -is [DateTime]) { $snap.horaFinal.ToString('HH:mm') } else { '' }
+                if ($snapDate -ne $appt.date -or $snapTime -ne $appt.time -or $snapEndTime -ne $appt.endTime -or
+                    $snap.empleado -ne $empleadoCode -or $snap.servicio -ne $servicioCode) {
+                    $accessChanged = $true
+                }
+            }
+
+            if ($accessChanged) {
+                # Access was modified externally -> pull changes INTO JSON instead of overwriting Access
+                $appt | Add-Member -NotePropertyName 'clientId' -NotePropertyValue $(if ($snap.cliente -gt 0) { "svcl_$($snap.cliente)" } else { $appt.clientId }) -Force
+                $appt | Add-Member -NotePropertyName 'employeeId' -NotePropertyValue $(if ($snap.empleado -gt 0) { "svem_$($snap.empleado)" } else { $appt.employeeId }) -Force
+                $appt | Add-Member -NotePropertyName 'serviceId' -NotePropertyValue $(if ($snap.servicio -gt 0) { "svsv_$($snap.servicio)" } else { $appt.serviceId }) -Force
+                $appt | Add-Member -NotePropertyName 'date' -NotePropertyValue $snapDate -Force
+                $appt | Add-Member -NotePropertyName 'time' -NotePropertyValue $snapTime -Force
+                $appt | Add-Member -NotePropertyName 'endTime' -NotePropertyValue $snapEndTime -Force
+                $appt | Add-Member -NotePropertyName 'notes' -NotePropertyValue $snap.motivo -Force
+                $appt | Add-Member -NotePropertyName '_modified' -NotePropertyValue ([DateTimeOffset]::Now.ToUnixTimeMilliseconds()) -Force
+                $matchedNumCitas[$existingNumCita] = $true
+                $pulledFromAccess++
+                # Ensure client_uid is set in Access if missing
+                if (-not $snap.uid -or $snap.uid -eq '') {
+                    $fixUid = $conn.CreateCommand()
+                    $fixUid.CommandText = "UPDATE Agenda SET client_uid=? WHERE num_cita=?"
+                    Add-Param $fixUid $uid
+                    Add-Param $fixUid $existingNumCita
+                    $fixUid.ExecuteNonQuery() | Out-Null
+                }
+            } else {
+                # No Access change -> push JSON to Access (existing behavior)
+                $upd = $conn.CreateCommand()
+                $upd.CommandText = "UPDATE Agenda SET Cliente=?, Empleado=?, Servicio=?, Fecha=?, Hora_Inicio=?, Hora_Final=?, Motivo=?, client_uid=? WHERE num_cita=?"
+                Add-Param $upd $clienteCode
+                Add-Param $upd $empleadoCode
+                Add-Param $upd $servicioCode
+                Add-Param $upd $fecha
+                Add-Param $upd $horaInicio
+                Add-Param $upd $horaFinal
+                Add-Param $upd $motivo
+                Add-Param $upd $uid
+                Add-Param $upd $existingNumCita
+                $upd.ExecuteNonQuery() | Out-Null
+                $matchedNumCitas[$existingNumCita] = $true
+                if ($allAccessActive.ContainsKey($existingNumCita)) { $updated++ } else { $reactivated++ }
+            }
         } else {
             # INSERT new
             $ins = $conn.CreateCommand()
@@ -202,7 +249,6 @@ try {
     $cancelReader.Close()
 
     # Phase 2: Access → JSON (pull new Access appointments into JSON)
-    $pulledFromAccess = 0
     $pullCmd = $conn.CreateCommand()
     $pullCmd.CommandText = "SELECT num_cita, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo, client_uid FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
     $pullReader = $pullCmd.ExecuteReader()
