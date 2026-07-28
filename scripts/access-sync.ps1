@@ -304,7 +304,9 @@ try {
         $nc = $pullReader['num_cita']
         if ($matchedNumCitas.ContainsKey($nc)) { continue }
         $existingUid = if ($pullReader['client_uid']) { $pullReader['client_uid'].ToString().Trim() } else { '' }
+        # If Access record has a client_uid that matches an ACTIVE JSON appointment, skip — that appointment is already synced
         if ($existingUid -and $jsonUidActive.ContainsKey($existingUid)) { continue }
+        # If Access record has a client_uid that matches only a DELETED JSON appointment, reactivate it later — don't skip
         $newUid = if ($existingUid) { $existingUid } else { "svap_$nc" }
         $cliCode = if ($pullReader['Cliente']) { [int]$pullReader['Cliente'] } else { 0 }
         $empCode = if ($pullReader['Empleado']) { [int]$pullReader['Empleado'] } else { 0 }
