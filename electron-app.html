@@ -879,22 +879,7 @@ let data = {
 const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','movements'];
 ARRAY_KEYS.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
-// Auto-clean: hard-delete past appointments + repair non-online cancelledBy='salon'
-const today = new Date().toISOString().split('T')[0];
-let cleaned = 0;
-(data.appointments||[]).forEach(a => {
-  if (a.date < today) {
-    a._deleted = true;
-    a._modified = Date.now();
-    cleaned++;
-  } else if (a.cancelledBy === 'salon' && a.source !== 'online') {
-    a._deleted = true;
-    delete a.cancelledBy;
-    a._modified = Date.now();
-    cleaned++;
-  }
-});
-if (cleaned) { DB.set('appointments', data.appointments); console.log('Auto-cleaned', cleaned, 'appointments'); }
+// Auto-clean removed - past appointments are preserved locally.
 
 // Migrate openingHours from old format (open/close) to new format (morningOpen/morningClose/afternoonOpen/afternoonClose)
 if (data.settings && data.settings.openingHours) {

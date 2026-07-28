@@ -49,6 +49,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .agenda-day .appt { font-size: 7px; padding: 1px 2px; border-radius: 2px; margin-bottom: 1px; background: #d6eaf8; color: #1a5276; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .agenda-day .appt-online { background: #d5f5e3; color: #0d4a2a; }
 .agenda-day.has-online { background: #e8f8f5; }
+.agenda-day.closed { background: #f0f0f0; opacity: 0.7; }
+.agenda-day .day-hours { font-size: 7px; color: #999; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .empty-state { text-align: center; padding: 25px 16px; color: var(--text-light); }
 .empty-state p { font-size: 13px; margin-bottom: 6px; }
 .appt-list { padding: 10px 14px; }
@@ -391,11 +393,20 @@ if (cleanedC) { DB.set('appointments', data.appointments); }
 // Also remove corrupted appointments (no date, no clientId, or no serviceIds)
 let removedBad = 0;
 (data.appointments||[]).forEach(a => {
-  if (!a.date || !a.clientId) {
+  if (!a.date) {
     a._deleted = true; a._modified = Date.now(); removedBad++;
   }
 });
 if (removedBad) { DB.set('appointments', data.appointments); }
+
+// Migration: restore appointments incorrectly deleted by previous !clientId check
+let restored = 0;
+(data.appointments||[]).forEach(a => {
+  if (a._deleted && a.clientId === '' && a.date && a.date >= new Date().toISOString().split('T')[0]) {
+    a._deleted = false; a._modified = Date.now(); restored++;
+  }
+});
+if (restored) { DB.set('appointments', data.appointments); console.log('Restored', restored, 'incorrectly deleted appointments'); }
 
 // Clean up any corrupted entries in main entities (caused by sync of binary-imported files on Windows)
 ['clients', 'employees', 'services', 'products', 'sections', 'providers'].forEach(k => {
@@ -464,8 +475,11 @@ function renderAgenda() {
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted && a.cancelledBy !== 'salon');
     const hasOnline = appts.some(a => a.source === 'online');
-    html += `<div class="agenda-day ${isToday?'today':''}${hasOnline?' has-online':''}" onclick="showDayAppts('${dateStr}')">
+    const hDay = getOpeningHoursForDay(dateStr, data.settings);
+    const hoursLabel = hDay.closed ? 'Cerrado' : (hDay.morningOpen||'') ? `${hDay.morningOpen||''}-${hDay.morningClose||''} ${hDay.afternoonOpen&&hDay.afternoonOpen!==hDay.afternoonClose?'| '+hDay.afternoonOpen+'-'+hDay.afternoonClose:''}` : `${hDay.openLabel||''}`;
+    html += `<div class="agenda-day ${isToday?'today':''}${hasOnline?' has-online':''}${hDay.closed?' closed':''}" onclick="showDayAppts('${dateStr}')">
       <div class="day-num">${d}</div>
+      <div class="day-hours">${hoursLabel}</div>
       ${appts.slice(0,2).map(a => {
         const client = data.clients.find(c => c.id === a.clientId);
         const employee = data.employees.find(e => e.id === a.employeeId);
@@ -867,10 +881,16 @@ function getOpeningHoursForDay(dateStr, settings) {
   const closeH = parseInt(day.close) || 19;
   const openMin = parseInt((day.open || '09:00').split(':')[1]) || 0;
   const closeMin = parseInt((day.close || '19:00').split(':')[1]) || 0;
+  const morningOpen = day.morningOpen || '';
+  const morningClose = day.morningClose || '';
+  const afternoonOpen = day.afternoonOpen || '';
+  const afternoonClose = day.afternoonClose || '';
+  const openLabel = morningOpen ? `${morningOpen}-${morningClose}` : `${day.open||''}-${day.close||''}`;
   return {
     open: openH + openMin / 60,
     close: closeH + closeMin / 60,
-    closed: day.closed === true
+    closed: day.closed === true,
+    morningOpen, morningClose, afternoonOpen, afternoonClose, openLabel
   };
 }
 
