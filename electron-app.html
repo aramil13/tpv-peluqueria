@@ -1839,9 +1839,7 @@ function mergeRemote(type, remote) {
     }
 
     const existing = localMap.get(item.id);
-    // Siempre añadir items nuevos del servidor (sin importar timestamp)
     if (!existing) { data[type].push(item); changed = true; }
-    // Si existe, actualizar solo si el servidor es más reciente
     else if ((item._modified||0) >= (existing._modified||0)) { Object.assign(existing, item); changed = true; }
   });
   return changed;
@@ -1870,7 +1868,7 @@ function updateSyncErrorIndicator() {
   }
 }
 
-function mergeRemoteData(remote) {
+function applyRemoteData(remote) {
   if (Array.isArray(remote.services) && remote.services.length > 0) {
     const localSvcs = {};
     (data.services||[]).forEach(s => localSvcs[s.id] = s);
@@ -1912,9 +1910,7 @@ function mergeRemoteData(remote) {
       const np = c.phone ? normPhone(c.phone) : '';
       if (np && phoneMap.has(np)) {
         const remote = phoneMap.get(np);
-        if ((c._modified||0) > (remote._modified||0)) {
-          Object.assign(remote, c);
-        }
+        if ((c._modified||0) > (remote._modified||0)) Object.assign(remote, c);
       } else if (np) {
         phoneMap.set(np, c);
         mergedClients.push(c);
@@ -1936,25 +1932,31 @@ function syncPull() {
   if (!c.enabled) return;
   const localUrl = LOCAL_SYNC_URL.replace(/\/+$/,'') + '/sync';
   const cloudUrl = c.url.replace(/\/+$/,'') + '/sync';
-  const status = document.getElementById('syncStatus');
-  Promise.all([
-    fetch(localUrl).then(r => r.ok ? r.json() : null).catch(() => null),
-    fetch(cloudUrl).then(r => r.ok ? r.json() : null).catch(() => null)
-  ]).then(([localData, cloudData]) => {
-    if (!localData && !cloudData) { syncErrorCount++; updateSyncErrorIndicator(); if (status) { status.textContent = '❌ Sync: sin conexión'; status.style.color = '#e74c3c'; setTimeout(() => { if (status) status.textContent = ''; }, 5000); } return; }
+  Promise.allSettled([
+    fetch(localUrl).then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); }),
+    fetch(cloudUrl).then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+  ]).then(results => {
+    const locals = results[0].status === 'fulfilled' ? results[0].value : null;
+    const cloud = results[1].status === 'fulfilled' ? results[1].value : null;
+    if (!locals && !cloud) {
+      syncErrorCount++;
+      updateSyncErrorIndicator();
+      return;
+    }
     syncErrorCount = 0;
     updateSyncErrorIndicator();
     if (syncErrorTimer) { clearTimeout(syncErrorTimer); syncErrorTimer = null; }
+    const status = document.getElementById('syncStatus');
     if (status) { status.textContent = '✅ Sincronizado'; status.style.color = ''; status.style.fontWeight = ''; }
     setTimeout(() => { if (status) status.textContent = ''; }, 3000);
-    if (localData) mergeRemoteData(localData);
-    if (cloudData) mergeRemoteData(cloudData);
+    if (cloud) applyRemoteData(cloud);
+    if (locals) applyRemoteData(locals);
+
     try {
       saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
       saveKey('clients'); saveKey('projects'); saveKey('providers'); saveKey('appointments');
-    } catch(e) {
-      console.error('SAVE ERROR:', e);
-    }
+    } catch(e) { console.error('SAVE ERROR:', e); }
+
     const active = document.querySelector('.nav-item.active');
     if (active) {
       const sec = active.dataset.section;
@@ -1971,6 +1973,7 @@ function syncPull() {
     console.error('SYNC PULL ERROR:', e);
     syncErrorCount++;
     updateSyncErrorIndicator();
+    const status = document.getElementById('syncStatus');
     if (status) {
       status.textContent = '❌ Sync error ' + (e.message || 'desconocido');
       status.style.color = '#e74c3c';

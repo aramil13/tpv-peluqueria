@@ -1421,9 +1421,9 @@ function getSyncCfg() {
     if (url && port && !/^https?:\/\//i.test(url) && !url.includes('://')) {
       url = 'http://' + url + ':' + (parseInt(port) || 3456);
     }
-    return { enabled, url: normalizeUrl(url) || 'https://tpv-peluqueria.pages.dev' } 
+    return { enabled, url: normalizeUrl(url) || 'https://nymaraestilistas.es/api' } 
   }
-  catch(e) { return { enabled: true, url: 'https://tpv-peluqueria.pages.dev' } }
+  catch(e) { return { enabled: true, url: 'https://nymaraestilistas.es/api' } }
 }
 function setSyncCfg(c) { localStorage.setItem('agenda_syncEnabled', c.enabled); localStorage.setItem('agenda_syncUrl', c.url) }
 function syncBase() { return getSyncCfg().url }
@@ -1838,6 +1838,19 @@ function showImportResult(events) {
 }
 
 // ============ INIT ============
+async function loadSyncConfigFile() {
+  try {
+    if (localStorage.getItem('agenda_syncUrl')) return;
+    const r = await fetch('sync-config.json');
+    if (!r.ok) return;
+    const cfg = await r.json();
+    if (cfg.serverUrl) {
+      localStorage.setItem('agenda_syncUrl', cfg.serverUrl);
+      loadSyncSettings();
+    }
+  } catch(e) {}
+}
+
 function awakeRender() {
   const c = getSyncCfg();
   if (!c.enabled || !c.url) return;
@@ -1848,11 +1861,13 @@ renderAgenda();
 renderClients();
 renderWaReminderList();
 loadSyncSettings();
-awakeRender();
-if (getSyncCfg().enabled) {
-  syncPull();
-  startSyncPoller();
-}
+loadSyncConfigFile().then(() => {
+  awakeRender();
+  if (getSyncCfg().enabled) {
+    syncPull();
+    startSyncPoller();
+  }
+});
 
 window.exportToIcs = exportToIcs;
 </script>
