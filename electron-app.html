@@ -5048,13 +5048,6 @@ function isSaleArchived(s) {
 
 // ============ INIT ============
 function cleanOldAppointments() {
-  const today = new Date().toISOString().split('T')[0];
-  const before = data.appointments.filter(a => a.date < today && !a._deleted);
-  if (before.length) {
-    before.forEach(a => { a._deleted = true; a._modified = Date.now(); });
-    saveKey('appointments');
-    console.log('Eliminadas '+before.length+' citas anteriores a hoy');
-  }
 }
 
 let selectedProductLetter = 'TODOS';
