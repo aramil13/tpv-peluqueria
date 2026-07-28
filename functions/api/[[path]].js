@@ -397,25 +397,40 @@ export async function onRequest(context) {
               a._deleted = true; delete a.cancelledBy; a._modified = Date.now();
             }
           });
-          merged.appointments = (merged.appointments||[]).filter(a => !a._deleted);
-          await writeData(merged);
-          return json({
-            ok: true,
-            appointments: (Array.isArray(merged.appointments) ? merged.appointments : []).length,
-            clients: (Array.isArray(merged.clients) ? merged.clients : []).length,
-            services: (Array.isArray(merged.services) ? merged.services : []).length,
-            employees: (Array.isArray(merged.employees) ? merged.employees : []).length,
-            lastModified: merged.lastModified
-          });
-        } catch (e) {
-          return json({ error: e.message }, 400);
-        }
-      }
-      return json({ error: 'Method not allowed' }, 405);
-    }
-
-    // === HEALTH ===
-    case '/health': {
+           merged.appointments = (merged.appointments||[]).filter(a => a.date >= today && !a._deleted);
+           await writeData(merged);
+           return json({
+             ok: true,
+             appointments: (Array.isArray(merged.appointments) ? merged.appointments : []).length,
+             clients: (Array.isArray(merged.clients) ? merged.clients : []).length,
+             services: (Array.isArray(merged.services) ? merged.services : []).length,
+             employees: (Array.isArray(merged.employees) ? merged.employees : []).length,
+             lastModified: merged.lastModified
+           });
+         } catch (e) {
+           return json({ error: e.message }, 400);
+         }
+       }
+       return json({ error: 'Method not allowed' }, 405);
+     }
+ 
+     // === CLEAN: remove past appointments from storage ===
+     case '/api/clean':
+     case '/clean': {
+       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
+       try {
+         const data = await readData();
+         const today = new Date().toISOString().split('T')[0];
+         const before = (data.appointments||[]).length;
+         data.appointments = (data.appointments||[]).filter(a => a.date >= today);
+         await writeData(data);
+         return json({ ok: true, removed: before - (data.appointments||[]).length, remaining: (data.appointments||[]).length });
+       } catch (e) { return json({ error: e.message }, 500); }
+     }
+ 
+     // === HEALTH ===
+     case '/health':
+     case '/api/health': {
       const data = await readData();
       return json({
         status: 'ok', storage: 'upstash-redis',
