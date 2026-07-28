@@ -385,8 +385,25 @@ module.exports = async (req, res) => {
     }
   }
 
+  // === CLEAN (remove past appointments) ===
+  if ((url === '/api/clean' || url === '/clean') && req.method === 'POST') {
+    try {
+      const data = await readData();
+      const before = (data.appointments||[]).length;
+      const today = new Date().toISOString().split('T')[0];
+      data.appointments = (data.appointments||[]).filter(a => a.date >= today);
+      const after = (data.appointments||[]).length;
+      await writeData(data);
+      console.log(`Clean: removed ${before - after}, kept ${after}`);
+      res.json({ ok: true, removed: before - after, kept: after, totalBefore: before });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+    return;
+  }
+
   // === HEALTH ===
-  if (url === '/health') {
+  if (url === '/health' || url === '/api/health') {
     const data = await readData();
     res.json({
       status: 'ok', storage: 'upstash-redis',
