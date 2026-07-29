@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 const { syncToAccess } = require('./lib/access-sync');
+const { normPhone, mergeArray, dedupClients } = require('./lib/kv-data');
 
 process.env.TZ = 'Europe/Madrid';
 console.log('Starting sync-helper... Forward URL:', process.env.SYNC_FORWARD_URL || '(none)');
@@ -201,67 +202,6 @@ function writeDataSilent(data) {
     console.error('Error writing data (silent):', e);
     return false;
   }
-}
-
-function normPhone(p) {
-  const d = (p || '').replace(/[^0-9]/g, '');
-  return d.length > 9 ? d.slice(-9) : d;
-}
-
-function dedupClients(clients) {
-  const seen = new Map();
-  return (clients || []).filter(c => {
-    if (!c || !c.phone) return true;
-    const np = normPhone(c.phone);
-    if (!np) return true;
-    if (seen.has(np)) return false;
-    seen.set(np, c);
-    return true;
-  });
-}
-
-function mergeArray(local, remote) {
-  const map = new Map();
-  const phoneMap = new Map();
-  if (Array.isArray(local)) local.forEach(item => {
-    map.set(item.id, item);
-    if (item.phone) phoneMap.set(normPhone(item.phone), item.id);
-  });
-  if (Array.isArray(remote)) remote.forEach(item => {
-    if (map.has(item.id)) {
-      const existing = map.get(item.id);
-      // Only apply remote changes if remote is newer
-      if ((item._modified || 0) > (existing._modified || 0)) {
-        if (item.cancelledBy) {
-          if (!item._deleted) item._deleted = true;
-          if (existing._deleted && !existing.cancelledBy) return;
-          map.set(item.id, item); return;
-        }
-        if (item._deleted) {
-          if ((existing.cancelledBy) && !item.cancelledBy) return;
-          map.set(item.id, item); return;
-        }
-        map.set(item.id, item);
-      }
-    } else {
-      if (item.phone) {
-        const np = normPhone(item.phone);
-        if (phoneMap.has(np)) {
-          const existingId = phoneMap.get(np);
-          const existing = map.get(existingId);
-          if (existing && (item._modified || 0) > (existing._modified || 0)) {
-            map.delete(existingId);
-            map.set(item.id, item);
-            phoneMap.set(np, item.id);
-          }
-          return;
-        }
-        phoneMap.set(np, item.id);
-      }
-      map.set(item.id, item);
-    }
-  });
-  return Array.from(map.values());
 }
 
 function pathname(url) { return url.split('?')[0].split('#')[0] }
