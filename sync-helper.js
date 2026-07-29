@@ -301,28 +301,26 @@ function seedInitialData() {
   }
   ensureDir(SYNC_FILE);
   const sections = [
-    { id:'sec1', name:'Corte', color:'#8E44AD', _deleted:false, _modified:Date.now() },
-    { id:'sec2', name:'Color', color:'#E74C3C', _deleted:false, _modified:Date.now() },
-    { id:'sec3', name:'Tratamiento', color:'#27AE60', _deleted:false, _modified:Date.now() },
-    { id:'sec4', name:'Peinado', color:'#F39C12', _deleted:false, _modified:Date.now() },
-    { id:'sec5', name:'Manicura', color:'#3498DB', _deleted:false, _modified:Date.now() }
+    { id:'svse_1', name:'Peluqueria', color:'#8E44AD', _deleted:false, _modified:Date.now() },
+    { id:'svse_2', name:'Estetica', color:'#E74C3C', _deleted:false, _modified:Date.now() },
+    { id:'svse_4', name:'Tratamientos de Peluqueria', color:'#27AE60', _deleted:false, _modified:Date.now() }
   ];
   const services = [
-    { id:'srv1', name:'Corte de cabello', price:15, duration:30, sectionId:'sec1', _deleted:false, _modified:Date.now() },
-    { id:'srv2', name:'Corte infantíl', price:10, duration:20, sectionId:'sec1', _deleted:false, _modified:Date.now() },
-    { id:'srv3', name:'Tinte completo', price:45, duration:90, sectionId:'sec2', _deleted:false, _modified:Date.now() },
-    { id:'srv4', name:'Mechas', price:55, duration:120, sectionId:'sec2', _deleted:false, _modified:Date.now() },
-    { id:'srv5', name:'Lavado y secado', price:8, duration:20, sectionId:'sec3', _deleted:false, _modified:Date.now() },
-    { id:'srv6', name:'Tratamiento keratina', price:35, duration:60, sectionId:'sec3', _deleted:false, _modified:Date.now() },
-    { id:'srv7', name:'Peinado de fiesta', price:25, duration:45, sectionId:'sec4', _deleted:false, _modified:Date.now() },
-    { id:'srv8', name:'Recogido', price:30, duration:40, sectionId:'sec4', _deleted:false, _modified:Date.now() },
-    { id:'srv9', name:'Manicura básica', price:18, duration:30, sectionId:'sec5', _deleted:false, _modified:Date.now() },
-    { id:'srv10', name:'Uñas de gel', price:35, duration:60, sectionId:'sec5', _deleted:false, _modified:Date.now() }
+    { id:'srv1', name:'Corte de cabello', price:15, duration:30, sectionId:'svse_1', _deleted:false, _modified:Date.now() },
+    { id:'srv2', name:'Corte infantíl', price:10, duration:20, sectionId:'svse_1', _deleted:false, _modified:Date.now() },
+    { id:'srv3', name:'Tinte completo', price:45, duration:90, sectionId:'svse_1', _deleted:false, _modified:Date.now() },
+    { id:'srv4', name:'Mechas', price:55, duration:120, sectionId:'svse_1', _deleted:false, _modified:Date.now() },
+    { id:'srv5', name:'Lavado y secado', price:8, duration:20, sectionId:'svse_1', _deleted:false, _modified:Date.now() },
+    { id:'srv6', name:'Tratamiento keratina', price:35, duration:60, sectionId:'svse_4', _deleted:false, _modified:Date.now() },
+    { id:'srv7', name:'Peinado de fiesta', price:25, duration:45, sectionId:'svse_2', _deleted:false, _modified:Date.now() },
+    { id:'srv8', name:'Recogido', price:30, duration:40, sectionId:'svse_2', _deleted:false, _modified:Date.now() },
+    { id:'srv9', name:'Manicura básica', price:18, duration:30, sectionId:'svse_2', _deleted:false, _modified:Date.now() },
+    { id:'srv10', name:'Uñas de gel', price:35, duration:60, sectionId:'svse_2', _deleted:false, _modified:Date.now() }
   ];
   const employees = [
-    { id:'emp1', name:'Laura García', color:'#8E44AD', phone:'', email:'', commission:50, _deleted:false, _modified:Date.now() },
-    { id:'emp2', name:'Carlos Martínez', color:'#3498DB', phone:'', email:'', commission:50, _deleted:false, _modified:Date.now() },
-    { id:'emp3', name:'Ana López', color:'#E74C3C', phone:'', email:'', commission:50, _deleted:false, _modified:Date.now() }
+    { id:'svem_4', name:'Angela Gutierrez Paredes', color:'#8E44AD', phone:'', email:'', commission:50, _deleted:false, _modified:Date.now() },
+    { id:'svem_3', name:'Maria del Mar Paredes Crespo', color:'#3498DB', phone:'', email:'', commission:50, _deleted:false, _modified:Date.now() },
+    { id:'svem_5', name:'Empleado', color:'#E74C3C', phone:'', email:'', commission:50, _deleted:false, _modified:Date.now() }
   ];
   const data = {
     sections, services, employees,
