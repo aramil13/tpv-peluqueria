@@ -69,11 +69,6 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-function normPhone(p) {
-  const d = (p||'').replace(/[^0-9]/g, '');
-  return d.length > 9 ? d.slice(-9) : d;
-}
-
 async function handleClientLogin(phone, res) {
   const norm = normPhone(phone);
   console.log('[LOGIN] Phone:', phone, 'Normalized:', norm);
@@ -988,7 +983,6 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           const newEndM = Math.round((reqEnd - newEndH) * 60);
           appt.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
           appt.employeeId = appt.pendingEmployeeId || appt.employeeId;
-        } else {
         }
         appt.clientModified = false;
         delete appt.pendingDate;

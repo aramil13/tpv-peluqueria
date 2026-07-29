@@ -68,25 +68,7 @@ export async function onRequest(context) {
     };
   }
 
-  function calcServiceDurationWithBlocks(servicesList, settings) {
-    const bloques = settings && settings.bloques ? settings.bloques : {};
-    const gap = bloques.bloqueGap || 45;
-    const bloque1Svcs = servicesList.filter(s => s.bloque === 'bloque1');
-    const bloque2Svcs = servicesList.filter(s => s.bloque === 'bloque2');
-    const otherSvcs = servicesList.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
-    const bloque1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-    const bloque2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-    const otherDur = otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-    let total = otherDur;
-    if (bloque1Svcs.length && bloque2Svcs.length) {
-      total += bloque1Dur + gap + bloque2Dur;
-    } else if (bloque1Svcs.length) {
-      total += bloque1Dur;
-    } else if (bloque2Svcs.length) {
-      total += bloque2Dur;
-    }
-    return total;
-  }
+
 
   async function computeETag(data) {
     const encoder = new TextEncoder();
@@ -116,34 +98,17 @@ export async function onRequest(context) {
     });
   }
 
-  function html(str, status = 200) {
-    return new Response(str, {
-      status,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'text/html; charset=utf-8' }
-    });
-  }
 
-  function xml(str, status = 200) {
-    return new Response(str, {
-      status,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'text/xml; charset=utf-8' }
-    });
-  }
 
-  function text(str, status = 200, extraHeaders = {}) {
-    return new Response(str, {
-      status,
-      headers: { ...CORS_HEADERS, 'Content-Type': 'text/plain; charset=utf-8', ...extraHeaders }
-    });
-  }
+
+
+
 
   function noContent() {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  function escapeXml(s) {
-    return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
-  }
+
 
   if (request.method === 'OPTIONS') {
     return noContent();
@@ -251,62 +216,13 @@ export async function onRequest(context) {
   switch (path) {
 
 
-    // === API DEBUG stats ===
-    case '/api/debug-stats': {
-      const d = await readData();
-      return json({
-        clients: (d.clients||[]).filter(c => !c._deleted).length,
-        totalClients: (d.clients||[]).length,
-        services: (d.services||[]).filter(s => !s._deleted).length,
-        employees: (d.employees||[]).filter(e => !e._deleted).length,
-        appointments: (d.appointments||[]).filter(a => !a._deleted).length
-      });
-    }
 
-    // === TEST SEND ===
-    case '/api/test-send': {
-      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-      try {
-        const b = await getBody();
-        const to = b.to || '+34678092305';
-        const text = b.text || 'Test desde Nymara';
-        const { sendMessage } = require('../../lib/whatsapp'); const result = await sendMessage(to, text);
-        return json({ sent: true, result: result.error || result.status + ' ' + (result.sid||'') });
-      } catch (e) { return json({ error: e.message }, 500); }
-    }
 
-    // === SEND WHATSAPP CONFIRMATION ===
-    case '/api/send-confirmation': {
-      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-      try {
-        const b = await getBody();
-        const { appointmentId } = b;
-        if (!appointmentId) { return json({ error: 'appointmentId required' }, 400); }
-        const d = await readData();
-        const appt = (d.appointments||[]).find(a => a.id === appointmentId);
-        if (!appt) { return json({ error: 'Appointment not found' }, 404); }
-        const client = (d.clients||[]).find(c => c.id === appt.clientId);
-        if (!client) { return json({ error: 'Client not found' }, 404); }
-        const svc = (d.services||[]).find(s => s.id === (appt.serviceId||'')) || {};
-        const emp = (d.employees||[]).find(e => e.id === appt.employeeId) || {};
-        const dateFmt = appt.date ? appt.date.split('-').reverse().join('-') : '';
-        const text = '✅ Tu cita en ' + BUSINESS_NAME + ' ha sido CONFIRMADA:\n\n📅 ' + dateFmt + '\n⏰ ' + appt.time + (appt.endTime ? ' - '+appt.endTime : '') + '\n💇 ' + (svc.name || 'Servicio') + '\n' + (emp.name ? '👤 '+emp.name : '') + '\n\n¡Te esperamos!';
-        const { sendMessage } = require('../../lib/whatsapp'); const result = await sendMessage(client.phone, text);
-        return json({ sent: true, phone: client.phone, result: result.error || result.status + ' ' + (result.sid||'') });
-      } catch (e) { return json({ error: e.message }, 500); }
-    }
 
-    // === SEND CUSTOM WHATSAPP ===
-    case '/api/send-whatsapp': {
-      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-      try {
-        const b = await getBody();
-        const { phone, text } = b;
-        if (!phone || !text) { return json({ error: 'phone and text required' }, 400); }
-        const { sendMessage } = require('../../lib/whatsapp'); const result = await sendMessage(phone, text);
-        return json({ sent: true, phone, result: result.error || result.status + ' ' + (result.sid||'') });
-      } catch (e) { return json({ error: e.message }, 500); }
-    }
+
+
+
+
 
     // === SYNC ===
     case '/sync':
@@ -364,19 +280,7 @@ export async function onRequest(context) {
        return json({ error: 'Method not allowed' }, 405);
      }
  
-     // === CLEAN: remove past appointments from storage ===
-     case '/api/clean':
-     case '/clean': {
-       if (request.method !== 'POST') return json({ error: 'Use POST' }, 405);
-       try {
-         const data = await readData();
-         const today = new Date().toISOString().split('T')[0];
-         const before = (data.appointments||[]).length;
-         data.appointments = (data.appointments||[]).filter(a => a.date >= today);
-         await writeData(data);
-         return json({ ok: true, removed: before - (data.appointments||[]).length, remaining: (data.appointments||[]).length });
-       } catch (e) { return json({ error: e.message }, 500); }
-     }
+
  
      // === HEALTH ===
      case '/health':
@@ -394,12 +298,7 @@ export async function onRequest(context) {
       });
     }
 
-    // === DEBUG (raw HTML) ===
-    case '/debug': {
-      const data = await readData();
-      const appts = (data.appointments || []).filter(a => !a._deleted);
-      return text('<pre>\nAppointments: ' + appts.length + '\nClients: ' + (data.clients||[]).length + '\n' + appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n') + '\n</pre>');
-    }
+
 
     // === API: SLOTS ===
     case '/api/slots': {
@@ -964,18 +863,7 @@ export async function onRequest(context) {
       }
     }
 
-    // === API: DEBUG PRODUCTS (muestra todos los productos crudos) ===
-    case '/api/debug-products': {
-      const d = await readData();
-      const r2 = globalThis.__ENV && globalThis.__ENV.R2_DATA;
-      return json({
-        r2Binding: !!r2,
-        totalProducts: (d.products||[]).length,
-        totalAppointments: (d.appointments||[]).length,
-        totalClients: (d.clients||[]).length,
-        sampleProducts: (d.products||[]).slice(0, 3).map(p => ({ id: p.id, name: p.name, showOnWeb: p.showOnWeb, showWeb: p.showWeb, _modified: p._modified }))
-      });
-    }
+
 
     // === API: WEB PRODUCTS ===
     case '/api/web-products': {
@@ -993,10 +881,7 @@ export async function onRequest(context) {
       if (request.headers.get('if-none-match') === etag) {
         return new Response(null, { status: 304, headers: CORS_HEADERS });
       }
-      return new Response(body, {
-        status: 200,
-        headers: { ...CORS_HEADERS, 'ETag': etag, 'Cache-Control': 'no-cache', 'Content-Type': 'application/json; charset=utf-8' }
-      });
+      return json(JSON.parse(body), 200, { 'ETag': etag, 'Cache-Control': 'no-cache' });
     }
 
     // === API: WEB OFFERS ===
@@ -1028,10 +913,7 @@ export async function onRequest(context) {
       if (request.headers.get('if-none-match') === etag) {
         return new Response(null, { status: 304, headers: CORS_HEADERS });
       }
-      return new Response(body, {
-        status: 200,
-        headers: { ...CORS_HEADERS, 'ETag': etag, 'Cache-Control': 'no-cache', 'Content-Type': 'application/json; charset=utf-8' }
-      });
+      return json(JSON.parse(body), 200, { 'ETag': etag, 'Cache-Control': 'no-cache' });
     }
 
     // === API: SYNC PULL ===
@@ -1063,50 +945,11 @@ export async function onRequest(context) {
       }
     }
 
-    // === API: ADMIN DELETE APPOINTMENT ===
-    case '/api/admin/delete-appointment': {
-      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-      try {
-        const b = await getBody();
-        if (!b.id) return json({ error: 'id required' }, 400);
-        const d = await readData();
-        const idx = (d.appointments||[]).findIndex(a => a.id === b.id);
-        if (idx === -1) return json({ error: 'Appointment not found' }, 404);
-        d.appointments.splice(idx, 1);
-        await writeData(d);
-        return json({ ok: true, deleted: b.id, remaining: d.appointments.length });
-      } catch (e) { return json({ error: e.message }, 400); }
-    }
 
-    // === API: ADMIN DELETE MULTIPLE APPOINTMENTS ===
-    case '/api/admin/delete-appointments': {
-      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-      try {
-        const b = await getBody();
-        if (!b.ids || !Array.isArray(b.ids)) return json({ error: 'ids array required' }, 400);
-        const d = await readData();
-        const deleted = [];
-        b.ids.forEach(id => {
-          const idx = (d.appointments||[]).findIndex(a => a.id === id);
-          if (idx !== -1) { d.appointments.splice(idx, 1); deleted.push(id); }
-        });
-        await writeData(d);
-        return json({ ok: true, deleted, remaining: d.appointments.length });
-      } catch (e) { return json({ error: e.message }, 400); }
-    }
 
-    // === API: ADMIN PURGE ALL DELETED APPOINTMENTS ===
-    case '/api/admin/purge-deleted': {
-      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-      try {
-        const d = await readData();
-        const before = (d.appointments||[]).length;
-        d.appointments = (d.appointments||[]).filter(a => !a._deleted && !a.cancelledBy);
-        const after = d.appointments.length;
-        await writeData(d);
-        return json({ ok: true, purged: before - after, remaining: after });
-      } catch (e) { return json({ error: e.message }, 400); }
-    }
+
+
+
 
     default:
       return json({ error: 'Not found' }, 404);

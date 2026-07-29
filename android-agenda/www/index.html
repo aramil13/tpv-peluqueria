@@ -53,13 +53,12 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .agenda-day .day-hours { font-size: 7px; color: #999; margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .empty-state { text-align: center; padding: 25px 16px; color: var(--text-light); }
 .empty-state p { font-size: 13px; margin-bottom: 6px; }
-.appt-list { padding: 10px 14px; }
-.appt-item { display: flex; justify-content: space-between; align-items: center; padding: 9px 10px; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 5px; background: var(--card); }
-.appt-item:active { background: #f8f9fa; }
-.appt-item .appt-time { font-weight: 600; font-size: 13px; color: var(--primary); min-width: 40px; }
-.appt-item .appt-info { flex: 1; margin: 0 8px; }
-.appt-item .appt-info .name { font-weight: 500; font-size: 12px; }
-.appt-item .appt-info .detail { font-size: 10px; color: var(--text-light); }
+
+
+
+
+
+
 .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.5); z-index: 1000; justify-content: center; align-items: flex-end; }
 .modal-overlay.show { display: flex; }
 .modal-content { background: var(--card); border-radius: 16px 16px 0 0; width: 100%; max-width: 500px; max-height: 85vh; overflow-y: auto; padding: 18px; animation: slideUp .25s ease; }
@@ -74,7 +73,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); }
 .form-group textarea { resize: vertical; min-height: 50px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.form-row-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
 .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); display: flex; box-shadow: 0 -2px 10px rgba(0,0,0,.1); z-index: 100; }
 .bottom-nav .tab { flex: 1; text-align: center; padding: 7px 0; cursor: pointer; font-size: 10px; color: var(--text-light); border-top: 2px solid transparent; transition: all .2s; -webkit-tap-highlight-color: transparent; }
 .bottom-nav .tab.active { color: var(--primary); border-top-color: var(--primary); font-weight: 600; }
@@ -85,14 +84,11 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .badge-info { background: #d6eaf8; color: #1a5276; }
 .badge-success { background: #d5f5e3; color: #1e8449; }
 .badge-danger { background: #fadbd8; color: #922b21; }
-.toolbar { display: flex; gap: 6px; padding: 10px 14px; flex-wrap: wrap; }
-.toolbar .btn { flex: 1; }
+
 .search-input { width:100%; padding:9px 11px; border:1px solid var(--border); border-radius:8px; font-size:13px; background:#fff; margin:0 0 8px; }
-.emp-columns { display:grid; gap:8px; }
-.emp-col { background:var(--bg); border-radius:8px; padding:8px; }
-.emp-col h4 { font-weight:600; font-size:12px; margin-bottom:6px; padding-bottom:4px; border-bottom:2px solid var(--primary); color:var(--primary); }
-.emp-appt { background:var(--card); border:1px solid var(--border); border-radius:6px; padding:6px 8px; margin-bottom:4px; font-size:11px; }
-.emp-appt .time { font-weight:600; font-size:11px; color:var(--primary); }
+
+
+
 .appt-grid { border-collapse: collapse; width: 100%; font-size: 11px; }
 .appt-grid th { background: var(--primary); color: #fff; padding: 6px 4px; font-weight: 600; text-align: center; white-space: nowrap; font-size: 11px; }
 .appt-grid td { padding: 0; text-align: center; border: 1px solid var(--border); height: 30px; vertical-align: top; }
@@ -104,11 +100,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .appt-grid-free { background: #fff; border: 2px dashed #ccc; }
 .appt-online-grid::after { content: '🌐'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 24px; opacity: .2; pointer-events: none; }
 .appt-pending-mod { opacity: .6; }
-.section-tabs { display:flex; gap:0; margin-bottom:12px; }
-.section-tab { flex:1; padding:8px; text-align:center; font-size:12px; cursor:pointer; border-bottom:2px solid var(--border); color:var(--text-light); -webkit-tap-highlight-color:transparent; }
-.section-tab.active { border-bottom-color:var(--primary); color:var(--primary); font-weight:600; }
+
+
 .stock-low { color: var(--danger); font-weight:700; }
-#importIcsInput { display: none; }
 .service-dd-item { padding:8px 10px; cursor:pointer; white-space:nowrap; font-size:13px; border-bottom:1px solid #eee; }
 .service-dd-item:hover { background:var(--primary); color:#fff; }
 .service-dd-empty { padding:8px 10px; color:#999; font-size:12px; }
@@ -121,12 +115,12 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 <body>
 
 <div class="header">
-  <h1><div id="syncDot" class="sync-indicator"></div> <span id="appBusinessName">Agenda</span></h1>
+  <h1><div id="syncDot" class="sync-indicator"></div></h1>
   <div class="header-actions">
     <span id="headerSyncStatus" style="font-size:9px;color:rgba(255,255,255,0.8);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></span>
     <button class="btn btn-sm btn-secondary" onclick="syncWebNow()" style="font-size:10px;background:rgba(255,255,255,0.2);color:#fff;">🌐 Sync</button>
     <button class="btn btn-sm btn-warning" onclick="exportToIcs()" style="font-size:10px;">📤 ICS</button>
-    <input type="file" id="importIcsInput" accept=".ics" onchange="importIcs(event)">
+
   </div>
 </div>
 
@@ -209,7 +203,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 
   <div class="card">
     <div style="padding:14px;text-align:center;color:var(--text-light);font-size:11px;">
-      <div id="versionText" onclick="handleVersionClick()" style="cursor:pointer;user-select:none;">Nymara Estilistas v1.0 — Sincronización Cloud</div>
+
     </div>
   </div>
 </div>
@@ -278,7 +272,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
     </div>
     <input type="checkbox" id="clientWhatsApp" style="display:none;">
     <div id="clientWhatsAppToggle" onclick="toggleClientWas(this)" style="width:44px;height:24px;background:#ccc;border-radius:12px;position:relative;transition:background .2s;cursor:pointer;"><div style="width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .2s;pointer-events:none;"></div></div>
-    <span id="clientWhatsAppLabel" style="font-size:13px;">Enviar recordatorio WhatsApp (72h antes)</span>
+
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveClient()">Guardar</button>
@@ -401,7 +395,7 @@ let restored = 0;
     a._deleted = false; a._modified = Date.now(); restored++;
   }
 });
-if (restored) { DB.set('appointments', data.appointments); console.log('Restored', restored, 'incorrectly deleted appointments'); }
+if (restored) { DB.set('appointments', data.appointments); }
 
 // Clean up any corrupted entries in main entities (caused by sync of binary-imported files on Windows)
 ['clients', 'employees', 'services', 'products', 'sections', 'providers'].forEach(k => {
@@ -966,7 +960,7 @@ function saveAppointment() {
     Object.assign(block1Appt, {
       clientId, employeeId, date, time,
       endTime: block1End,
-      notes, status: 'pending',
+      notes,
       serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
       serviceIds: bloque1Svcs.map(s => s.id),
       _modified: Date.now(), _deleted: false,
@@ -989,7 +983,7 @@ function saveAppointment() {
         data.appointments.push({
           id: id(), clientId, employeeId,
           date, time: block2Start, endTime: block2End,
-          notes, status: 'pending',
+          notes,
           serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
           serviceIds: bloque2Svcs.map(s => s.id),
           _modified: Date.now(), _deleted: false,
@@ -1015,7 +1009,7 @@ function saveAppointment() {
     Object.assign(block2Appt, {
       clientId, employeeId, date, time,
       endTime: block2End,
-      notes, status: 'pending',
+      notes,
       serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
       serviceIds: bloque2Svcs.map(s => s.id),
       _modified: Date.now(), _deleted: false,
@@ -1039,7 +1033,7 @@ function saveAppointment() {
         const wasModified = existing._modified;
         Object.assign(existing, {
           clientId, employeeId, date, time,
-          endTime: block1End, notes, status: 'pending',
+          endTime: block1End, notes,
           serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
           serviceIds: bloque1Svcs.map(s => s.id),
           _modified: Date.now(), _deleted: false,
@@ -1051,7 +1045,7 @@ function saveAppointment() {
       data.appointments.push({
         id: blockGroupId, clientId, employeeId,
         date, time, endTime: block1End,
-        notes, status: 'pending',
+        notes,
         serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
         serviceIds: bloque1Svcs.map(s => s.id),
         _modified: Date.now(), _deleted: false,
@@ -1066,7 +1060,7 @@ function saveAppointment() {
       data.appointments.push({
         id: id(), clientId, employeeId,
         date, time: block2Start, endTime: block2End,
-        notes, status: 'pending',
+        notes,
         serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
         serviceIds: bloque2Svcs.map(s => s.id),
         _modified: Date.now(), _deleted: false,
@@ -1083,7 +1077,6 @@ function saveAppointment() {
     clientId, serviceId, serviceIds,
     employeeId,
     date, time, endTime, notes: notes,
-    status: 'pending',
     _modified: Date.now(),
     _deleted: false
   };
@@ -1112,16 +1105,6 @@ function deleteAppt(id) {
     else { a._deleted = true; }
   }
   saveKey('appointments'); renderAgenda(); syncPush();
-}
-
-function deleteAllAppointments() {
-  if (!confirm('¿Eliminar TODAS las citas? Esta acción no se puede deshacer.')) return;
-  data.appointments.forEach(a => {
-    a._modified = Date.now();
-    a._deleted = true;
-  });
-  saveKey('appointments'); renderAgenda(); syncPush();
-  alert('Todas las citas han sido eliminadas.');
 }
 
 function deleteApptFromModal() {
@@ -1757,7 +1740,6 @@ function parseVeEvent(block) {
     date: date || '',
     time: time || '10:00',
     notes: description || '',
-    status: 'pending'
   };
 }
 
@@ -1828,24 +1810,17 @@ async function loadSyncConfigFile() {
   } catch(e) {}
 }
 
-function awakeRender() {
-  const c = getSyncCfg();
-  if (!c.enabled || !c.url) return;
-  fetchWithTimeout(c.url.replace(/\/+$/, '') + '/health', {}, 5000).catch(() => {});
-}
-
 renderAgenda();
 renderClients();
 loadSyncSettings();
+
 loadSyncConfigFile().then(() => {
-  awakeRender();
   if (getSyncCfg().enabled) {
     syncPull();
     startSyncPoller();
   }
 });
 
-window.exportToIcs = exportToIcs;
 </script>
 </body>
 </html>

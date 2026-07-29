@@ -58,25 +58,7 @@ function getOpeningHoursForDay(dateStr, settings) {
   };
 }
 
-function calcServiceDurationWithBlocks(servicesList, settings) {
-  const bloques = settings && settings.bloques ? settings.bloques : {};
-  const gap = bloques.bloqueGap || 45;
-  const bloque1Svcs = servicesList.filter(s => s.bloque === 'bloque1');
-  const bloque2Svcs = servicesList.filter(s => s.bloque === 'bloque2');
-  const otherSvcs = servicesList.filter(s => s.bloque !== 'bloque1' && s.bloque !== 'bloque2');
-  const bloque1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-  const bloque2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-  const otherDur = otherSvcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-  let total = otherDur;
-  if (bloque1Svcs.length && bloque2Svcs.length) {
-    total += bloque1Dur + gap + bloque2Dur;
-  } else if (bloque1Svcs.length) {
-    total += bloque1Dur;
-  } else if (bloque2Svcs.length) {
-    total += bloque2Dur;
-  }
-  return total;
-}
+
 
 function computeETag(data) {
   const hash = require('crypto').createHash('md5').update(JSON.stringify(data)).digest('hex');
@@ -204,53 +186,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // === TEST SEND ===
-  if (url === '/api/test-send' && req.method === 'POST') {
-    try {
-      const b = await getBody(req);
-      const to = b.to || '+34678092305';
-      const text = b.text || 'Test desde Nymara';
-      const { sendMessage } = require('../lib/whatsapp');
-      const result = await sendMessage(to, text);
-      res.json({ sent: true, result: result.error || result.status + ' ' + (result.sid||'') });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-    return;
-  }
 
-  // === SEND WHATSAPP CONFIRMATION ===
-  if (url === '/api/send-confirmation' && req.method === 'POST') {
-    try {
-      const b = await getBody(req);
-      const { appointmentId } = b;
-      if (!appointmentId) { res.status(400).json({ error: 'appointmentId required' }); return; }
-      const d = await readData();
-      const appt = (d.appointments||[]).find(a => a.id === appointmentId);
-      if (!appt) { res.status(404).json({ error: 'Appointment not found' }); return; }
-      const client = (d.clients||[]).find(c => c.id === appt.clientId);
-      if (!client) { res.status(404).json({ error: 'Client not found' }); return; }
-      const svc = (d.services||[]).find(s => s.id === (appt.serviceId||'')) || {};
-      const emp = (d.employees||[]).find(e => e.id === appt.employeeId) || {};
-      const dateFmt = appt.date ? appt.date.split('-').reverse().join('-') : '';
-      const text = `✅ Tu cita en ${BUSINESS_NAME} ha sido CONFIRMADA:\n\n📅 ${dateFmt}\n⏰ ${appt.time}${appt.endTime ? ' - '+appt.endTime : ''}\n💇 ${svc.name || 'Servicio'}\n${emp.name ? '👤 '+emp.name : ''}\n\n¡Te esperamos!`;
-      const { sendMessage } = require('../lib/whatsapp');
-      const result = await sendMessage(client.phone, text);
-      res.json({ sent: true, phone: client.phone, result: result.error || result.status + ' ' + (result.sid||'') });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-    return;
-  }
-
-  // === SEND CUSTOM WHATSAPP ===
-  if (url === '/api/send-whatsapp' && req.method === 'POST') {
-    try {
-      const b = await getBody(req);
-      const { phone, text } = b;
-      if (!phone || !text) { res.status(400).json({ error: 'phone and text required' }); return; }
-      const { sendMessage } = require('../lib/whatsapp');
-      const result = await sendMessage(phone, text);
-      res.json({ sent: true, phone, result: result.error || result.status + ' ' + (result.sid||'') });
-    } catch (e) { res.status(500).json({ error: e.message }); }
-    return;
-  }
 
   // === SYNC ===
   if (url === '/sync' || url === '/sync/' || url === '/api/sync' || url === '/api/sync/') {
@@ -295,42 +231,7 @@ module.exports = async (req, res) => {
         merged.appointments = (merged.appointments||[]).filter(a => a.date >= today);
         await writeData(merged);
 
-        // Notificar por email al salón si llegan nuevas citas pendientes por WhatsApp
-        if (Array.isArray(remote.appointments)) {
-          const salonEmail = process.env.SALON_EMAIL || '';
-          if (salonEmail && transporter) {
-            for (const appt of remote.appointments) {
-              if (appt.pendingSalonConfirm && appt.source === 'whatsapp') {
-                const client = (Array.isArray(remote.clients) ? remote.clients : []).find(c => c.id === appt.clientId);
-                const service = (Array.isArray(merged.services) ? merged.services : []).find(s => s.id === appt.serviceId);
-                const employee = (Array.isArray(merged.employees) ? merged.employees : []).find(e => e.id === appt.employeeId);
-                const msg = {
-                  from: SMTP_FROM, to: salonEmail,
-                  subject: 'Nueva cita pendiente - WhatsApp - ' + BUSINESS_NAME,
-                  html: `<div style="font-family:Arial;max-width:500px;margin:0 auto;">
-                    <h2 style="color:#6C3483;">Nueva cita por WhatsApp</h2>
-                    <p>Tienes una nueva solicitud de cita pendiente de confirmar:</p>
-                    <table style="background:#f5f2f7;border-radius:8px;padding:15px;margin:15px 0;width:100%;">
-                      <tr><td style="padding:4px 10px;color:#666;">Cliente</td><td><strong>${(client&&client.name)||''}</strong></td></tr>
-                      ${client&&client.phone ? `<tr><td style="padding:4px 10px;color:#666;">Teléfono</td><td><strong>${client.phone}</strong></td></tr>` : ''}
-                      <tr><td style="padding:4px 10px;color:#666;">Servicio</td><td><strong>${(service&&service.name)||''}</strong></td></tr>
-                      <tr><td style="padding:4px 10px;color:#666;">Fecha</td><td><strong>${appt.date}</strong></td></tr>
-                      <tr><td style="padding:4px 10px;color:#666;">Hora</td><td><strong>${appt.time}</strong></td></tr>
-                      ${employee ? `<tr><td style="padding:4px 10px;color:#666;">Profesional</td><td><strong>${employee.name}</strong></td></tr>` : ''}
-                    </table>
-                    <p style="color:#999;font-size:12px;">Confirma la cita desde el TPV.<br>${BUSINESS_NAME}</p>
-                  </div>`
-                };
-                try {
-                  await transporter.sendMail(msg);
-                  console.log('Email notification sent to salon for appointment', appt.id);
-                } catch (e) {
-                  console.error('Email notification error:', e.message);
-                }
-              }
-            }
-          }
-        }
+
 
         console.log('POST /sync: stored',
           (remote.products||[]).length, 'products,',
@@ -352,22 +253,7 @@ module.exports = async (req, res) => {
     }
   }
 
-  // === CLEAN (remove past appointments) ===
-  if ((url === '/api/clean' || url === '/clean') && req.method === 'POST') {
-    try {
-      const data = await readData();
-      const before = (data.appointments||[]).length;
-      const today = new Date().toISOString().split('T')[0];
-      data.appointments = (data.appointments||[]).filter(a => a.date >= today);
-      const after = (data.appointments||[]).length;
-      await writeData(data);
-      console.log(`Clean: removed ${before - after}, kept ${after}`);
-      res.json({ ok: true, removed: before - after, kept: after, totalBefore: before });
-    } catch (e) {
-      res.status(500).json({ error: e.message });
-    }
-    return;
-  }
+
 
   // === HEALTH ===
   if (url === '/health' || url === '/api/health') {
@@ -385,18 +271,7 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // === DEBUG ===
-  if (url === '/debug') {
-    const data = await readData();
-    const appts = (data.appointments || []).filter(a => !a._deleted);
-    res.setHeader('Content-Type', 'text/html');
-    res.send(`<pre>
-Appointments: ${appts.length}
-Clients: ${(data.clients||[]).length}
-${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
-</pre>`);
-    return;
-  }
+
 
   // === API: SLOTS ===
   if (url === '/api/slots') {
@@ -882,8 +757,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         const newEndM = Math.round((reqEnd - newEndH) * 60);
         appt.endTime = String(newEndH).padStart(2,'0')+':'+String(newEndM).padStart(2,'0');
         appt.employeeId = appt.pendingEmployeeId || appt.employeeId;
-        } else {
-        }
+      }
       appt.clientModified = false;
       delete appt.pendingDate;
       delete appt.pendingTime;
@@ -917,7 +791,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     res.setHeader('ETag', etag);
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.send(body);
+    res.json(JSON.parse(body));
     return;
   }
 
@@ -954,7 +828,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     res.setHeader('ETag', etag);
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.send(body);
+    res.json(JSON.parse(body));
     return;
   }
 
@@ -987,23 +861,10 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
-  // === API: DEBUG ===
-  if (url === '/api/debug' && req.method === 'GET') {
-    const d = await readData();
-    res.json({
-      clients: (d.clients||[]).filter(c => !c._deleted).length,
-      totalClients: (d.clients||[]).length,
-      services: (d.services||[]).filter(s => !s._deleted).length,
-      employees: (d.employees||[]).filter(e => !e._deleted).length,
-      appointments: (d.appointments||[]).filter(a => !a._deleted).length
-    });
-    return;
-  }
+
 
   // 404 for everything else
   res.status(404).json({ error: 'Not found' });
 };
 
-function escapeXml(s) {
-  return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
-}
+

@@ -23,7 +23,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
   .sidebar-header h1 { font-size: 14px; }
   .sidebar-nav { display: flex; flex-direction: row; }
   .nav-item { padding: 10px 12px !important; font-size: 12px; white-space: nowrap; }
-  .main-content { margin-left: 0 !important; padding: 10px; width: 100%; }
+
   .grid-2 { grid-template-columns: 1fr !important; }
   table { font-size: 11px; }
   input, select, button { font-size: 14px !important; }
@@ -71,8 +71,6 @@ tr:hover td { background: #f8f9fa; }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); }
 .form-group textarea { resize: vertical; min-height: 60px; }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
-.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
-.grid-4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; }
 .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.5); z-index: 1000; justify-content: center; align-items: center; }
 .modal.show { display: flex; }
 .modal-content { background: var(--card); border-radius: 12px; padding: 25px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,.2); }
@@ -183,7 +181,6 @@ tr:hover td { background: #f8f9fa; }
 .alert { padding: 12px 16px; border-radius: 8px; margin-bottom: 15px; font-size: 13px; }
 .alert-success { background: #d4efdf; color: #1a6e3a; border: 1px solid #a9dfbf; }
 .alert-danger { background: #fadbd8; color: #a93226; border: 1px solid #f5b7b1; }
-.alert-info { background: #d6eaf8; color: #1a5276; border: 1px solid #aed6f1; }
 @media (max-width: 1024px) { .pos-container { grid-template-columns: 1fr; } }
 @media (max-width: 768px) {
   .sidebar { width: 60px; }
@@ -341,7 +338,6 @@ tr:hover td { background: #f8f9fa; }
     <div class="section" id="sec-projects">
       <div class="card">
         <div class="card-header"><h3>Gestión de Ofertas</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('projects')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('projects')">📤 Exportar</button><button class="btn btn-primary" onclick="openProjectForm()">+ Nueva Oferta</button></div></div>
-        <div id="webOffersStatus" style="display:flex;align-items:center;gap:12px;padding:8px 12px;margin-bottom:8px;background:#f0f9f4;border:1px solid #a9dfbf;border-radius:8px;font-size:13px;"></div>
         <div class="search-bar"><input type="text" id="searchProject" placeholder="Buscar oferta..." oninput="renderProjects()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Servicios/Productos</th><th>Duración</th><th>Precio</th><th>Dto.</th><th>Total</th><th>Web</th><th>Acciones</th></tr></thead><tbody id="projectsTable"></tbody></table></div>
       </div>
@@ -350,7 +346,6 @@ tr:hover td { background: #f8f9fa; }
     <div class="section" id="sec-products">
       <div class="card">
         <div class="card-header"><h3>Gestión de Productos</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('products')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('products')">📤 Exportar</button><button class="btn btn-danger btn-sm" onclick="clearAllData('products')">🗑️ Vaciar</button><button class="btn btn-primary" onclick="openProductModal()">+ Nuevo Producto</button></div></div>
-        <div id="webProductsStatus" style="display:flex;align-items:center;gap:12px;padding:8px 12px;margin-bottom:8px;background:#f0f9f4;border:1px solid #a9dfbf;border-radius:8px;font-size:13px;"></div>
         <div class="search-bar" style="display:flex;gap:8px;align-items:center;">
           <input type="text" id="searchProduct" placeholder="Buscar producto..." oninput="renderProducts()" style="flex:1;">
           <select id="filterProductProvider" onchange="renderProducts()" style="width:auto;padding:5px 8px;font-size:12px;border:1px solid var(--border);border-radius:6px;max-width:180px;">
@@ -475,7 +470,6 @@ tr:hover td { background: #f8f9fa; }
     <div class="form-group-inline" style="justify-content:space-between;flex-wrap:wrap;gap:4px 12px;">
       <input type="checkbox" id="clientWhatsApp" style="display:none;">
     <div id="clientWhatsAppToggle" onclick="toggleClientWas(this)" style="width:44px;height:24px;background:#ccc;border-radius:12px;position:relative;transition:background .2s;cursor:pointer;"><div style="width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .2s;pointer-events:none;"></div></div>
-    <span id="clientWhatsAppLabel" style="font-size:13px;">Enviar recordatorio WhatsApp (72h antes)</span>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button><button class="btn btn-primary" onclick="saveClient()">Guardar</button></div>
     <input type="hidden" id="clientEditId">
@@ -874,7 +868,7 @@ if (data.settings && data.settings.openingHours) {
       migrated = true;
     }
   }
-  if (migrated) { DB.set('settings', data.settings); console.log('Migrated openingHours to split format'); }
+  if (migrated) { DB.set('settings', data.settings); }
 }
 
 // Vercel URLs disabled — sync goes to local helper (localhost:3456) and cloud (nymaraestilistas.es/api)
@@ -891,7 +885,6 @@ if (data.settings && data.settings.openingHours) {
       return !isCorrupted;
     });
     if (data[k].length !== initialCount) {
-      console.log(`[Recovery] Cleaned up ${initialCount - data[k].length} corrupted items in ${k}`);
       saveKey(k);
     }
   }
@@ -1648,11 +1641,6 @@ function mergeRemote(type, remote) {
 }
 
 function isModalOpen(id) { const el = document.getElementById(id); return el && el.classList.contains('show'); }
-
-function safeMergeRemote(type, remote, activeModalId) {
-  if (activeModalId && isModalOpen(activeModalId)) return false;
-  return mergeRemote(type, remote);
-}
 
 let syncErrorCount = 0;
 let syncErrorTimer = null;
@@ -3072,9 +3060,7 @@ function acceptClientMod(id) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: client.phone, text })
-    }).then(r => r.json()).then(d => {
-      if (d.sent) console.log('Modification accepted WhatsApp sent to', d.phone);
-    }).catch(e => console.error('WhatsApp send error:', e));
+    }).then(r => r.json()).then(d => {}).catch(e => console.error('WhatsApp send error:', e));
   }
 }
 
@@ -3513,7 +3499,6 @@ function selectServiceFromDropdown(id) {
 }
 
 let apptSelectedServices = [];
-let apptEditingServiceId = null;
 
 function renderApptServices() {
   const list = document.getElementById('apptServicesList');
@@ -3661,7 +3646,6 @@ async function deleteAppt(id) {
   if (!a) return;
   const isRemote = a.source === 'online' || a.source === 'whatsapp';
   let allSvcsNames = '';
-  let allDate = a.date;
   let allTime = a.time + (a.endTime ? ' - ' + a.endTime : '');
   if (a.blockGroupId) {
     const relatedAppts = data.appointments.filter(x => x.blockGroupId === a.blockGroupId);
@@ -3690,16 +3674,6 @@ async function deleteAppt(id) {
   saveKey('appointments'); renderAgenda();
   const pushDone = syncPush();
   if (pushDone) await pushDone.catch(() => {});
-}
-
-function deleteAllAppointments() {
-  if (!confirm('¿Eliminar TODAS las citas? Esta acción no se puede deshacer.')) return;
-  data.appointments.forEach(a => {
-    a._modified = Date.now();
-    a._deleted = true;
-  });
-  saveKey('appointments'); renderAgenda(); syncPush();
-  alert('Todas las citas han sido eliminadas.');
 }
 
 function deleteApptFromModal() {
@@ -3767,7 +3741,6 @@ function renderPosItems(filter) {
   });
   data.products.filter(p => !p._deleted && p.showInPos !== false).forEach(p => {
     const prov = data.providers.find(x => x.id === p.providerId && !x._deleted);
-    const pe = prov ? prov.name + ' · ' : '';
     items.push({type:'product', id:p.id, name:p.name, price:p.price, extra: 'Stock: '+(p.stock||0), ref:p, provColor: prov&&prov.color ? prov.color : null});
   });
   data.projects.filter(p => !p._deleted && p.showInPos !== false).forEach(p => {
@@ -4649,7 +4622,7 @@ function getPendingAppts() {
     }
     result.push(a);
   });
-  if (cleanedDups > 0) console.log('[PENDING] Limpiados', cleanedDups, 'duplicados en memoria');
+
   return result;
 }
 
@@ -4759,8 +4732,6 @@ function renderDashboard() {
     if (!existing || (a._modified||0) > (existing._modified||0)) todayCountMap.set(key, a);
   });
   const todayAppts = todayCountMap.size;
-  const totalSalesSum = visibleSales.reduce((sum, s) => sum + s.total, 0);
-  const lowStock = data.products.filter(p => !p._deleted && (p.stock||0) <= (p.minStock||5)).length;
   
   const pendingCount = countPendingConfirmations();
   document.getElementById('dashboardStats').innerHTML = `
@@ -4966,7 +4937,7 @@ function cleanDupAppointments() {
     seen.add(key);
     keep.push(a);
   });
-  if (removed > 0) { data.appointments = keep; saveKey('appointments'); console.log('Limpiados', removed, 'duplicados de appointments'); }
+  if (removed > 0) { data.appointments = keep; saveKey('appointments'); }
 }
 
 function init() {
