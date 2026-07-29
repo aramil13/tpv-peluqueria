@@ -617,7 +617,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Empleado</label><select id="apptEmployee"></select></div>
       <div class="form-group"><label>Notas</label><textarea id="apptNotes" placeholder="Notas..."></textarea></div>
     </div>
-    <div class="modal-footer"><button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button><button class="btn btn-success" id="whatsappApptBtn" style="display:none;" onclick="sendWaReminderFromModal()">📱 WhatsApp</button><button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button><button class="btn btn-primary" onclick="saveAppointment()">Guardar</button></div>
+    <div class="modal-footer"><button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button><button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button><button class="btn btn-primary" onclick="saveAppointment()">Guardar</button></div>
     <input type="hidden" id="apptEditId">
   </div>
 </div>
@@ -665,8 +665,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="tab" onclick="switchSettingsTab('invoice',this)">Factura</div>
       <div class="tab" onclick="switchSettingsTab('iva',this)">IVA</div>
       <div class="tab" onclick="switchSettingsTab('sync',this)">Sync</div>
-      <div class="tab" onclick="switchSettingsTab('whatsapp',this)">Recordatorios WAS</div>
-      <div class="tab" onclick="switchSettingsTab('ia',this)">IA y WhatsApp</div>
+      
       <div class="tab" onclick="switchSettingsTab('hours',this)">Horarios</div>
       <div class="tab" onclick="switchSettingsTab('bloques',this)">Bloques</div>
     </div>
@@ -717,7 +716,7 @@ tr:hover td { background: #f8f9fa; }
         <div class="form-group"><label>URL del servidor Sync</label><input type="text" id="syncUrl" placeholder="http://192.168.1.100:3456"></div>
         <div style="font-size:12px;color:var(--text-light);margin-top:6px;line-height:1.5;">
           📖 Usa una URL local (<code>http://192.168.1.100:3456</code>) para sync en red local,<br>
-          o una URL cloud (<code>https://tuservidor.onrender.com</code>) para sync desde cualquier lugar.<br>
+          o una URL cloud para sync desde cualquier lugar.<br>
           Compatible con app Android AgendaTPV.
         </div>
       </div>
@@ -751,38 +750,7 @@ tr:hover td { background: #f8f9fa; }
         </div>
       </div>
     </div>
-    <div id="settingsWhatsApp" style="display:none;">
-      <div id="waReminderList" style="max-height:400px;overflow-y:auto;"></div>
-    </div>
-    <div id="settingsIA" style="display:none;">
-      <div class="card" style="box-shadow:none;padding:0;margin-bottom:20px;">
-        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">🧠 Agente IA (GitHub Models)</div>
-        <div class="form-group"><label>GitHub Token</label>
-          <div style="display:flex;gap:8px;">
-            <input type="password" id="githubToken" placeholder="github_pat_..." style="flex:1;font-family:monospace;">
-            <button class="btn btn-secondary btn-sm" onclick="toggleGitHubTokenVisibility()" title="Mostrar/Ocultar">👁️</button>
-          </div>
-        </div>
-        <div style="font-size:12px;color:var(--text-light);margin-top:-6px;">Obtén tu token en <a href="https://github.com/settings/tokens" target="_blank">github.com/settings/tokens</a> (permiso: Models:Read)</div>
-      </div>
-      <div class="card" style="box-shadow:none;padding:0;">
-        <div style="font-size:13px;font-weight:600;margin-bottom:12px;">📱 WhatsApp Bridge</div>
-        <div id="waBridgeStatus" style="font-size:13px;margin-bottom:10px;padding:8px 12px;border-radius:6px;background:var(--bg);">
-          Estado: <span id="waBridgeStatusText">No iniciado</span>
-        </div>
-        <div id="waBridgeQrContainer" style="display:none;text-align:center;margin-bottom:12px;">
-          <div style="font-size:12px;color:var(--text-light);margin-bottom:8px;">Escanea este QR con WhatsApp (Ajustes > Dispositivos vinculados)</div>
-          <img id="waBridgeQr" src="" style="width:220px;height:220px;border:2px solid var(--border);border-radius:8px;background:#fff;padding:8px;">
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="btn btn-success btn-sm" id="waBridgeStartBtn" onclick="startWaBridge()">🔗 Vincular WhatsApp</button>
-          <button class="btn btn-danger btn-sm" id="waBridgeStopBtn" onclick="stopWaBridge()" style="display:none;">⛔ Desvincular</button>
-        </div>
-        <div style="font-size:12px;color:var(--text-light);margin-top:8px;line-height:1.5;">
-          El bridge permite que la IA (GitHub Models) converse con los clientes vía WhatsApp y gestione citas automáticamente.
-        </div>
-      </div>
-    </div>
+
     <div id="settingsHours" style="display:none;">
       <div style="font-size:13px;margin-bottom:10px;color:var(--text-light);">Define el horario habitual del negocio. Los días cerrados no mostrarán disponibilidad en reservas online ni en la IA.</div>
       <div id="hoursContainer"></div>
@@ -1240,13 +1208,10 @@ function switchSettingsTab(tab, el) {
   document.getElementById('settingsInvoice').style.display = tab === 'invoice' ? 'block' : 'none';
   document.getElementById('settingsIva').style.display = tab === 'iva' ? 'block' : 'none';
   document.getElementById('settingsSync').style.display = tab === 'sync' ? 'block' : 'none';
-  document.getElementById('settingsWhatsApp').style.display = tab === 'whatsapp' ? 'block' : 'none';
-  document.getElementById('settingsIA').style.display = tab === 'ia' ? 'block' : 'none';
   document.getElementById('settingsHours').style.display = tab === 'hours' ? 'block' : 'none';
   document.getElementById('settingsBloques').style.display = tab === 'bloques' ? 'block' : 'none';
   if (tab === 'ticket') { populateBackupLists('ticket'); document.getElementById('currentTicketNum').textContent = lastTicketNum(); }
   if (tab === 'invoice') { populateBackupLists('invoice'); document.getElementById('currentInvoiceNum').textContent = lastInvoiceNum(); }
-  if (tab === 'whatsapp') renderWaReminderList();
 }
 
 function openSettings() {
@@ -1287,8 +1252,6 @@ function openSettings() {
   document.getElementById('bloque1Duration').value = bloques.bloque1Duration || 60;
   document.getElementById('bloque2Duration').value = bloques.bloque2Duration || 60;
   document.getElementById('bloqueGap').value = bloques.bloqueGap || 45;
-  document.getElementById('githubToken').value = s.githubToken || '';
-  updateBridgeStatusUI();
   switchSettingsTab('business', document.querySelector('#settingsModal .tab'));
   openModal('settingsModal');
 }
@@ -1421,12 +1384,7 @@ function saveSettings() {
       bloque2Duration: parseInt(document.getElementById('bloque2Duration').value) || 60,
       bloqueGap: parseInt(document.getElementById('bloqueGap').value) || 45
     },
-    githubToken: document.getElementById('githubToken').value.trim()
   };
-  const gt = document.getElementById('githubToken').value.trim();
-  if (window.electronAPI && window.electronAPI.setGitHubToken) {
-    window.electronAPI.setGitHubToken(gt);
-  }
   saveKey('ivaRate'); saveKey('settings');
   updateAppHeader();
   if (data.settings.sync.enabled) { syncPush(); startSyncPoller(); }
@@ -1435,99 +1393,6 @@ function saveSettings() {
   else stopWebSyncPoller();
   closeModal('settingsModal');
   updateTicket();
-}
-
-// ---- IA y WhatsApp Bridge ----
-function updateBridgeStatusUI() {
-  if (!window.electronAPI) return;
-  window.electronAPI.getBridgeStatus().then(status => {
-    const text = document.getElementById('waBridgeStatusText');
-    const startBtn = document.getElementById('waBridgeStartBtn');
-    const stopBtn = document.getElementById('waBridgeStopBtn');
-    const qrContainer = document.getElementById('waBridgeQrContainer');
-    if (!status.connected) {
-      text.textContent = status.state === 'starting' || status.state === 'connecting'
-        ? 'Conectando...' : 'No conectado';
-      text.style.color = 'var(--text-light)';
-      startBtn.style.display = '';
-      stopBtn.style.display = 'none';
-      qrContainer.style.display = 'none';
-    } else {
-      text.textContent = '✅ Conectado como ' + (status.phone || 'WhatsApp');
-      text.style.color = 'var(--success)';
-      startBtn.style.display = 'none';
-      stopBtn.style.display = '';
-      qrContainer.style.display = 'none';
-    }
-  }).catch(() => {});
-}
-
-function startWaBridge() {
-  if (!window.electronAPI) return;
-  document.getElementById('waBridgeStatusText').textContent = 'Iniciando...';
-  document.getElementById('waBridgeStatusText').style.color = 'var(--text-light)';
-  window.electronAPI.startBridge();
-}
-
-function stopWaBridge() {
-  if (!window.electronAPI) return;
-  document.getElementById('waBridgeStatusText').textContent = 'Deteniendo...';
-  document.getElementById('waBridgeStatusText').style.color = 'var(--text-light)';
-  window.electronAPI.stopBridge();
-}
-
-function toggleGitHubTokenVisibility() {
-  const el = document.getElementById('githubToken');
-  el.type = el.type === 'password' ? 'text' : 'password';
-}
-
-if (window.electronAPI) {
-  window.electronAPI.onBridgeStatus((status) => {
-    const text = document.getElementById('waBridgeStatusText');
-    const startBtn = document.getElementById('waBridgeStartBtn');
-    const stopBtn = document.getElementById('waBridgeStopBtn');
-    const qrContainer = document.getElementById('waBridgeQrContainer');
-    if (status.connected) {
-      text.textContent = '✅ Conectado como ' + (status.phone || 'WhatsApp');
-      text.style.color = 'var(--success)';
-      startBtn.style.display = 'none';
-      stopBtn.style.display = '';
-      qrContainer.style.display = 'none';
-    } else if (status.state === 'starting' || status.state === 'connecting') {
-      text.textContent = 'Conectando...';
-      text.style.color = 'var(--text-light)';
-      startBtn.style.display = 'none';
-      stopBtn.style.display = 'none';
-      qrContainer.style.display = 'none';
-    } else if (status.state === 'error') {
-      text.textContent = '❌ Error: ' + (status.error || 'Error al iniciar. Revisa la consola.');
-      text.style.color = 'var(--danger)';
-      startBtn.style.display = '';
-      stopBtn.style.display = 'none';
-      qrContainer.style.display = 'none';
-    } else {
-      text.textContent = 'No conectado';
-      text.style.color = 'var(--text-light)';
-      startBtn.style.display = '';
-      stopBtn.style.display = 'none';
-      qrContainer.style.display = 'none';
-    }
-    if (status.state === 'stopped' && status.error === 'logged_out') {
-      text.textContent = 'Sesión cerrada. Haz clic en Vincular WhatsApp para escanear de nuevo.';
-      text.style.color = 'var(--danger)';
-      startBtn.style.display = '';
-    }
-  });
-
-  window.electronAPI.onBridgeQr((qrDataUrl) => {
-    const qrContainer = document.getElementById('waBridgeQrContainer');
-    const qrImg = document.getElementById('waBridgeQr');
-    qrImg.src = qrDataUrl;
-    qrContainer.style.display = 'block';
-    document.getElementById('waBridgeStatusText').textContent = 'Escanea el QR con WhatsApp';
-    document.getElementById('waBridgeStatusText').style.color = 'var(--warning)';
-    document.getElementById('waBridgeStartBtn').style.display = 'none';
-  });
 }
 
 // ---- Counter backup/restore ----
@@ -1631,55 +1496,6 @@ function deleteBackup(idx, type) {
   else data.invoiceBackups.splice(idx, 1);
   saveKey(key);
   populateBackupLists(type);
-}
-
-function renderWaReminderList() {
-  const div = document.getElementById('waReminderList');
-  const now = new Date();
-  const limit = new Date(now.getTime() + 72 * 3600000);
-  const pending = data.appointments.filter(a => {
-    if (!a || a._deleted || a.cancelledBy === 'salon' || !a.date || !a.time) return false;
-    const cl = data.clients.find(c => c.id === a.clientId && !c._deleted);
-    if (!cl || !cl.whatsapp || !cl.phone) return false;
-    const apptTime = new Date(a.date + 'T' + a.time + ':00');
-    return apptTime >= now && apptTime <= limit;
-  });
-  if (!pending.length) { div.innerHTML = '<div class="empty-state"><p>Sin recordatorios pendientes</p></div>'; return; }
-  pending.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
-  div.innerHTML = '<table style="width:100%;font-size:13px;"><thead><tr><th>Cliente</th><th>Fecha</th><th>Hora</th><th>Servicios</th><th>Estado</th><th style="width:80px;">Acciones</th></tr></thead><tbody>' +
-    pending.map(a => {
-      const cl = data.clients.find(c => c.id === a.clientId);
-      const dt = new Date(a.date + 'T' + a.time + ':00');
-      const fecha = dt.toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'});
-      const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
-      const svcs = (a.serviceIds||[]).map(sid => { const s = data.services.find(x => x.id === sid); return s ? s.name : ''; }).filter(n => n).join(', ');
-      const sent = a.waReminder === 'sent';
-      return `<tr style="${sent?'background:#d4edda;':''}"><td>${esc(cl?cl.name:'')}</td><td>${fecha}</td><td>${hora}</td><td>${esc(svcs)}</td><td>${sent?'<span style="color:#155724;font-weight:bold;">Enviado ✓</span>':'<span style="color:#856404;font-weight:bold;">Pendiente</span>'}</td><td>
-        <button class="btn btn-xs ${sent?'btn-secondary':'btn-success'}" onclick="sendWaReminder('${a.id}')">${sent?'Reenviar':'Enviar'}</button></td></tr>`;
-    }).join('') + '</tbody></table>';
-}
-
-function sendWaReminder(apptId) {
-  const a = data.appointments.find(x => x.id === apptId); if (!a) return;
-  const cl = data.clients.find(c => c.id === a.clientId && !c._deleted); if (!cl || !cl.phone) return;
-  const dt = new Date(a.date + 'T' + a.time + ':00');
-  const dia = dt.toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'});
-  const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
-  let phone = cl.phone.replace(/\D/g,'');
-  if (phone.length === 9 && (phone.startsWith('6') || phone.startsWith('7'))) phone = '34' + phone;
-  const bizName = (data.settings && data.settings.businessName) ? data.settings.businessName : 'Nymara Estilistas';
-  const msg = encodeURIComponent(`Hola ${cl.name}.\nTe recordamos que tienes cita en ${bizName} el ${dia} a las ${hora}.\nEn caso de no poder asistir, por favor avísanos con antelación para poder ceder tu plaza.\nTe esperamos!`);
-  window.open(`https://wa.me/${phone}?text=${msg}`, '_blank');
-  a.waReminder = 'sent';
-  a._modified = Date.now();
-  saveKey('appointments');
-  syncPush();
-  renderWaReminderList();
-}
-
-function sendWaReminderFromModal() {
-  const id = document.getElementById('apptEditId').value;
-  if (id) sendWaReminder(id);
 }
 
 function updateAppHeader() {
@@ -3416,11 +3232,6 @@ function editAppt(id) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
-  const btnWa = document.getElementById('whatsappApptBtn');
-  if (btnWa) {
-    const cl = data.clients.find(c => c.id === a.clientId);
-    btnWa.style.display = (cl && cl.phone) ? 'inline-flex' : 'none';
-  }
   openModal('appointmentModal');
 }
 
@@ -3459,11 +3270,6 @@ function editApptBlock(id, blockNum) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
-  const btnWa = document.getElementById('whatsappApptBtn');
-  if (btnWa) {
-    const cl = data.clients.find(c => c.id === bloque1Appt.clientId);
-    btnWa.style.display = (cl && cl.phone) ? 'inline-flex' : 'none';
-  }
   editingBlockNum = blockNum;
   openModal('appointmentModal');
 }
@@ -3638,13 +3444,10 @@ function saveAppointment() {
   if (id_) {
     const a = data.appointments.find(x => x.id === id_);
     if (a) {
-      const wasModified = a._modified && a._modified < Date.now() - 5000;
-      delete a.waReminder;
       if (a.source === 'online' && !a.salonModified) {
         obj.salonModified = true;
       }
       Object.assign(a, obj);
-      if (wasModified) delete a.waReminder;
     }
   }
   else { obj.id = id(); data.appointments.push(obj); }
@@ -3657,7 +3460,6 @@ function quickAppt(dateStr, time, employeeId) {
   editingBlockNum = null;
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
-  document.getElementById('whatsappApptBtn').style.display = 'none';
   document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
   document.getElementById('apptTime').value = time || '10:00';
   document.getElementById('apptEndTime').value = '';
@@ -5176,23 +4978,12 @@ function init() {
   
   cleanOldAppointments();
   cleanDupAppointments();
-  cleanOldWaReminders();
   renderDashboard();
   updatePendingBadge();
   updateAppHeader();
   initAlphabetFilters();
   if (getSyncCfg().enabled) syncPush();
   setInterval(updatePendingBadge, 5000);
-}
-
-function cleanOldWaReminders() {
-  const now = new Date();
-  data.appointments.forEach(a => {
-    if (a.waReminder === 'sent' && a.date && a.time) {
-      const apptTime = new Date(a.date + 'T' + a.time + ':00');
-      if (apptTime < now) { delete a.waReminder; a._modified = Date.now(); }
-    }
-  });
 }
 
 init();

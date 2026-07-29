@@ -1,1 +1,0 @@
-[{"role":"user","content":"Quiero cancelar mis citas"},{"role":"assistant","content":"⚠️ Error Groq (400): {\"error\":{\"message\":\"Failed to call a function. Please adjust your prompt. See 'failed_generation' f"}]

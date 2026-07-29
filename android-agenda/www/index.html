@@ -199,17 +199,12 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
       <hr style="margin:0 0 15px 0;border:none;border-top:1px solid #ddd;">
 
       <div class="form-group" style="margin-bottom:4px;"><label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;"><input type="checkbox" id="syncEnabled" style="width:auto;" onchange="saveSyncSettings()"> Activar sync automático</label></div>
-      <div class="form-group"><label>URL del servidor Sync</label><input type="text" id="syncUrl" placeholder="https://tuservidor.onrender.com" onchange="saveSyncSettings()">
-        <div style="font-size:10px;color:var(--text-light);margin-top:2px;">Ej: http://192.168.1.100:3456 (local) o https://tuservidor.onrender.com (cloud)</div>
+      <div class="form-group"><label>URL del servidor Sync</label><input type="text" id="syncUrl" placeholder="http://192.168.1.100:3456" onchange="saveSyncSettings()">
+        <div style="font-size:10px;color:var(--text-light);margin-top:2px;">Ej: http://192.168.1.100:3456 (local)</div>
       </div>
       <div id="syncStatus" style="font-size:11px;color:var(--text-light);margin-top:6px;padding:6px 8px;background:var(--bg);border-radius:6px;">🔄 Estado: esperando conexión...</div>
       <button class="btn btn-sm btn-primary" onclick="testSync()" style="margin-top:6px;width:100%;">Probar conexión</button>
     </div>
-  </div>
-
-  <div class="card">
-    <div class="card-header"><h3>Recordatorios WAS</h3></div>
-    <div id="waReminderList" style="padding:10px 14px;max-height:300px;overflow-y:auto;"></div>
   </div>
 
   <div class="card">
@@ -255,7 +250,6 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
     <div class="form-group"><label>Notas</label><textarea id="apptNotes" placeholder="Notas..."></textarea></div>
     <div class="modal-footer">
       <button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button>
-      <button class="btn btn-success" id="whatsappApptBtn" style="display:none;" onclick="sendWaReminderFromModal()">📱 WhatsApp</button>
       <button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button>
       <button class="btn btn-primary" onclick="saveAppointment()">Guardar</button>
     </div>
@@ -673,11 +667,6 @@ function editAppt(id) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
-  const btnWa = document.getElementById('whatsappApptBtn');
-  if (btnWa) {
-    const cl = data.clients.find(c => c.id === a.clientId);
-    btnWa.style.display = (cl && cl.phone) ? '' : 'none';
-  }
   document.getElementById('appointmentModal').classList.add('show');
 }
 
@@ -711,11 +700,6 @@ function editApptBlock(id, blockNum) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
-  const btnWa = document.getElementById('whatsappApptBtn');
-  if (btnWa) {
-    const cl = data.clients.find(c => c.id === targetAppt.clientId);
-    btnWa.style.display = (cl && cl.phone) ? '' : 'none';
-  }
   editingBlockNum = blockNum;
   document.getElementById('appointmentModal').classList.add('show');
 }
@@ -737,7 +721,6 @@ function quickAppt(dateStr, time, employeeId) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = 'none';
-  document.getElementById('whatsappApptBtn').style.display = 'none';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
   document.getElementById('appointmentModal').classList.add('show');
 }
@@ -1106,7 +1089,7 @@ function saveAppointment() {
   };
   if (id_) {
     const a = data.appointments.find(x => x.id === id_);
-    if (a) { delete a.waReminder; Object.assign(a, obj); }
+    if (a) { Object.assign(a, obj); }
   }
   else { obj.id = id(); data.appointments.push(obj); }
   saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
@@ -1146,11 +1129,6 @@ function deleteApptFromModal() {
   if (!id) return;
   deleteAppt(id);
   closeModal('appointmentModal');
-}
-
-function sendWaReminderFromModal() {
-  const id = document.getElementById('apptEditId').value;
-  if (id) { sendWaReminder(id); closeModal('appointmentModal'); }
 }
 
 // ============ CLIENTS ============
@@ -1481,58 +1459,8 @@ function saveSyncSettings() {
 
   const c = getSyncCfg();
   if (c.enabled) { syncPush(); startSyncPoller(); } else stopSyncPoller();
-  renderWaReminderList();
 }
 
-function renderWaReminderList() {
-  const div = document.getElementById('waReminderList');
-  if (!div) return;
-  const now = new Date();
-  const limit = new Date(now.getTime() + 72 * 3600000);
-  const pending = data.appointments.filter(a => {
-    if (!a || a._deleted || a.cancelledBy === 'salon' || !a.date || !a.time) return false;
-    const cl = data.clients.find(c => c.id === a.clientId && !c._deleted);
-    if (!cl || !cl.whatsapp || !cl.phone) return false;
-    const apptTime = new Date(a.date + 'T' + a.time + ':00');
-    return apptTime >= now && apptTime <= limit;
-  });
-  if (!pending.length) { div.innerHTML = '<p style="color:var(--text-light);font-size:12px;text-align:center;">Sin recordatorios pendientes</p>'; return; }
-  pending.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
-  div.innerHTML = '<table style="width:100%;font-size:12px;"><thead><tr><th>Cliente</th><th>Fecha</th><th>Hora</th><th>Estado</th><th style="width:60px;">Acc.</th></tr></thead><tbody>' +
-    pending.map(a => {
-      const cl = data.clients.find(c => c.id === a.clientId);
-      const dt = new Date(a.date + 'T' + a.time + ':00');
-      const fecha = dt.toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit'});
-      const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
-      const sent = a.waReminder === 'sent';
-      return `<tr style="${sent?'background:#d4edda;':''}"><td>${esc(cl?cl.name:'')}</td><td>${fecha}</td><td>${hora}</td><td>${sent?'<span style="color:#155724;font-weight:bold;">✓</span>':'<span style="color:#856404;font-weight:bold;">⏳</span>'}</td><td>
-        <button class="btn btn-xs ${sent?'btn-secondary':'btn-success'}" onclick="sendWaReminder('${a.id}')">${sent?'↗':'📲'}</button></td></tr>`;
-    }).join('') + '</tbody></table>';
-}
-
-function sendWaReminder(apptId) {
-  const a = data.appointments.find(x => x.id === apptId); if (!a) return;
-  const cl = data.clients.find(c => c.id === a.clientId && !c._deleted); if (!cl || !cl.phone) return;
-  let phone = cl.phone.replace(/\D/g,'');
-  if (!phone.startsWith('34')) phone = '34' + phone;
-  const dt = new Date(a.date + 'T' + a.time + ':00');
-  const dia = dt.toLocaleDateString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric'});
-  const hora = dt.toLocaleTimeString('es-ES', {hour:'2-digit',minute:'2-digit'});
-  const msg = encodeURIComponent('Hola ' + cl.name + '.\nTe recordamos que tienes cita en Nymara Estilistas el ' + dia + ' a las ' + hora + '.\nEn caso de no poder asistir, por avísanos con antelación para poder ceder tu plaza.\nTe esperamos!');
-  const waUrl = 'https://wa.me/' + phone + '?text=' + msg;
-  if (typeof AndroidBridge !== 'undefined') {
-    AndroidBridge.openUrl(waUrl);
-  } else if (typeof Capacitor !== 'undefined' && Capacitor.Plugins && Capacitor.Plugins.WhatsApp) {
-    Capacitor.Plugins.WhatsApp.open({ url: waUrl });
-  } else {
-    window.open(waUrl, '_blank');
-  }
-  a.waReminder = 'sent';
-  a._modified = Date.now();
-  saveKey('appointments');
-  syncPush();
-  renderWaReminderList();
-}
 
 function updateSyncStatus(msg, isErr) {
   const dot = document.getElementById('syncDot');
@@ -1690,7 +1618,6 @@ function syncPull() {
         data.settings = remote.settings; DB.set('settings', data.settings); changed = true;
       }
       if (changed) {
-        renderWaReminderList();
         const active = document.querySelector('.bottom-nav .tab.active');
         if (active) {
           const tab = active.dataset.tab;
@@ -1909,7 +1836,6 @@ function awakeRender() {
 
 renderAgenda();
 renderClients();
-renderWaReminderList();
 loadSyncSettings();
 loadSyncConfigFile().then(() => {
   awakeRender();

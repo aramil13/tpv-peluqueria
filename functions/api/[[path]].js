@@ -1,14 +1,5 @@
 const { readData, writeData, mergeArray, dedupClients } = require('../../lib/kv-data');
 
-function getSendMessage() {
-  return require('../../lib/whatsapp').sendMessage;
-}
-
-function getAiAssistant() {
-  const ai = require('../../lib/ai-assistant');
-  return { processWhatsAppMessage: ai.processWhatsAppMessage, processPhoneMessage: ai.processPhoneMessage };
-}
-
 export async function onRequest(context) {
   const { request, env } = context;
 
@@ -259,47 +250,6 @@ export async function onRequest(context) {
 
   switch (path) {
 
-    // === DEBUG: check env + Twilio ===
-    case '/api/debug': {
-      const wa = env.TWILIO_WHATSAPP_NUMBER || '';
-      const ph = env.TWILIO_PHONE_NUMBER || '';
-      const sid = env.TWILIO_ACCOUNT_SID || '';
-      const token = env.TWILIO_AUTH_TOKEN || '';
-      let twilio = { error: null };
-      try {
-        const auth = btoa(sid + ':' + token);
-        const bal = await fetch('https://api.twilio.com/2010-04-01/Accounts/' + sid + '.json', {
-          headers: { Authorization: 'Basic ' + auth }
-        });
-        const balData = await bal.json();
-        const bal2 = await fetch('https://api.twilio.com/2010-04-01/Accounts/' + sid + '/Balance.json', {
-          headers: { Authorization: 'Basic ' + auth }
-        });
-        const bal2Data = await bal2.json();
-        const msg = await fetch('https://api.twilio.com/2010-04-01/Accounts/' + sid + '/Messages.json?PageSize=1', {
-          headers: { Authorization: 'Basic ' + auth }
-        });
-        const msgData = await msg.json();
-        twilio = {
-          status: balData.status,
-          type: balData.type,
-          balance: bal2Data.balance || bal2Data.error || 'unknown',
-          currency: bal2Data.currency || '',
-          lastMessage: (msgData.messages || []).slice(0,1).map(m => ({
-            status: m.status, errorCode: m.error_code, errorMessage: m.error_message,
-            direction: m.direction, dateSent: m.date_sent
-          }))[0] || null
-        };
-      } catch (e) { twilio.error = e.message; }
-      return json({
-        whatsappNumber: wa ? wa.slice(0,6)+'...'+wa.slice(-4) : '(empty)',
-        phoneNumber: ph ? ph.slice(0,6)+'...'+ph.slice(-4) : '(empty)',
-        accountSid: sid ? sid.slice(0,6)+'...' : '(empty)',
-        groqKeySet: !!(env.GROQ_API_KEY && env.GROQ_API_KEY !== 'tu_groq_api_key_aqui'),
-        businessPhone: env.BUSINESS_PHONE || '',
-        twilio
-      });
-    }
 
     // === API DEBUG stats ===
     case '/api/debug-stats': {
@@ -320,7 +270,7 @@ export async function onRequest(context) {
         const b = await getBody();
         const to = b.to || '+34678092305';
         const text = b.text || 'Test desde Nymara';
-        const result = await getSendMessage()(to, text);
+        const { sendMessage } = require('../../lib/whatsapp'); const result = await sendMessage(to, text);
         return json({ sent: true, result: result.error || result.status + ' ' + (result.sid||'') });
       } catch (e) { return json({ error: e.message }, 500); }
     }
@@ -341,7 +291,7 @@ export async function onRequest(context) {
         const emp = (d.employees||[]).find(e => e.id === appt.employeeId) || {};
         const dateFmt = appt.date ? appt.date.split('-').reverse().join('-') : '';
         const text = '✅ Tu cita en ' + BUSINESS_NAME + ' ha sido CONFIRMADA:\n\n📅 ' + dateFmt + '\n⏰ ' + appt.time + (appt.endTime ? ' - '+appt.endTime : '') + '\n💇 ' + (svc.name || 'Servicio') + '\n' + (emp.name ? '👤 '+emp.name : '') + '\n\n¡Te esperamos!';
-        const result = await getSendMessage()(client.phone, text);
+        const { sendMessage } = require('../../lib/whatsapp'); const result = await sendMessage(client.phone, text);
         return json({ sent: true, phone: client.phone, result: result.error || result.status + ' ' + (result.sid||'') });
       } catch (e) { return json({ error: e.message }, 500); }
     }
@@ -353,7 +303,7 @@ export async function onRequest(context) {
         const b = await getBody();
         const { phone, text } = b;
         if (!phone || !text) { return json({ error: 'phone and text required' }, 400); }
-        const result = await getSendMessage()(phone, text);
+        const { sendMessage } = require('../../lib/whatsapp'); const result = await sendMessage(phone, text);
         return json({ sent: true, phone, result: result.error || result.status + ' ' + (result.sid||'') });
       } catch (e) { return json({ error: e.message }, 500); }
     }
@@ -1111,76 +1061,6 @@ export async function onRequest(context) {
           settings: s
         });
       }
-    }
-
-    // === API: AI MESSAGE (WhatsApp Bridge - Baileys) ===
-    case '/api/ai-message': {
-      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-      try {
-        const b = await getBody();
-        const { phone, text } = b;
-        let replyText = '';
-        if (phone && text) {
-          replyText = await getAiAssistant().processWhatsAppMessage(phone, text) || '';
-        }
-        return json({ response: replyText });
-      } catch (e) {
-        return json({ response: 'Lo siento, hubo un error.' });
-      }
-    }
-
-    // === API: WHATSAPP WEBHOOK (Twilio) ===
-    case '/api/whatsapp-webhook': {
-      if (request.method !== 'POST') {
-        return xml('<Response></Response>');
-      }
-      try {
-        const raw = await request.text();
-        const params = new URLSearchParams(raw);
-        const from = params.get('From') || '';
-        const body = params.get('Body') || '';
-        const phone = from.replace('whatsapp:', '').trim();
-
-        let replyText = '';
-        if (phone && body) {
-          replyText = await processWhatsAppMessage(phone, body) || '';
-        }
-
-        return xml('<?xml version="1.0" encoding="UTF-8"?><Response><Message>' + escapeXml(replyText) + '</Message></Response>');
-      } catch (e) {
-        return xml('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
-      }
-    }
-
-    // === API: PHONE INCOMING (Twilio call start) ===
-    case '/api/phone-incoming': {
-      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-      return xml('<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather input="speech" action="/api/phone-process" method="POST" language="es-ES" speechTimeout="auto">\n    <Say voice="alice" language="es-ES">Hola, bienvenido a ' + escapeXml(BUSINESS_NAME) + '. Soy Sara, tu asistente virtual. ¿En qué puedo ayudarte hoy?</Say>\n  </Gather>\n  <Say voice="alice" language="es-ES">Parece que no me has dicho nada. Si necesitas ayuda, vuelve a llamarnos. ¡Adiós!</Say>\n</Response>');
-    }
-
-    // === API: PHONE AI PROCESS (Twilio speech result) ===
-    case '/api/phone-process': {
-      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-      try {
-        const raw = await request.text();
-        const params = new URLSearchParams(raw);
-        const speechResult = params.get('SpeechResult') || '';
-        const caller = params.get('From') || '';
-
-        if (!speechResult) {
-          return xml('<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather input="speech" action="/api/phone-process" method="POST" language="es-ES" speechTimeout="auto">\n    <Say voice="alice" language="es-ES">No te he entendido bien. ¿Podrías repetirlo, por favor?</Say>\n  </Gather>\n  <Say voice="alice" language="es-ES">Lo siento, tengo problemas para escucharte. Puedes intentar llamarnos más tarde o escribirnos por WhatsApp. ¡Hasta pronto!</Say>\n</Response>');
-        }
-        const responseText = await getAiAssistant().processPhoneMessage(caller, speechResult);
-
-        return xml('<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n  <Gather input="speech" action="/api/phone-process" method="POST" language="es-ES" speechTimeout="auto">\n    <Say voice="alice" language="es-ES">' + escapeXml(responseText) + '</Say>\n  </Gather>\n  <Say voice="alice" language="es-ES">Si no tienes más dudas, gracias por llamar a ' + escapeXml(BUSINESS_NAME) + '. ¡Que tengas un buen día!</Say>\n</Response>');
-      } catch (e) {
-        return xml('<?xml version="1.0" encoding="UTF-8"?>\n<Response><Say voice="Google.es-ES-Standard-A" language="es-ES">Lo siento, ha surgido un problema técnico inesperado. Por favor, llámanos directamente al ' + escapeXml(BUSINESS_PHONE) + '.</Say></Response>');
-      }
-    }
-
-    // === API: WHATSAPP TEST (browser UI diagnostic) ===
-    case '/api/whatsapp-test': {
-      return html('<!DOCTYPE html>\n<html lang="es"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n<title>Diagnóstico WhatsApp IA</title>\n<style>\n*{box-sizing:border-box;margin:0;padding:0}body{font-family:system-ui,sans-serif;background:#f5f5f5;padding:20px;max-width:800px;margin:auto}\nh1{font-size:20px;color:#6C3483;margin-bottom:16px}\n.card{background:#fff;border-radius:12px;padding:16px;margin-bottom:16px;box-shadow:0 1px 4px rgba(0,0,0,.08)}\n.card h2{font-size:14px;color:#666;margin-bottom:8px}\npre{font-size:12px;background:#f8f8f8;padding:12px;border-radius:8px;overflow-x:auto;white-space:pre-wrap;word-break:break-all}\n.chat{border:1px solid #e0e0e0;border-radius:12px;height:300px;overflow-y:auto;padding:12px;margin-bottom:8px;background:#fafafa}\n.msg{margin:8px 0;padding:10px 14px;border-radius:18px;max-width:80%;font-size:14px;line-height:1.4}\n.msg.user{background:#6C3483;color:#fff;margin-left:auto;border-radius:18px 18px 4px 18px}\n.msg.bot{background:#e8e8e8;color:#333;margin-right:auto;border-radius:18px 18px 18px 4px}\n.msg.error{background:#ffe0e0;color:#c00;margin-right:auto}\n.chat-input{display:flex;gap:8px}.chat-input input{flex:1;padding:10px 14px;border:1px solid #ddd;border-radius:24px;font-size:14px;outline:none}\n.chat-input input:focus{border-color:#6C3483}.chat-input button{padding:10px 20px;background:#6C3483;color:#fff;border:none;border-radius:24px;cursor:pointer;font-size:14px}\n.chat-input button:hover{background:#5a2d6e}.badge{display:inline-block;padding:2px 8px;border-radius:12px;font-size:11px;font-weight:600;margin-left:6px}\n.badge.ok{background:#d4edda;color:#155724}.badge.warn{background:#fff3cd;color:#856404}.badge.err{background:#f8d7da;color:#721c24}\n.status-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:13px}.status-item{padding:8px;border-radius:8px;background:#f8f8f8}\n.status-label{color:#888;font-size:11px}.status-value{font-weight:600;margin-top:2px}\n</style></head><body>\n<h1>🔍 Diagnóstico WhatsApp IA</h1>\n\n<div class="card" id="debugCard"><h2>Estado del sistema</h2><pre id="debugPre">Cargando...</pre></div>\n\n<div class="card">\n  <h2>🧪 Probar asistente IA (simula lo que recibe Twilio)</h2>\n  <div class="chat" id="chatBox">\n    <div class="msg bot">Hola, soy Sara. ¿Qué necesitas? Las respuestas se generan con Groq IA.</div>\n  </div>\n  <div class="chat-input">\n    <input type="text" id="msgInput" placeholder="Escribe un mensaje..." onkeydown="if(event.key===\'Enter\')sendTest()">\n    <button onclick="sendTest()">Enviar</button>\n  </div>\n</div>\n\n<div class="card">\n  <h2>📤 Probar envío por Twilio</h2>\n  <div style="display:flex;gap:8px;flex-wrap:wrap">\n    <input type="text" id="testPhone" placeholder="Teléfono (ej. 34624143658)" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px">\n    <input type="text" id="testText" placeholder="Texto del mensaje" style="flex:1;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:14px">\n    <button onclick="sendTwilio()" style="padding:10px 20px;background:#25D366;color:#fff;border:none;border-radius:8px;cursor:pointer;font-weight:600">Enviar</button>\n  </div>\n  <pre id="twilioResult" style="margin-top:8px;font-size:12px"></pre>\n</div>\n\n<script>\nasync function loadDebug(){\n  const r=await fetch(\'/api/debug\');\n  const d=await r.json();\n  const gk=d.groqKeySet?\'\u2705 Configurada\':\'\u274c No configurada o placeholder\';\n  const tw=d.twilio;\n  const twStatus=tw.error?\'<span class="badge err">Error: \'+tw.error+\'</span>\':(tw.status?\'<span class="badge ok">\'+tw.status+\'</span>\':\'<span class="badge warn">Sin datos</span>\');\n  const twBal=tw.error?\'-\':(tw.balance||\'?\')+\' \'+(tw.currency||\'\');\n  const lastMsg=tw.lastMessage?tw.lastMessage.status+\' (\'+tw.lastMessage.direction+\')\':\'Ninguno\';\n  document.getElementById(\'debugPre\').innerHTML=\n    \'WhatsApp Twilio:   \'+(d.whatsappNumber||\'(empty)\')+\'\\n\'+\n    \'Tel\u00e9fono negocio:  \'+(d.businessPhone||\'(empty)\')+\'\\n\'+\n    \'Groq API Key:      \'+gk+\'\\n\'+\n    \'Twilio estado:     \'+twStatus+\'\\n\'+\n    \'Twilio saldo:      \'+twBal+\'\\n\'+\n    \'\u00daltimo mensaje:    \'+lastMsg+(d.twilio?.lastMessage?.errorCode?\' (err: \'+d.twilio.lastMessage.errorCode+\')\':\'\');\n}\nloadDebug();\n\nasync function sendTest(){\n  const txt=document.getElementById(\'msgInput\').value.trim();\n  if(!txt)return;\n  const chat=document.getElementById(\'chatBox\');\n  chat.innerHTML+=\'<div class="msg user">\'+escHtml(txt)+\'</div>\';\n  document.getElementById(\'msgInput\').value=\'\';\n  chat.scrollTop=chat.scrollHeight;\n  chat.innerHTML+=\'<div class="msg bot" style="color:#999" id="waitMsg">Escribiendo...</div>\';\n  chat.scrollTop=chat.scrollHeight;\n  try{\n    const r=await fetch(\'/api/ai-message\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\'},body:JSON.stringify({phone:\'34600000000\',text:txt})});\n    const d=await r.json();\n    document.getElementById(\'waitMsg\')?.remove();\n    const reply=d.response||\'(Respuesta vac\u00eda)\';\n    chat.innerHTML+=\'<div class="msg bot">\'+escHtml(reply)+\'</div>\';\n  }catch(e){\n    document.getElementById(\'waitMsg\')?.remove();\n    chat.innerHTML+=\'<div class="msg error">Error: \'+escHtml(e.message)+\'</div>\';\n  }\n  chat.scrollTop=chat.scrollHeight;\n}\n\nasync function sendTwilio(){\n  const phone=document.getElementById(\'testPhone\').value.trim()||\'34624143658\';\n  const text=document.getElementById(\'testText\').value.trim()||\'Prueba desde diagn\u00f3stico\';\n  document.getElementById(\'twilioResult\').textContent=\'Enviando...\';\n  try{\n    const r=await fetch(\'/api/test-send\',{method:\'POST\',headers:{\'Content-Type\':\'application/json\'},body:JSON.stringify({to:\'+\'+phone,text})});\n    const d=await r.json();\n    document.getElementById(\'twilioResult\').textContent=JSON.stringify(d,null,2);\n  }catch(e){\n    document.getElementById(\'twilioResult\').textContent=\'Error: \'+e.message;\n  }\n}\n\nfunction escHtml(s){return s.replace(/&/g,\'&amp;\').replace(/</g,\'&lt;\').replace(/>/g,\'&gt;\')}\n</script></body></html>');
     }
 
     // === API: ADMIN DELETE APPOINTMENT ===

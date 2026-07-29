@@ -289,7 +289,7 @@ function requireWebAuth(req, res) {
   return auth === 'Bearer ' + WEB_API_KEY || auth === WEB_API_KEY;
 }
 
-// === SEED DATA for fresh deployments (Render) ===
+// === SEED DATA for fresh deployments ===
 function seedInitialData() {
   if (fs.existsSync(SYNC_FILE)) {
     try {
@@ -1006,29 +1006,6 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
-  // === API: AI MESSAGE (WhatsApp Bridge) ===
-  if (url === '/api/ai-message' && req.method === 'POST') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', async () => {
-      try {
-        const { phone, text } = JSON.parse(body);
-        let replyText = '';
-        if (phone && text) {
-          const { processWhatsAppMessage } = require('./lib/ai-assistant');
-          replyText = await processWhatsAppMessage(phone, text) || '';
-        }
-        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ response: replyText }));
-      } catch (e) {
-        console.error('[AI MESSAGE ERROR]', e.message);
-        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ response: 'Lo siento, hubo un error.' }));
-      }
-    });
-    return;
-  }
-
   // === WEBSITE STATIC FILES ===
   const WEBSITE_DIR = path.join(__dirname, 'website');
   const WEB_PATHS = ['/', ''];
@@ -1139,9 +1116,7 @@ function getOpeningHoursForDay(dateStr, settings) {
 function pullFromSync() {
   let url = SYNC_FORWARD_URL ? SYNC_FORWARD_URL.replace(/\/+$/, '') + '/sync' : null;
   if (!url) {
-    const proto = process.env.RENDER ? 'https' : 'http';
-    const host = process.env.RENDER_EXTERNAL_URL || 'localhost:' + PORT;
-    url = proto + '://' + host + '/sync';
+    url = 'http://localhost:' + PORT + '/sync';
   }
   const mod = url.startsWith('https') ? https : http;
   mod.get(url, (res) => {

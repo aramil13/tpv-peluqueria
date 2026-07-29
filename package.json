@@ -18,14 +18,12 @@
     "electron-app.html",
     "main.js",
     "preload.js",
-    "wa-bridge.js",
     "sync-helper.js",
     "package.json",
     "booking/**",
     "lib/**",
     "scripts/**",
     "website/**",
-    "conversations/",
     ".env*"
   ],
   "win": {
@@ -34,9 +32,6 @@
   },
   "dependencies": {
     "@upstash/redis": "^1.38.0",
-    "@whiskeysockets/baileys": "^7.0.0-rc13",
-    "dotenv": "^16.4.0",
-    "qrcode": "^1.5.4",
-    "qrcode-terminal": "^0.12.0"
+    "dotenv": "^16.4.0"
   }
 }

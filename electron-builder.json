@@ -6,14 +6,13 @@
     "electron-app.html",
     "main.js",
     "preload.js",
-    "wa-bridge.js",
     "sync-helper.js",
     "package.json",
     "booking/**",
     "lib/**",
     "scripts/**",
     "website/**",
-    "conversations/"
+    "sync/"
   ],
   "win": {
     "target": ["portable", "nsis"],

@@ -4,7 +4,6 @@ node_modules/
 dist/
 sync/
 wa_auth/
-wa-bridge.log
 conversations/
 android-agenda/
 booking/
@@ -15,8 +14,6 @@ electron-app.html
 main.js
 preload.js
 sync-helper.js
-wa-bridge.js
-render-bridge.js
 electron-builder.json
 icon.png
 icon.ico

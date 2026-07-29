@@ -19,7 +19,6 @@ sync/
 .env*
 
 wa_auth/
-wa-bridge.log
 myeasylog.log
 
 .env
