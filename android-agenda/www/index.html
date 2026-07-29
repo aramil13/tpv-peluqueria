@@ -376,7 +376,8 @@ let data = {
   products: DB.get('products') || [],
   sections: DB.get('sections') || [],
   providers: DB.get('providers') || [],
-  ivaRate: DB.get('ivaRate') || 21
+  ivaRate: DB.get('ivaRate') || 21,
+  settings: DB.get('settings') || {}
 };
 ['appointments','clients','services','employees','products','sections','providers'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
@@ -529,7 +530,9 @@ function showDayAppts(dateStr) {
       const hStartM = (h === startH) ? startM : 0;
       const hEndM = (h === endH) ? endM : 60;
       for (let m = hStartM; m < hEndM; m += 15) {
-        slots.push(String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'));
+        if (h + m/60 < hToday.close) {
+          slots.push(String(h).padStart(2,'0')+':'+String(m).padStart(2,'0'));
+        }
       }
     }
   }
@@ -874,9 +877,26 @@ function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
 }
 
 function getOpeningHoursForDay(dateStr, settings) {
-  if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false };
+  const DEFAULT_HOURS = {
+    0: { open: '09:00', close: '14:00', morningOpen: '', morningClose: '', afternoonOpen: '', afternoonClose: '', closed: true, openLabel: 'Cerrado' },
+    1: { open: '09:00', close: '14:00', morningOpen: '', morningClose: '', afternoonOpen: '', afternoonClose: '', closed: true, openLabel: 'Cerrado' },
+    2: { open: '09:30', close: '20:30', morningOpen: '09:30', morningClose: '13:30', afternoonOpen: '15:00', afternoonClose: '20:30', closed: false, openLabel: '09:30-13:30 | 15:00-20:30' },
+    3: { open: '09:30', close: '20:30', morningOpen: '09:30', morningClose: '13:30', afternoonOpen: '15:00', afternoonClose: '20:30', closed: false, openLabel: '09:30-13:30 | 15:00-20:30' },
+    4: { open: '09:30', close: '20:30', morningOpen: '09:30', morningClose: '13:30', afternoonOpen: '15:00', afternoonClose: '20:30', closed: false, openLabel: '09:30-13:30 | 15:00-20:30' },
+    5: { open: '09:30', close: '20:30', morningOpen: '09:30', morningClose: '13:30', afternoonOpen: '15:00', afternoonClose: '20:30', closed: false, openLabel: '09:30-13:30 | 15:00-20:30' },
+    6: { open: '09:30', close: '14:00', morningOpen: '09:30', morningClose: '14:00', afternoonOpen: '', afternoonClose: '', closed: false, openLabel: '09:30-14:00' }
+  };
+  if (!settings || !settings.openingHours) {
+    const d = new Date(dateStr + 'T12:00:00').getDay();
+    const def = DEFAULT_HOURS[d] || { open: '09:00', close: '19:00', closed: false, morningOpen: '', morningClose: '', afternoonOpen: '', afternoonClose: '', openLabel: '09:00-19:00' };
+    const openH = parseInt(def.open) || 9;
+    const closeH = parseInt(def.close) || 19;
+    const openMin = parseInt((def.open || '09:00').split(':')[1]) || 0;
+    const closeMin = parseInt((def.close || '19:00').split(':')[1]) || 0;
+    return { open: openH + openMin / 60, close: closeH + closeMin / 60, closed: def.closed, morningOpen: def.morningOpen, morningClose: def.morningClose, afternoonOpen: def.afternoonOpen, afternoonClose: def.afternoonClose, openLabel: def.openLabel };
+  }
   const d = new Date(dateStr + 'T12:00:00').getDay();
-  const day = settings.openingHours[d] || { open: '09:00', close: '19:00', closed: false };
+  const day = settings.openingHours[d] || DEFAULT_HOURS[d] || { open: '09:00', close: '19:00', closed: false };
   const openH = parseInt(day.open) || 9;
   const closeH = parseInt(day.close) || 19;
   const openMin = parseInt((day.open || '09:00').split(':')[1]) || 0;
@@ -1666,6 +1686,9 @@ function syncPull() {
       if (mergeRemote('sections', remote.sections)) { saveKey('sections'); changed = true; }
       if (mergeRemote('projects', remote.projects)) { saveKey('projects'); changed = true; }
       if (mergeRemote('providers', remote.providers)) { saveKey('providers'); changed = true; }
+      if (remote.settings && JSON.stringify(remote.settings) !== JSON.stringify(data.settings)) {
+        data.settings = remote.settings; DB.set('settings', data.settings); changed = true;
+      }
       if (changed) {
         renderWaReminderList();
         const active = document.querySelector('.bottom-nav .tab.active');

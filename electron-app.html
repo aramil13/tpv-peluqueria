@@ -1374,7 +1374,8 @@ function saveSettings() {
     const aOpen = document.getElementById('hoursAfternoonOpen' + d).value || '16:00';
     const aClose = document.getElementById('hoursAfternoonClose' + d).value || '20:00';
     hours[d] = {
-      open: mOpen, close: aClose,
+      open: mOpen,
+      close: d === 6 ? mClose : aClose,
       morningOpen: mOpen, morningClose: mClose,
       afternoonOpen: aOpen, afternoonClose: aClose,
       closed: document.getElementById('hoursClosed' + d).checked

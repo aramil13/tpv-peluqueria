@@ -9,9 +9,22 @@ let onlineStatusPoller = null;
 function showLoading(v) { document.getElementById('loadingOverlay').style.display = v ? 'flex' : 'none'; }
 
 function getOpeningHoursForDay(dateStr, settings) {
-  if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false };
+  const DEFAULT_HOURS = {
+    0: { open: '09:00', close: '14:00', closed: true },
+    1: { open: '09:00', close: '14:00', closed: true },
+    2: { open: '09:30', close: '20:30', closed: false },
+    3: { open: '09:30', close: '20:30', closed: false },
+    4: { open: '09:30', close: '20:30', closed: false },
+    5: { open: '09:30', close: '20:30', closed: false },
+    6: { open: '09:30', close: '14:00', closed: false }
+  };
+  if (!settings || !settings.openingHours) {
+    const d = new Date(dateStr + 'T12:00:00').getDay();
+    const def = DEFAULT_HOURS[d] || { open: '09:00', close: '19:00', closed: false };
+    return { open: parseInt(def.open) + (parseInt(def.open.split(':')[1])||0)/60, close: parseInt(def.close) + (parseInt(def.close.split(':')[1])||0)/60, closed: def.closed };
+  }
   const d = new Date(dateStr + 'T12:00:00').getDay();
-  const day = settings.openingHours[d] || { open: '09:00', close: '19:00', closed: false };
+  const day = settings.openingHours[d] || DEFAULT_HOURS[d] || { open: '09:00', close: '19:00', closed: false };
   const openH = parseInt(day.open) || 9;
   const closeH = parseInt(day.close) || 19;
   const openMin = parseInt((day.open || '09:00').split(':')[1]) || 0;
