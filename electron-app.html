@@ -1611,7 +1611,6 @@ function syncPush() {
     fetch(cloudUrl, { method: 'POST', headers, body }).then(r => ({ ok: r.ok, status: r.status }))
   ]).then(results => {
     const anyOk = results.some(r => r.ok);
-    if (anyOk) localStorage.setItem('_lastPush', String(Date.now()));
     if (status) status.textContent = anyOk ? '✅ Sincronizado' : '❌ Error';
     setTimeout(() => { if (status) status.textContent = ''; }, 5000);
   }).catch(e => {
@@ -1682,17 +1681,7 @@ function applyRemoteData(remote, source) {
       return r;
     });
     remote.appointments.forEach(r => delete localAppts[r.id]);
-    if (source === 'locals') {
-      const lastPush = parseInt(localStorage.getItem('_lastPush') || '0', 10);
-      Object.values(localAppts).forEach(a => {
-        if (a._modified && a._modified <= lastPush) {
-          a._deleted = true; a._modified = Date.now();
-        }
-        mergedAppts.push(a);
-      });
-    } else {
-      Object.values(localAppts).forEach(a => mergedAppts.push(a));
-    }
+    Object.values(localAppts).forEach(a => mergedAppts.push(a));
     const dedupMap = new Map();
     mergedAppts.forEach(a => {
       const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'');
@@ -1735,10 +1724,10 @@ function applyRemoteData(remote, source) {
 
 function syncPull() {
   const c = getSyncCfg();
-  if (!c.enabled) return;
+  if (!c.enabled) return Promise.resolve();
   const localUrl = LOCAL_SYNC_URL.replace(/\/+$/,'') + '/sync';
   const cloudUrl = c.url.replace(/\/+$/,'') + '/sync';
-  Promise.allSettled([
+  return Promise.allSettled([
     fetch(localUrl).then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); }),
     fetch(cloudUrl).then(r => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
   ]).then(results => {
@@ -1755,8 +1744,8 @@ function syncPull() {
     const status = document.getElementById('syncStatus');
     if (status) { status.textContent = '✅ Sincronizado'; status.style.color = ''; status.style.fontWeight = ''; }
     setTimeout(() => { if (status) status.textContent = ''; }, 3000);
-    if (cloud) applyRemoteData(cloud, 'cloud');
-    if (locals) applyRemoteData(locals, 'locals');
+    if (cloud) applyRemoteData(cloud);
+    if (locals) applyRemoteData(locals);
 
     try {
       saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
@@ -1825,7 +1814,7 @@ function startWebSyncPoller() {
 function stopWebSyncPoller() { if (webSyncTimer) { clearInterval(webSyncTimer); webSyncTimer = null } }
 
 // Start sync on load
-if (getSyncCfg().enabled) { syncPush(); syncPull(); }
+if (getSyncCfg().enabled) { syncPull().then(() => syncPush()); }
 startSyncPoller();
 startWebSyncPoller();
 
