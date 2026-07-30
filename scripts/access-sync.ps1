@@ -86,6 +86,7 @@ try {
     $keyMap = @{}       # "date|time|employee" -> num_cita (active only, for fallback)
     $allAccessActive = @{} # num_cita -> client_uid (active only)
     $accessSnapshot = @{}  # num_cita -> {fields} for detecting Access-side changes
+    $currentAccessNcUid = @{} # num_cita -> client_uid (all active + cancelled records)
 
     # First pass: active records (wins for uidMap)
     $cmd2 = $conn.CreateCommand()
@@ -104,6 +105,7 @@ try {
             $key = "$($f.ToString('yyyy-MM-dd'))|$($fi.ToString('HH:mm'))|$emp"
             $keyMap[$key] = $nc
         }
+        if ($uid -and $uid -ne '') { $currentAccessNcUid[$nc] = $uid.ToString().Trim() }
         $accessSnapshot[$nc] = @{
             uid = if ($uid) { $uid.ToString().Trim() } else { '' }
             cliente = if ($r2['Cliente']) { [int]$r2['Cliente'] } else { 0 }
@@ -126,6 +128,7 @@ try {
         $nc = $r['num_cita']
         $uid = $r['client_uid']
         if ($uid -and $uid -ne '' -and -not $uidMap.ContainsKey($uid)) { $uidMap[$uid] = $nc }
+        if ($uid -and $uid -ne '') { $currentAccessNcUid[$nc] = $uid.ToString().Trim() }
     }
     $r.Close()
 
@@ -293,6 +296,24 @@ try {
         }
     }
     $cancelReader.Close()
+
+    # Phase 1.6: Detect physically deleted Access records (removed entirely, not just Anulado)
+    $knownAccess = $json.knownAccessNcUid
+    if ($knownAccess -is [hashtable] -or $knownAccess -is [System.Management.Automation.PSCustomObject]) {
+        foreach ($entry in $knownAccess.PSObject.Properties) {
+            $knownNc = $entry.Name
+            $knownUid = "$($entry.Value)"
+            if (-not $currentAccessNcUid.ContainsKey($knownNc) -and $jsonUidActive.ContainsKey($knownUid)) {
+                $appt = $jsonUidActive[$knownUid]
+                $appt._deleted = $true
+                $appt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                $appt.cancelledBy = 'salon'
+                $jsonUidActive.Remove($knownUid)
+                $accessCancelled++
+            }
+        }
+    }
+    $json | Add-Member -MemberType NoteProperty -Name 'knownAccessNcUid' -Value $currentAccessNcUid -Force
 
     # Phase 2: Access -> JSON (pull new Access appointments into JSON)
     # USE HASHTABLE LOOKUP instead of O(n) Where-Object
