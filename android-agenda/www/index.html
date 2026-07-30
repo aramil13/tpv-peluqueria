@@ -1470,7 +1470,7 @@ function saveSyncSettings() {
   setSyncCfg({ enabled, url });
 
   const c = getSyncCfg();
-  if (c.enabled) { syncPush(); startSyncPoller(); } else stopSyncPoller();
+  if (c.enabled) { syncPull(); syncPush(); startSyncPoller(); } else stopSyncPoller();
 }
 
 
