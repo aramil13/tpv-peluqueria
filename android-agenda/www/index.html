@@ -224,7 +224,15 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 <div class="modal-overlay" id="appointmentModal">
   <div class="modal-content">
     <div class="modal-header"><h3 id="appointmentModalTitle">Nueva Cita</h3><button class="modal-close" onclick="closeModal('appointmentModal')">&times;</button></div>
-    <div class="form-group"><label>Cliente *</label><select id="apptClient"></select></div>
+    <div class="form-group"><label>Cliente *</label><select id="apptClient"></select>
+      <div id="apptClientPhoneWarn" style="font-size:11px;margin-top:4px;display:none;">
+        <span style="color:#e67e22;">⚠️ Cliente sin teléfono</span>
+        <button class="btn btn-sm" style="background:none;border:none;color:#25D366;cursor:pointer;font-size:11px;padding:2px 4px;text-decoration:underline;" onclick="addPhoneToApptClient()">📱 Añadir teléfono</button>
+      </div>
+      <div id="apptClientNoClient" style="font-size:11px;margin-top:4px;display:none;">
+        <button class="btn btn-sm" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:11px;padding:2px 4px;text-decoration:underline;" onclick="quickCreateClient()">➕ Nuevo Cliente</button>
+      </div>
+    </div>
     <div class="form-group"><label>Sección *</label><select id="apptSection" onchange="onApptSectionChange()"><option value="">Seleccionar sección...</option></select></div>
     <div class="form-row">
       <div class="form-group"><label>Fecha *</label><input type="date" id="apptDate"></div>
@@ -629,7 +637,8 @@ function showDayAppts(dateStr) {
           }
         }
         const clientPhone = client?.phone || appt.clientPhone || '';
-        const waBtn = clientPhone ? `<span class="appt-grid-wa" onclick="event.stopPropagation();sendWAReminder('${appt.id}')" title="Enviar recordatorio WhatsApp">📱</span>` : '';
+        const reminderCount = appt._waReminderCount || 0;
+        const waBtn = clientPhone ? `<span class="appt-grid-wa" onclick="event.stopPropagation();sendWAReminder('${appt.id}')" title="Enviar recordatorio WhatsApp${reminderCount > 0 ? ' (enviado ' + reminderCount + ' vez' + (reminderCount !== 1 ? 'es' : '') + ')' : ''}">📱${reminderCount > 0 ? '<sup style="font-size:7px;background:#fff;color:#25D366;border-radius:50%;padding:1px 3px;font-weight:700;">' + reminderCount + '</sup>' : ''}</span>` : '';
         html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${isPending?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${waBtn}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       } else {
         const empId = e ? e.id : '';
@@ -697,6 +706,7 @@ function editAppt(id) {
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
   updateWaReminderBtn(id);
+  checkApptClientPhone();
   document.getElementById('appointmentModal').classList.add('show');
 }
 
@@ -736,6 +746,10 @@ function sendWAReminder(apptId) {
   const msg = `Hola ${client.name}, le recordamos su cita en ${salonName}:\n📅 ${dateFmt}\n⏰ ${hours}\n💇 ${svcNames}${emp ? '\n👤 ' + emp.name : ''}\n\n¡Le esperamos!`;
   const waUrl = 'https://wa.me/34' + cleanPhone + '?text=' + encodeURIComponent(msg);
   window.open(waUrl, '_blank');
+  a._waReminderCount = (a._waReminderCount || 0) + 1;
+  a._modified = Date.now();
+  saveKey('appointments');
+  syncPush();
 }
 
 function editApptBlock(id, blockNum) {
@@ -769,6 +783,7 @@ function editApptBlock(id, blockNum) {
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
   updateWaReminderBtn(targetAppt.id);
+  checkApptClientPhone();
   editingBlockNum = blockNum;
   document.getElementById('appointmentModal').classList.add('show');
 }
@@ -792,6 +807,7 @@ function quickAppt(dateStr, time, employeeId) {
   document.getElementById('cancelApptBtn').style.display = 'none';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
   document.getElementById('appointmentModal').classList.add('show');
+  checkApptClientPhone();
 }
 
 function toggleServiceSelect(show) {
@@ -894,7 +910,10 @@ function updateApptEndFromServices() {
 
 function fillAppointmentSelects() {
   const clientSel = document.getElementById('apptClient');
-  clientSel.innerHTML = data.clients.filter(c => !c._deleted).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  clientSel.innerHTML = '<option value="">Seleccionar cliente...</option>' +
+    data.clients.filter(c => !c._deleted).sort((a,b) => a.name.localeCompare(b.name))
+      .map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  clientSel.onchange = checkApptClientPhone;
   const empSel = document.getElementById('apptEmployee');
   empSel.innerHTML = '<option value="">Sin asignar</option>' + data.employees.filter(e => !e._deleted).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
   const secSel = document.getElementById('apptSection');
@@ -902,6 +921,62 @@ function fillAppointmentSelects() {
     secSel.innerHTML = '<option value="">Seleccionar sección...</option>' +
       data.sections.filter(s => !s._deleted).map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
   }
+}
+
+function checkApptClientPhone() {
+  const sel = document.getElementById('apptClient');
+  const warn = document.getElementById('apptClientPhoneWarn');
+  const noClient = document.getElementById('apptClientNoClient');
+  const id = sel.value;
+  if (!id) {
+    warn.style.display = 'none';
+    noClient.style.display = '';
+    return;
+  }
+  noClient.style.display = 'none';
+  const client = data.clients.find(c => c.id === id);
+  if (client && !client.phone) {
+    warn.style.display = '';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+function addPhoneToApptClient() {
+  const sel = document.getElementById('apptClient');
+  const id = sel.value;
+  if (!id) return;
+  const client = data.clients.find(c => c.id === id);
+  if (!client) return;
+  const phone = prompt('Teléfono para ' + client.name + ':');
+  if (!phone || !phone.trim()) return;
+  client.phone = phone.trim();
+  client._modified = Date.now();
+  saveKey('clients');
+  checkApptClientPhone();
+  renderAgenda();
+  syncPush();
+}
+
+function quickCreateClient() {
+  const name = prompt('Nombre del nuevo cliente:');
+  if (!name || !name.trim()) return;
+  const phone = prompt('Teléfono de ' + name.trim() + ':');
+  if (!phone || !phone.trim()) return;
+  const client = {
+    id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
+    name: name.trim(), phone: phone.trim(), email: '', address: '', city: '', province: '',
+    zip: '', nif: '', notes: '', historialTecnico: '', punctuality: '',
+    visits: 0, totalSpent: 0, created: new Date().toISOString(),
+    _modified: Date.now(), _deleted: false, whatsapp: false
+  };
+  data.clients.push(client);
+  saveKey('clients');
+  fillAppointmentSelects();
+  document.getElementById('apptClient').value = client.id;
+  checkApptClientPhone();
+  renderAgenda();
+  syncPush();
 }
 
 function onApptSectionChange() {

@@ -217,6 +217,7 @@ tr:hover td { background: #f8f9fa; }
     <div class="nav-item" data-section="providers"><span class="icon">🏭</span><span>Proveedores</span></div>
     <div class="nav-item" data-section="warehouse"><span class="icon">📦</span><span>Almacén</span></div>
     <div class="nav-item" data-section="pending-confirmations" id="navPendingConfirm"><span class="icon">⏳</span><span>Confirmaciones Pendientes</span><span id="pendingBadge" style="display:none;background:var(--danger);color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;margin-left:auto;font-weight:600;">0</span></div>
+    <div class="nav-item" data-section="reminders"><span class="icon">📱</span><span>Recordatorios</span><span id="reminderBadge" style="display:none;background:#25D366;color:#fff;border-radius:10px;padding:2px 7px;font-size:11px;margin-left:auto;font-weight:600;">0</span></div>
     <div class="nav-item" data-section="agenda"><span class="icon">📅</span><span>Agenda</span></div>
     <div class="nav-item" data-section="reports"><span class="icon">📈</span><span>Listados</span></div>
   </nav>
@@ -427,6 +428,14 @@ tr:hover td { background: #f8f9fa; }
       </div>
     </div>
 
+    <!-- REMINDERS -->
+    <div class="section" id="sec-reminders">
+      <div class="card">
+        <div class="card-header"><h3>📱 Recordatorios WhatsApp (72h)</h3></div>
+        <div id="reminderList"></div>
+      </div>
+    </div>
+
     <!-- REPORTS -->
     <div class="section" id="sec-reports">
       <div class="card">
@@ -594,7 +603,15 @@ tr:hover td { background: #f8f9fa; }
   <div class="modal-content">
     <div class="modal-header"><h3 id="appointmentModalTitle">Nueva Cita</h3><button class="modal-close" onclick="closeModal('appointmentModal')">&times;</button></div>
     <div class="grid-2">
-      <div class="form-group"><label>Cliente *</label><select id="apptClient"></select></div>
+      <div class="form-group"><label>Cliente *</label><select id="apptClient"></select>
+        <div id="apptClientPhoneWarn" style="font-size:11px;margin-top:4px;display:none;">
+          <span style="color:#e67e22;">⚠️ El cliente no tiene teléfono</span>
+          <button class="btn btn-sm" style="background:none;border:none;color:#25D366;cursor:pointer;font-size:11px;padding:2px 4px;text-decoration:underline;" onclick="addPhoneToApptClient()" title="Añadir teléfono al cliente">📱 Añadir teléfono</button>
+        </div>
+        <div id="apptClientNoClient" style="font-size:11px;margin-top:4px;display:none;">
+          <button class="btn btn-sm" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:11px;padding:2px 4px;text-decoration:underline;" onclick="quickCreateClient()">➕ Nuevo Cliente</button>
+        </div>
+      </div>
       <div class="form-group"><label>Sección *</label><select id="apptSection" onchange="onApptSectionChange()"><option value="">Seleccionar sección...</option></select></div>
       <div class="form-group"><label>Servicios</label>
         <div id="apptServicesList" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
@@ -1873,13 +1890,13 @@ document.querySelectorAll('.nav-item').forEach(el => {
       dashboard:'PANEL DE CONTROL', pos:'Punto de Venta', clients:'Clientes', services:'Servicios',
       sections:'Secciones', projects:'Pack de Servicios', products:'Productos',
       providers:'Proveedores', warehouse:'Almacén', agenda:'Agenda', employees:'Empleados',
-      'pending-confirmations':'Confirmaciones Pendientes', reports:'Listados'
+      'pending-confirmations':'Confirmaciones Pendientes', reminders:'Recordatorios WhatsApp', reports:'Listados'
     };
     const t = titles[this.dataset.section]||'';
     const subs = {pos:'Terminal de cobro', clients:'Gestión de clientes', employees:'Gestión de empleados', services:'Servicios y tratamientos',
       sections:'Categorías de servicios', projects:'Packs de servicios', products:'Productos para la venta',
       providers:'Proveedores de productos', warehouse:'Control de inventario',
-      agenda:'Gestión de citas', 'pending-confirmations':'Citas pendientes de confirmar por el salón', reports:'Informes y estadísticas'};
+      agenda:'Gestión de citas', 'pending-confirmations':'Citas pendientes de confirmar por el salón', reminders:'Citas próximas para enviar recordatorio', reports:'Informes y estadísticas'};
     document.getElementById('sectionTitle').innerHTML = t+' <small>'+(subs[this.dataset.section]||'')+'</small>';
     if (this.dataset.section === 'dashboard') renderDashboard();
     if (this.dataset.section === 'pos') { renderPosSectionTabs(); renderPosItems(); updateTicket(); }
@@ -1893,6 +1910,7 @@ document.querySelectorAll('.nav-item').forEach(el => {
     if (this.dataset.section === 'warehouse') renderWarehouse();
     if (this.dataset.section === 'agenda') { syncPull(); renderAgenda(); }
     if (this.dataset.section === 'pending-confirmations') renderPendingConfirmations();
+    if (this.dataset.section === 'reminders') renderReminders();
     if (this.dataset.section === 'reports') renderReports();
   });
 });
@@ -3021,7 +3039,8 @@ function showDayAppts(dateStr) {
           }
         }
         const extraClass = isPendingCancelWhatsApp ? ' appt-pending-cancel-whatsapp' : (isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : ''));
-        const waBtn = clientPhone ? `<span class="appt-grid-wa" onclick="event.stopPropagation();sendWAReminder('${appt.id}')" title="Enviar recordatorio WhatsApp">📱</span>` : '';
+        const reminderCount = appt._waReminderCount || 0;
+        const waBtn = clientPhone ? `<span class="appt-grid-wa" onclick="event.stopPropagation();sendWAReminder('${appt.id}')" title="Enviar recordatorio WhatsApp${reminderCount > 0 ? ' (enviado ' + reminderCount + ' vez' + (reminderCount !== 1 ? 'es' : '') + ')' : ''}">📱${reminderCount > 0 ? '<sup style="font-size:7px;background:#fff;color:#25D366;border-radius:50%;padding:1px 3px;font-weight:700;">' + reminderCount + '</sup>' : ''}</span>` : '';
         html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">🌐</span>' : ''}${isPendingCancelWhatsApp ? '<span class="pending-watermark">❌</span>' : ''}${waBtn}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       }
       if (!appt) {
@@ -3258,6 +3277,7 @@ function editAppt(id) {
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
   updateWaReminderBtn(id);
+  checkApptClientPhone();
   openModal('appointmentModal');
 }
 
@@ -3297,6 +3317,7 @@ function editApptBlock(id, blockNum) {
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
   updateWaReminderBtn(bloque1Appt.id);
+  checkApptClientPhone();
   editingBlockNum = blockNum;
   openModal('appointmentModal');
 }
@@ -3558,6 +3579,7 @@ function quickAppt(dateStr, time, employeeId) {
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('appointmentModalTitle').textContent = 'Nueva Cita';
   openModal('appointmentModal');
+  checkApptClientPhone();
 }
 
 function toggleServiceSelect(show) {
@@ -3663,6 +3685,7 @@ function fillAppointmentSelects() {
   clientSel.innerHTML = '<option value="">Seleccionar cliente...</option>' + 
     data.clients.filter(c => !c._deleted).sort((a,b) => a.name.localeCompare(b.name))
       .map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  clientSel.onchange = checkApptClientPhone;
   const empSel = document.getElementById('apptEmployee');
   empSel.innerHTML = '<option value="">Sin asignar</option>' + 
     data.employees.filter(e => !e._deleted).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
@@ -3671,6 +3694,60 @@ function fillAppointmentSelects() {
     secSel.innerHTML = '<option value="">Seleccionar sección...</option>' +
       data.sections.filter(s => !s._deleted).map(s => `<option value="${s.id}"${s.color?` style="border-left:3px solid ${s.color};"`:''}>${esc(s.name)}</option>`).join('');
   }
+}
+
+function checkApptClientPhone() {
+  const sel = document.getElementById('apptClient');
+  const warn = document.getElementById('apptClientPhoneWarn');
+  const noClient = document.getElementById('apptClientNoClient');
+  const id = sel.value;
+  if (!id) {
+    warn.style.display = 'none';
+    noClient.style.display = '';
+    return;
+  }
+  noClient.style.display = 'none';
+  const client = data.clients.find(c => c.id === id);
+  if (client && !client.phone) {
+    warn.style.display = '';
+  } else {
+    warn.style.display = 'none';
+  }
+}
+
+function addPhoneToApptClient() {
+  const sel = document.getElementById('apptClient');
+  const id = sel.value;
+  if (!id) return;
+  const client = data.clients.find(c => c.id === id);
+  if (!client) return;
+  const phone = prompt('Teléfono para ' + client.name + ':');
+  if (!phone || !phone.trim()) return;
+  client.phone = phone.trim();
+  client._modified = Date.now();
+  saveKey('clients');
+  checkApptClientPhone();
+  renderAgenda();
+}
+
+function quickCreateClient() {
+  const name = prompt('Nombre del nuevo cliente:');
+  if (!name || !name.trim()) return;
+  const phone = prompt('Teléfono de ' + name.trim() + ':');
+  if (!phone || !phone.trim()) return;
+  const client = {
+    id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
+    name: name.trim(), phone: phone.trim(), email: '', address: '', city: '', province: '',
+    zip: '', nif: '', notes: '', historialTecnico: '', punctuality: '',
+    visits: 0, totalSpent: 0, created: new Date().toISOString(),
+    _modified: Date.now(), _deleted: false, whatsapp: false
+  };
+  data.clients.push(client);
+  saveKey('clients');
+  fillAppointmentSelects();
+  document.getElementById('apptClient').value = client.id;
+  checkApptClientPhone();
+  renderAgenda();
 }
 
 function onApptSectionChange() {
@@ -3774,6 +3851,77 @@ function sendWAReminder(apptId) {
   const msg = `Hola ${client.name}, le recordamos su cita en ${salonName}:\n📅 ${dateFmt}\n⏰ ${hours}\n💇 ${svcNames}${emp ? '\n👤 ' + emp.name : ''}\n\n¡Le esperamos!`;
   const waUrl = 'https://wa.me/34' + cleanPhone + '?text=' + encodeURIComponent(msg);
   window.open(waUrl, '_blank');
+  a._waReminderCount = (a._waReminderCount || 0) + 1;
+  a._modified = Date.now();
+  saveKey('appointments');
+  updateReminderBadge();
+  const sec = document.getElementById('sec-reminders');
+  if (sec && sec.classList.contains('active')) renderReminders();
+}
+
+function getReminderAppts() {
+  const now = Date.now();
+  const today = new Date().toISOString().split('T')[0];
+  const result = [];
+  (data.appointments||[]).forEach(a => {
+    if (a._deleted || a.cancelledBy === 'salon') return;
+    const client = data.clients.find(c => c.id === a.clientId);
+    if (!client || !client.phone) return;
+    const apptDate = new Date(a.date + 'T' + (a.time || '10:00'));
+    const msUntilAppt = apptDate.getTime() - now;
+    const hoursUntilAppt = msUntilAppt / (1000 * 60 * 60);
+    if (hoursUntilAppt > 0 && hoursUntilAppt <= 96 && a.date >= today) {
+      result.push({ appt: a, client, phone: client.phone, hoursUntil: hoursUntilAppt });
+    }
+  });
+  result.sort((a, b) => a.hoursUntil - b.hoursUntil);
+  return result;
+}
+
+function renderReminders() {
+  const div = document.getElementById('reminderList');
+  const list = getReminderAppts();
+  if (!list.length) {
+    div.innerHTML = '<div class="empty-state"><div class="icon">📱</div><p>No hay citas pendientes de recordatorio</p></div>';
+    return;
+  }
+  div.innerHTML = list.map(item => {
+    const a = item.appt;
+    const client = item.client;
+    const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+    const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
+    const emp = data.employees.find(e => e.id === a.employeeId);
+    const isInWindow = item.hoursUntil >= 48 && item.hoursUntil <= 84;
+    const count = a._waReminderCount || 0;
+    const hourLabel = item.hoursUntil < 1 ? 'menos de 1h' : Math.round(item.hoursUntil) + 'h';
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;margin-bottom:6px;border:1px solid var(--border);border-radius:8px;${isInWindow?'border-left:4px solid #25D366;':''}">
+      <div style="flex:1;min-width:0;">
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
+          <strong>${esc(client.name)}</strong>
+          <span style="color:var(--text-light);font-size:11px;">📱${esc(item.phone)}</span>
+          ${isInWindow ? '<span style="font-size:10px;background:#25D366;color:#fff;padding:1px 6px;border-radius:8px;">Recordatorio</span>' : ''}
+        </div>
+        <div style="font-size:12px;color:var(--text-light);display:flex;gap:8px;flex-wrap:wrap;">
+          <span>📅 ${a.date}</span>
+          <span>⏰ ${a.time}${a.endTime ? '-' + a.endTime : ''}</span>
+          <span>✂️ ${esc(svcNames)}</span>
+          ${emp ? '<span>👤 ' + esc(emp.name) + '</span>' : ''}
+          <span style="color:${isInWindow ? '#25D366' : 'var(--text-light)'};">⏳ ${hourLabel}</span>
+        </div>
+        ${count > 0 ? `<div style="font-size:11px;color:#25D366;margin-top:2px;">📤 Recordatorio enviado ${count} vez${count !== 1 ? 'es' : ''}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0;margin-left:10px;">
+        <button class="btn btn-sm" style="background:#25D366;color:#fff;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px;" onclick="sendWAReminder('${a.id}')" title="Enviar recordatorio WhatsApp">📱 Enviar WhatsApp</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function updateReminderBadge() {
+  const badge = document.getElementById('reminderBadge');
+  const count = getReminderAppts().length;
+  if (count > 0) { badge.style.display = 'inline'; badge.textContent = count; badge.style.color = '#fff'; }
+  else { badge.style.display = 'none'; }
 }
 
 async function deleteAppt(id) {
@@ -5087,10 +5235,16 @@ function init() {
   cleanDupAppointments();
   renderDashboard();
   updatePendingBadge();
+  updateReminderBadge();
   updateAppHeader();
   initAlphabetFilters();
   if (getSyncCfg().enabled) syncPush();
   setInterval(updatePendingBadge, 5000);
+  setInterval(() => {
+    updateReminderBadge();
+    const sec = document.getElementById('sec-reminders');
+    if (sec && sec.classList.contains('active')) renderReminders();
+  }, 60000);
 }
 
 init();
