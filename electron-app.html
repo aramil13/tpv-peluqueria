@@ -2807,7 +2807,23 @@ function renderAgenda() {
   
   // Previous month days
   for (let i = firstDayMon - 1; i >= 0; i--) {
-    html += `<div class="agenda-day other-month"><div class="day-num">${prevMonthDays - i}</div></div>`;
+    const d = prevMonthDays - i;
+    const m = month - 1 < 0 ? 11 : month - 1;
+    const y = month - 1 < 0 ? year - 1 : year;
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted && a.cancelledBy !== 'salon');
+    const hasOnline = appts.some(a => a.source === 'online');
+    html += `<div class="agenda-day other-month${hasOnline?' has-online':''}" onclick="showDayAppts('${dateStr}')">
+      <div class="day-num">${d}</div>
+      ${appts.slice(0,3).map(a => {
+        const client = data.clients.find(c => c.id === a.clientId);
+        const employee = data.employees.find(e => e.id === a.employeeId);
+        const mins = a.time ? parseInt(a.time.split(':')[1]) : 0;
+        const irregular = mins % 15 !== 0;
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?client.name:'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(employee.name)})</span>`:''}</div>`;
+      }).join('')}
+      ${appts.length>3?`<div style="font-size:9px;color:var(--primary);">+${appts.length-3} más</div>`:''}
+    </div>`;
   }
   
   for (let d = 1; d <= daysInMonth; d++) {
@@ -2832,7 +2848,22 @@ function renderAgenda() {
   const totalCells = firstDayMon + daysInMonth;
   const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
   for (let i = 1; i <= remaining; i++) {
-    html += `<div class="agenda-day other-month"><div class="day-num">${i}</div></div>`;
+    const m = month + 1 > 11 ? 0 : month + 1;
+    const y = month + 1 > 11 ? year + 1 : year;
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+    const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted && a.cancelledBy !== 'salon');
+    const hasOnline = appts.some(a => a.source === 'online');
+    html += `<div class="agenda-day other-month${hasOnline?' has-online':''}" onclick="showDayAppts('${dateStr}')">
+      <div class="day-num">${i}</div>
+      ${appts.slice(0,3).map(a => {
+        const client = data.clients.find(c => c.id === a.clientId);
+        const employee = data.employees.find(e => e.id === a.employeeId);
+        const mins = a.time ? parseInt(a.time.split(':')[1]) : 0;
+        const irregular = mins % 15 !== 0;
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?client.name:'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(employee.name)})</span>`:''}</div>`;
+      }).join('')}
+      ${appts.length>3?`<div style="font-size:9px;color:var(--primary);">+${appts.length-3} más</div>`:''}
+    </div>`;
   }
   
   grid.innerHTML = html;
