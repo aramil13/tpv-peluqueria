@@ -1693,7 +1693,6 @@ function applyRemoteData(remote, source) {
       if (aBad && !existingBad) return;
       if (a.pendingSalonConfirm && !existing.pendingSalonConfirm) { dedupMap.set(key, a); return; }
       if (!a.pendingSalonConfirm && existing.pendingSalonConfirm) return;
-      if ((a._modified||0) > (existing._modified||0)) dedupMap.set(key, a);
     });
     data.appointments = [...dedupMap.values()];
   }
