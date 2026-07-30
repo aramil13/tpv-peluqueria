@@ -257,14 +257,7 @@ export async function onRequest(context) {
               }
             }
           });
-          const today = new Date().toISOString().split('T')[0];
-          (merged.appointments||[]).forEach(a => {
-            if (a.cancelledBy === 'salon' && (a.date < today || (a.source !== 'online' && a.source !== 'whatsapp'))) {
-              a._deleted = true; delete a.cancelledBy; a._modified = Date.now();
-            }
-          });
-           merged.appointments = (merged.appointments||[]).filter(a => a.date >= today && !a._deleted);
-           await writeData(merged);
+          await writeData(merged);
            return json({
              ok: true,
              appointments: (Array.isArray(merged.appointments) ? merged.appointments : []).length,
