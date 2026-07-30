@@ -1682,15 +1682,20 @@ function applyRemoteData(remote) {
     });
     remote.appointments.forEach(r => delete localAppts[r.id]);
     Object.values(localAppts).forEach(a => mergedAppts.push(a));
-    const dupSeen = new Set();
-    const dedupAppts = [];
+    const dedupMap = new Map();
     mergedAppts.forEach(a => {
       const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'');
-      if (dupSeen.has(key)) return;
-      dupSeen.add(key);
-      dedupAppts.push(a);
+      const existing = dedupMap.get(key);
+      if (!existing) { dedupMap.set(key, a); return; }
+      const existingBad = existing._deleted || existing.cancelledBy === 'client' || existing.cancelledBy === 'salon';
+      const aBad = a._deleted || a.cancelledBy === 'client' || a.cancelledBy === 'salon';
+      if (!aBad && existingBad) { dedupMap.set(key, a); return; }
+      if (aBad && !existingBad) return;
+      if (a.pendingSalonConfirm && !existing.pendingSalonConfirm) { dedupMap.set(key, a); return; }
+      if (!a.pendingSalonConfirm && existing.pendingSalonConfirm) return;
+      if ((a._modified||0) > (existing._modified||0)) dedupMap.set(key, a);
     });
-    data.appointments = dedupAppts;
+    data.appointments = [...dedupMap.values()];
   }
   if (Array.isArray(remote.clients) && remote.clients.length > 0) {
     const mergedClients = [...remote.clients];
