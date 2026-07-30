@@ -457,8 +457,23 @@ function renderAgenda() {
   const today = new Date();
   const dayNames = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
   let html = dayNames.map(d => `<div class="agenda-day-header">${d}</div>`).join('');
-  for (let i = firstDayMon - 1; i >= 0; i--)
-    html += `<div class="agenda-day other-month"><div class="day-num">${prevMonthDays - i}</div></div>`;
+  for (let i = firstDayMon - 1; i >= 0; i--) {
+    const d = prevMonthDays - i;
+    const m = month - 1 < 0 ? 11 : month - 1;
+    const y = month - 1 < 0 ? year - 1 : year;
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted && a.cancelledBy !== 'salon');
+    const hasOnline = appts.some(a => a.source === 'online');
+    html += `<div class="agenda-day other-month${hasOnline?' has-online':''}" onclick="showDayAppts('${dateStr}')">
+      <div class="day-num">${d}</div>
+      ${appts.slice(0,2).map(a => {
+        const client = data.clients.find(c => c.id === a.clientId);
+        const employee = data.employees.find(e => e.id === a.employeeId);
+        return `<div class="appt${a.source==='online'?' appt-online':''}">${esc(a.time||'')}${a.endTime ? '-'+esc(a.endTime) : ''} ${esc(client?client.name:'?')}${employee ? ' 👤'+esc(employee.name).slice(0,3) : ''}</div>`;
+      }).join('')}
+      ${appts.length>2?`<div style="font-size:7px;color:var(--primary);">+${appts.length-2}</div>`:''}
+    </div>`;
+  }
   for (let d = 1; d <= daysInMonth; d++) {
     const isToday = d === today.getDate() && month === today.getMonth() && year === today.getFullYear();
     const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
@@ -479,8 +494,22 @@ function renderAgenda() {
   }
   const totalCells = firstDayMon + daysInMonth;
   const remaining = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
-  for (let i = 1; i <= remaining; i++)
-    html += `<div class="agenda-day other-month"><div class="day-num">${i}</div></div>`;
+  for (let i = 1; i <= remaining; i++) {
+    const m = month + 1 > 11 ? 0 : month + 1;
+    const y = month + 1 > 11 ? year + 1 : year;
+    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+    const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted && a.cancelledBy !== 'salon');
+    const hasOnline = appts.some(a => a.source === 'online');
+    html += `<div class="agenda-day other-month${hasOnline?' has-online':''}" onclick="showDayAppts('${dateStr}')">
+      <div class="day-num">${i}</div>
+      ${appts.slice(0,2).map(a => {
+        const client = data.clients.find(c => c.id === a.clientId);
+        const employee = data.employees.find(e => e.id === a.employeeId);
+        return `<div class="appt${a.source==='online'?' appt-online':''}">${esc(a.time||'')}${a.endTime ? '-'+esc(a.endTime) : ''} ${esc(client?client.name:'?')}${employee ? ' 👤'+esc(employee.name).slice(0,3) : ''}</div>`;
+      }).join('')}
+      ${appts.length>2?`<div style="font-size:7px;color:var(--primary);">+${appts.length-2}</div>`:''}
+    </div>`;
+  }
   grid.innerHTML = html;
   const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
   showDayAppts(selectedDateStr || todayStr);
