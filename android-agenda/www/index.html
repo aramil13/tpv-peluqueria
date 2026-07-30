@@ -827,13 +827,15 @@ function filterServiceDropdown() {
   const q = document.getElementById('apptServiceSearch').value.toLowerCase().trim();
   const dd = document.getElementById('apptServiceDropdown');
   const secId = document.getElementById('apptSection').value;
-  const services = data.services.filter(s => !s._deleted && (!secId || s.sectionId === secId) && (!q || s.name.toLowerCase().includes(q)));
+  if (!secId) { dd.style.display = 'none'; return; }
+  const services = data.services.filter(s => !s._deleted && s.sectionId === secId && (!q || s.name.toLowerCase().includes(q)));
   dd.innerHTML = services.map(s =>
     `<div class="service-dd-item" data-id="${s.id}" onmousedown="selectServiceFromDropdown('${s.id}')">${esc(s.name)}</div>`
   ).join('');
   if (!services.length) {
     dd.innerHTML = '<div class="service-dd-empty">Sin resultados</div>';
   }
+  dd.style.display = 'block';
 }
 
 function selectServiceFromDropdown(id) {
@@ -981,7 +983,7 @@ function quickCreateClient() {
 function onApptSectionChange() {
   document.getElementById('apptServiceSearch').value = '';
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
-  document.getElementById('apptServiceDropdown').style.display = 'none';
+  filterServiceDropdown();
 }
 
 function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
