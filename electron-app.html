@@ -156,6 +156,9 @@ tr:hover td { background: #f8f9fa; }
 .appt-grid-del { position: absolute; top: 2px; right: 2px; width: 16px; height: 16px; background: rgba(0,0,0,.3); color: #fff; border-radius: 50%; font-size: 9px; line-height: 16px; text-align: center; cursor: pointer; text-shadow: none; display: none; }
 .appt-grid-occ:hover .appt-grid-del { display: block; }
 .appt-grid-del:hover { background: rgba(200,0,0,.7); }
+.appt-grid-wa { position: absolute; bottom: 2px; right: 2px; width: 18px; height: 18px; background: #25D366; color: #fff; border-radius: 50%; font-size: 10px; line-height: 18px; text-align: center; cursor: pointer; display: none; z-index: 6; }
+.appt-grid-occ:hover .appt-grid-wa { display: block; }
+.appt-grid-wa:hover { background: #128C7E; transform: scale(1.2); }
 .appt-grid-sq { width: 34px; height: 34px; border-radius: 10px; display: inline-block; cursor: pointer; transition: transform .15s, box-shadow .15s; border: 2px solid transparent; }
 .appt-grid-sq:hover { transform: scale(1.15); box-shadow: 0 2px 8px rgba(0,0,0,.2); border-color: #fff; }
 .appt-grid-free { background: #fff; border: 2px dashed #ccc; }
@@ -611,7 +614,7 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Empleado</label><select id="apptEmployee"></select></div>
       <div class="form-group"><label>Notas</label><textarea id="apptNotes" placeholder="Notas..."></textarea></div>
     </div>
-    <div class="modal-footer"><button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button><button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button><button class="btn btn-primary" onclick="saveAppointment()">Guardar</button></div>
+    <div class="modal-footer"><button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button><button class="btn btn-success" id="waReminderBtn" onclick="sendWAReminderFromModal()" style="display:none;background:#25D366;">📱 Recordatorio WhatsApp</button><button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button><button class="btn btn-primary" onclick="saveAppointment()">Guardar</button></div>
     <input type="hidden" id="apptEditId">
   </div>
 </div>
@@ -3018,7 +3021,8 @@ function showDayAppts(dateStr) {
           }
         }
         const extraClass = isPendingCancelWhatsApp ? ' appt-pending-cancel-whatsapp' : (isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : ''));
-        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">🌐</span>' : ''}${isPendingCancelWhatsApp ? '<span class="pending-watermark">❌</span>' : ''}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+        const waBtn = clientPhone ? `<span class="appt-grid-wa" onclick="event.stopPropagation();sendWAReminder('${appt.id}')" title="Enviar recordatorio WhatsApp">📱</span>` : '';
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">🌐</span>' : ''}${isPendingCancelWhatsApp ? '<span class="pending-watermark">❌</span>' : ''}${waBtn}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       }
       if (!appt) {
         const empId = e ? e.id : '';
@@ -3253,6 +3257,7 @@ function editAppt(id) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
+  updateWaReminderBtn(id);
   openModal('appointmentModal');
 }
 
@@ -3291,6 +3296,7 @@ function editApptBlock(id, blockNum) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
+  updateWaReminderBtn(bloque1Appt.id);
   editingBlockNum = blockNum;
   openModal('appointmentModal');
 }
@@ -3730,6 +3736,44 @@ function findFreeSlots(date, empId, duration) {
     if (slots.length >= 3) break;
   }
   return slots;
+}
+
+function updateWaReminderBtn(apptId) {
+  const btn = document.getElementById('waReminderBtn');
+  const a = data.appointments.find(x => x.id === apptId);
+  if (!a) { btn.style.display = 'none'; return; }
+  const client = data.clients.find(c => c.id === a.clientId);
+  if (client && client.phone && !a._deleted) {
+    btn.style.display = '';
+    btn.onclick = function() { sendWAReminder(apptId); closeModal('appointmentModal'); };
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function sendWAReminderFromModal() {
+  const id = document.getElementById('apptEditId').value;
+  if (id) sendWAReminder(id);
+  closeModal('appointmentModal');
+}
+
+function sendWAReminder(apptId) {
+  const a = data.appointments.find(x => x.id === apptId);
+  if (!a) return;
+  const client = data.clients.find(c => c.id === a.clientId);
+  if (!client || !client.phone) return;
+  const phone = client.phone.replace(/[^0-9]/g, '');
+  const cleanPhone = phone.length > 9 ? phone.slice(-9) : phone;
+  const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+  const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
+  const emp = data.employees.find(e => e.id === a.employeeId);
+  const s = data.settings || {};
+  const salonName = s.businessName || 'Nymara Estilistas';
+  const dateFmt = new Date(a.date + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  const hours = a.time + (a.endTime ? ' - ' + a.endTime : '');
+  const msg = `Hola ${client.name}, le recordamos su cita en ${salonName}:\n📅 ${dateFmt}\n⏰ ${hours}\n💇 ${svcNames}${emp ? '\n👤 ' + emp.name : ''}\n\n¡Le esperamos!`;
+  const waUrl = 'https://wa.me/34' + cleanPhone + '?text=' + encodeURIComponent(msg);
+  window.open(waUrl, '_blank');
 }
 
 async function deleteAppt(id) {

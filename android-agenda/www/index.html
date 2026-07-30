@@ -96,6 +96,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .appt-grid-cell { padding: 0 !important; min-width: 50px; }
 .appt-grid-occ { color: #fff; font-size: 9px; font-weight: 600; cursor: pointer; border-radius: 6px; line-height: 1.3; text-shadow: 0 1px 2px rgba(0,0,0,.3); position: relative; padding: 3px 4px !important; height: auto; box-sizing: border-box; }
 .appt-grid-del { position: absolute; top: 1px; right: 1px; width: 14px; height: 14px; background: rgba(0,0,0,.3); color: #fff; border-radius: 50%; font-size: 8px; line-height: 14px; text-align: center; cursor: pointer; text-shadow: none; }
+.appt-grid-wa { position: absolute; bottom: 1px; right: 1px; width: 16px; height: 16px; background: #25D366; color: #fff; border-radius: 50%; font-size: 9px; line-height: 16px; text-align: center; cursor: pointer; display: none; z-index: 6; }
+.appt-grid-occ:hover .appt-grid-wa { display: block; }
+.appt-grid-wa:hover { background: #128C7E; transform: scale(1.2); }
 .appt-grid-sq { width: 28px; height: 28px; border-radius: 8px; display: inline-block; cursor: pointer; border: 2px solid transparent; }
 .appt-grid-free { background: #fff; border: 2px dashed #ccc; }
 .appt-online-grid::after { content: '🌐'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 24px; opacity: .2; pointer-events: none; }
@@ -244,6 +247,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
     <div class="form-group"><label>Notas</label><textarea id="apptNotes" placeholder="Notas..."></textarea></div>
     <div class="modal-footer">
       <button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button>
+      <button class="btn btn-success" id="waReminderBtn" onclick="sendWAReminderFromModal()" style="display:none;background:#25D366;">📱 Recordatorio WhatsApp</button>
       <button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button>
       <button class="btn btn-primary" onclick="saveAppointment()">Guardar</button>
     </div>
@@ -624,7 +628,9 @@ function showDayAppts(dateStr) {
             cellContent += `<br><span style="font-size:9px">${esc(oldEmp||'?')}→${esc(pendEmp||'?')}</span>`;
           }
         }
-        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${isPending?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
+        const clientPhone = client?.phone || appt.clientPhone || '';
+        const waBtn = clientPhone ? `<span class="appt-grid-wa" onclick="event.stopPropagation();sendWAReminder('${appt.id}')" title="Enviar recordatorio WhatsApp">📱</span>` : '';
+        html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${isPending?' appt-pending-mod':''}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${waBtn}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       } else {
         const empId = e ? e.id : '';
         html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
@@ -690,7 +696,46 @@ function editAppt(id) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
+  updateWaReminderBtn(id);
   document.getElementById('appointmentModal').classList.add('show');
+}
+
+function updateWaReminderBtn(apptId) {
+  const btn = document.getElementById('waReminderBtn');
+  const a = data.appointments.find(x => x.id === apptId);
+  if (!a) { btn.style.display = 'none'; return; }
+  const client = data.clients.find(c => c.id === a.clientId);
+  if (client && client.phone && !a._deleted) {
+    btn.style.display = '';
+    btn.onclick = function() { sendWAReminder(apptId); closeModal('appointmentModal'); };
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function sendWAReminderFromModal() {
+  const id = document.getElementById('apptEditId').value;
+  if (id) sendWAReminder(id);
+  closeModal('appointmentModal');
+}
+
+function sendWAReminder(apptId) {
+  const a = data.appointments.find(x => x.id === apptId);
+  if (!a) return;
+  const client = data.clients.find(c => c.id === a.clientId);
+  if (!client || !client.phone) return;
+  const phone = client.phone.replace(/[^0-9]/g, '');
+  const cleanPhone = phone.length > 9 ? phone.slice(-9) : phone;
+  const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+  const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
+  const emp = data.employees.find(e => e.id === a.employeeId);
+  const s = data.settings || {};
+  const salonName = s.businessName || 'Nymara Estilistas';
+  const dateFmt = new Date(a.date + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+  const hours = a.time + (a.endTime ? ' - ' + a.endTime : '');
+  const msg = `Hola ${client.name}, le recordamos su cita en ${salonName}:\n📅 ${dateFmt}\n⏰ ${hours}\n💇 ${svcNames}${emp ? '\n👤 ' + emp.name : ''}\n\n¡Le esperamos!`;
+  const waUrl = 'https://wa.me/34' + cleanPhone + '?text=' + encodeURIComponent(msg);
+  window.open(waUrl, '_blank');
 }
 
 function editApptBlock(id, blockNum) {
@@ -723,6 +768,7 @@ function editApptBlock(id, blockNum) {
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
   document.getElementById('cancelApptBtn').style.display = '';
+  updateWaReminderBtn(targetAppt.id);
   editingBlockNum = blockNum;
   document.getElementById('appointmentModal').classList.add('show');
 }
