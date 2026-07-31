@@ -224,6 +224,65 @@ function requireWebAuth(req, res) {
   return auth === 'Bearer ' + WEB_API_KEY || auth === WEB_API_KEY;
 }
 
+const crypto = require('crypto');
+
+function hashPassword(pw) {
+  if (!pw) return '';
+  return crypto.createHash('sha256').update(String(pw) + 'tpv_salt_2026').digest('hex');
+}
+
+function clientHashPW(str) {
+  if (!str) return '';
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h = h & h; }
+  let hex = (h >>> 0).toString(16);
+  for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); hex += (c * 9301 + 49297) % 233280; }
+  return Buffer.from(hex, 'latin1').toString('base64').substring(0, 32);
+}
+
+function verifyPassword(inputPw, client) {
+  if (!inputPw || !client) return false;
+  const serverHash = hashPassword(inputPw);
+  const clientHash = clientHashPW(inputPw);
+  if (client.passwordHash && (client.passwordHash === serverHash || client.passwordHash === clientHash)) return true;
+  if (client.password && client.password === inputPw) return true;
+  if (client.password && hashPassword(client.password) === serverHash) return true;
+  return false;
+}
+
+function sendRecoveryEmail(clientEmail, clientName, code) {
+  if (!transporter || !clientEmail) return false;
+  transporter.sendMail({
+    from: SMTP_FROM,
+    to: clientEmail,
+    subject: 'Código de recuperación de contraseña - ' + BUSINESS_NAME,
+    html: `<div style="font-family:Arial;max-width:500px;margin:0 auto;">
+      <h2 style="color:#6C3483;">${BUSINESS_NAME}</h2>
+      <p>Hola <strong>${clientName}</strong>,</p>
+      <p>Has solicitado recuperar tu contraseña. Tu código de verificación es:</p>
+      <div style="background:#f5f2f7;border-radius:8px;padding:20px;text-align:center;font-size:32px;font-weight:700;letter-spacing:8px;color:#6C3483;margin:15px 0;">${code}</div>
+      <p>Este código caduca en <strong>15 minutos</strong>.</p>
+      <p style="color:#999;font-size:12px;">Si no has solicitado este cambio, ignora este email.<br>${BUSINESS_NAME}</p>
+    </div>`
+  }, (err, info) => {
+    if (err) console.error('Recovery email error:', err.message);
+    else console.log('Recovery email sent to', clientEmail, info.messageId);
+  });
+  return true;
+}
+
+function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', c => body += c);
+    req.on('end', () => {
+      try { resolve(JSON.parse(body)); }
+      catch (e) { reject(new Error('JSON inválido')); }
+    });
+    req.on('error', reject);
+  });
+}
+
 // === SEED DATA for fresh deployments ===
 function seedInitialData() {
   if (fs.existsSync(SYNC_FILE)) {
@@ -688,6 +747,148 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
+  // === CLIENT LOGIN (email/password) ===
+  if (url === '/api/client/login' && req.method === 'POST') {
+    parseBody(req).then(async b => {
+      const searchKey = (b.email || b.phone || '').trim();
+      const password = b.password || '';
+      if (!searchKey || !password) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'Email/teléfono y contraseña obligatorios' }));
+        return;
+      }
+      const normP = normPhone(searchKey);
+      const searchStr = searchKey.toLowerCase();
+      let d = readData();
+      let client = (d.clients || []).find(c => !c._deleted && ((c.phone && normPhone(c.phone) === normP) || (c.email && c.email.toLowerCase() === searchStr)));
+      if (!client && SYNC_FORWARD_URL) {
+        await fetchFromSync();
+        d = readData();
+        client = (d.clients || []).find(c => !c._deleted && ((c.phone && normPhone(c.phone) === normP) || (c.email && c.email.toLowerCase() === searchStr)));
+      }
+      if (!client) {
+        res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'No se encontró ninguna cuenta con ese email o teléfono' }));
+        return;
+      }
+      const hasPassword = !!(client.passwordHash || client.password);
+      const hasEmail = !!(client.email && client.email.trim());
+      if (!hasPassword || !hasEmail) {
+        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, needsProfileCompletion: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '' } }));
+        return;
+      }
+      if (!verifyPassword(password, client)) {
+        res.writeHead(401, CORS_HEADERS); res.end(JSON.stringify({ error: 'Email/teléfono o contraseña incorrectos' }));
+        return;
+      }
+      handleClientLogin(client.phone, res);
+    }).catch(e => {
+      res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: e.message }));
+    });
+    return;
+  }
+
+  // === CLIENT COMPLETE PROFILE (legacy clients without email/password) ===
+  if (url === '/api/client/complete-profile' && req.method === 'POST') {
+    parseBody(req).then(b => {
+      if ((!b.clientId && !b.phone) || !b.email || !b.password) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'clientId/teléfono, email y contraseña son obligatorios' }));
+        return;
+      }
+      if (b.password.length < 8) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'La contraseña debe tener al menos 8 caracteres' }));
+        return;
+      }
+      const d = readData();
+      const client = b.clientId
+        ? (d.clients || []).find(c => c.id === b.clientId && !c._deleted)
+        : (d.clients || []).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
+      if (!client) {
+        res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado' }));
+        return;
+      }
+      const email = b.email.trim();
+      const dupEmail = (d.clients || []).find(c => c.id !== client.id && c.email && c.email.toLowerCase() === email.toLowerCase() && !c._deleted);
+      if (dupEmail) {
+        res.writeHead(409, CORS_HEADERS); res.end(JSON.stringify({ error: 'Ya existe un cliente con ese email' }));
+        return;
+      }
+      client.email = email;
+      client.passwordHash = hashPassword(b.password);
+      delete client.password;
+      client._modified = Date.now();
+      writeData(d);
+      res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email } }));
+    }).catch(e => {
+      res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: e.message }));
+    });
+    return;
+  }
+
+  // === CLIENT RECOVER PASSWORD ===
+  if (url === '/api/client/recover-password' && req.method === 'POST') {
+    parseBody(req).then(b => {
+      if (!b.email) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'Email obligatorio' }));
+        return;
+      }
+      const email = b.email.trim().toLowerCase();
+      const d = readData();
+      const client = (d.clients || []).find(c => c.email && c.email.trim().toLowerCase() === email && !c._deleted);
+      if (!client) {
+        res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'No existe ninguna cuenta con ese email' }));
+        return;
+      }
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      client.recoveryCode = code;
+      client.recoveryExpires = Date.now() + 15 * 60 * 1000;
+      client._modified = Date.now();
+      writeData(d);
+      const emailSent = sendRecoveryEmail(client.email, client.name, code);
+      res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, emailSent, message: 'Código de recuperación enviado' }));
+    }).catch(e => {
+      res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: e.message }));
+    });
+    return;
+  }
+
+  // === CLIENT RESET PASSWORD ===
+  if (url === '/api/client/reset-password' && req.method === 'POST') {
+    parseBody(req).then(b => {
+      if (!b.email || !b.code || !b.newPassword) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'Email, código y nueva contraseña obligatorios' }));
+        return;
+      }
+      if (b.newPassword.length < 8) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'La nueva contraseña debe tener al menos 8 caracteres' }));
+        return;
+      }
+      const email = b.email.trim().toLowerCase();
+      const d = readData();
+      const client = (d.clients || []).find(c => c.email && c.email.trim().toLowerCase() === email && !c._deleted);
+      if (!client) {
+        res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'No existe ningún cliente registrado con ese email' }));
+        return;
+      }
+      if (!client.recoveryCode || client.recoveryCode !== b.code.trim() || !client.recoveryExpires || client.recoveryExpires < Date.now()) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'El código de recuperación es incorrecto o ha caducado' }));
+        return;
+      }
+      client.passwordHash = hashPassword(b.newPassword);
+      delete client.password;
+      delete client.recoveryCode;
+      delete client.recoveryExpires;
+      client._modified = Date.now();
+      writeData(d);
+      res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, message: 'Contraseña restablecida con éxito' }));
+    }).catch(e => {
+      res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: e.message }));
+    });
+    return;
+  }
+
   // === CLIENT API ===
   if (url === '/api/client' && req.method === 'GET') {
     const phone = (new URL(req.url, 'http://x')).searchParams.get('phone');
@@ -709,14 +910,32 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'name and phone required' }));
           return;
         }
+        if (b.email && b.password && b.password.length < 8) {
+          res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'La contraseña debe tener al menos 8 caracteres' }));
+          return;
+        }
         const d = readData();
-        if ((d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted)) {
+        const existingByPhone = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
+        const existingByEmail = b.email ? (d.clients||[]).find(c => c.email && c.email.toLowerCase() === b.email.trim().toLowerCase() && !c._deleted) : null;
+        if (existingByPhone || existingByEmail) {
+          const existing = existingByPhone || existingByEmail;
+          if (b.email && b.password && !existing.passwordHash && !existing.password) {
+            existing.name = b.name;
+            existing.email = b.email.trim();
+            existing.passwordHash = hashPassword(b.password);
+            existing._modified = Date.now();
+            writeData(d);
+            res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: true, client: { id: existing.id, name: existing.name, phone: existing.phone, email: existing.email } }));
+            return;
+          }
           res.writeHead(409, CORS_HEADERS); res.end(JSON.stringify({ error: 'Ya existe un cliente con ese teléfono' }));
           return;
         }
         const client = {
           id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
           name: (b.name||'')+' (Online)', phone: b.phone, email: b.email||'',
+          passwordHash: (b.email && b.password) ? hashPassword(b.password) : '',
           address: '', city: '', province: '', zip: '', nif: '', notes: '',
           historialTecnico: '', punctuality: '',
           visits: 0, totalSpent: 0, created: new Date().toISOString(),

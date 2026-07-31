@@ -161,14 +161,33 @@ function showCountdown(target) {
 }
 
 // === LOGIN / REGISTER ===
+function togglePW(inputId, el) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  if (inp.type === 'password') { inp.type = 'text'; el.textContent = '🙈'; }
+  else { inp.type = 'password'; el.textContent = '👁'; }
+}
+
 async function loginClient() {
-  const phone = document.getElementById('loginPhone').value.trim();
-  if (!phone) { alert('Introduce tu teléfono'); return; }
+  const email = document.getElementById('loginEmail').value.trim();
+  const pw = document.getElementById('loginPassword').value;
+  if (!email || !pw) { alert('Email y contraseña son obligatorios'); return; }
   showLoading(true);
   try {
-    const r = await fetch(API+'/api/client?phone='+encodeURIComponent(phone));
-    if (r.status === 404) { alert('No encontramos un cliente con ese teléfono. Regístrate abajo.'); showLoading(false); return; }
+    const r = await fetch(API+'/api/client/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: pw })
+    });
+    if (r.status === 404) { alert('Email o contraseña incorrectos'); showLoading(false); return; }
     const d = await r.json();
+    if (!d.ok) { alert(d.error||'Error al iniciar sesión'); showLoading(false); return; }
+    if (d.needsProfileCompletion) {
+      currentClient = d.client;
+      showLoading(false);
+      document.getElementById('completeProfileModal').style.display = 'flex';
+      return;
+    }
     currentClient = d.client;
     currentAppointments = d.appointments;
     showLoading(false);
@@ -179,13 +198,16 @@ async function loginClient() {
 async function registerClient() {
   const name = document.getElementById('regName').value.trim();
   const phone = document.getElementById('regPhone').value.trim();
-  if (!name || !phone) { alert('Nombre y teléfono son obligatorios'); return; }
+  const email = document.getElementById('regEmail').value.trim();
+  const pw = document.getElementById('regPassword').value;
+  if (!name || !phone || !email || !pw) { alert('Todos los campos son obligatorios'); return; }
+  if (pw.length < 8) { alert('La contraseña debe tener al menos 8 caracteres'); return; }
   showLoading(true);
   try {
     const r = await fetch(API+'/api/client', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone })
+      body: JSON.stringify({ name, phone, email, password: pw })
     });
     const d = await r.json();
     if (!d.ok) { alert(d.error||'Error al registrarse'); showLoading(false); return; }
@@ -194,6 +216,94 @@ async function registerClient() {
     showLoading(false);
     renderMyAppts();
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
+}
+
+// === PASSWORD RECOVERY ===
+function showRecovery() { document.getElementById('recoveryModal').style.display = 'flex'; }
+function closeRecovery() {
+  document.getElementById('recoveryModal').style.display = 'none';
+  document.getElementById('recoveryStep1').style.display = 'block';
+  document.getElementById('recoveryStep2').style.display = 'none';
+  document.getElementById('recoveryError').style.display = 'none';
+  document.getElementById('recoveryError2').style.display = 'none';
+  document.getElementById('recoverySuccess').style.display = 'none';
+}
+
+async function sendRecoveryCode() {
+  const email = document.getElementById('recoveryEmail').value.trim();
+  if (!email) { alert('Introduce tu email'); return; }
+  const err = document.getElementById('recoveryError');
+  err.style.display = 'none';
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client/recover-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const d = await r.json();
+    if (!d.ok) { err.textContent = d.error||'Error'; err.style.display = 'block'; showLoading(false); return; }
+    showLoading(false);
+    document.getElementById('recoveryStep1').style.display = 'none';
+    document.getElementById('recoveryStep2').style.display = 'block';
+  } catch(e) { err.textContent = 'Error de conexión'; err.style.display = 'block'; showLoading(false); }
+}
+
+async function resetPassword() {
+  const email = document.getElementById('recoveryEmail').value.trim();
+  const code = document.getElementById('recoveryCode').value.trim();
+  const newPw = document.getElementById('recoveryNewPW').value;
+  const err = document.getElementById('recoveryError2');
+  const success = document.getElementById('recoverySuccess');
+  err.style.display = 'none'; success.style.display = 'none';
+  if (!code || !newPw) { alert('Código y nueva contraseña son obligatorios'); return; }
+  if (newPw.length < 8) { alert('La contraseña debe tener al menos 8 caracteres'); return; }
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code, newPassword: newPw })
+    });
+    const d = await r.json();
+    if (!d.ok) { err.textContent = d.error||'Error'; err.style.display = 'block'; showLoading(false); return; }
+    showLoading(false);
+    success.textContent = 'Contraseña cambiada correctamente. Ya puedes iniciar sesión.';
+    success.style.display = 'block';
+    document.getElementById('recoveryCode').value = '';
+    document.getElementById('recoveryNewPW').value = '';
+    setTimeout(() => { closeRecovery(); }, 2000);
+  } catch(e) { err.textContent = 'Error de conexión'; err.style.display = 'block'; showLoading(false); }
+}
+
+// === COMPLETE PROFILE (for legacy clients) ===
+function closeCompleteProfile() { document.getElementById('completeProfileModal').style.display = 'none'; }
+
+async function completeClientProfile() {
+  const phone = currentClient ? currentClient.phone : '';
+  const email = document.getElementById('completeEmail').value.trim();
+  const pw = document.getElementById('completePassword').value;
+  if (!email || !pw) { alert('Email y contraseña son obligatorios'); return; }
+  if (pw.length < 8) { alert('La contraseña debe tener al menos 8 caracteres'); return; }
+  if (!phone) { alert('Error: número de teléfono no disponible'); return; }
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client/complete-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, email, password: pw })
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      document.getElementById('completeError').textContent = d.error||'Error al guardar';
+      document.getElementById('completeError').style.display = 'block';
+      showLoading(false); return;
+    }
+    currentClient = d.client;
+    closeCompleteProfile();
+    showLoading(false);
+    alert('Perfil completado correctamente. Ya puedes usar email y contraseña para acceder.');
+  } catch(e) { document.getElementById('completeError').textContent = 'Error de conexión'; document.getElementById('completeError').style.display = 'block'; showLoading(false); }
 }
 
 // === MY APPOINTMENTS ===

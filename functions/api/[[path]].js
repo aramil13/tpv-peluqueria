@@ -555,6 +555,123 @@ export async function onRequest(context) {
       }
     }
 
+    // === API: CLIENT AUTH ===
+    case '/api/client/login': {
+      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+      try {
+        const b = await getBody();
+        const searchKey = (b.email || b.phone || '').trim();
+        const password = b.password || '';
+        if (!searchKey || !password) return json({ error: 'Email/teléfono y contraseña obligatorios' }, 400);
+
+        const normP = normPhone(searchKey);
+        const searchStr = searchKey.toLowerCase();
+        const d = await readData();
+        const client = (d.clients || []).find(c =>
+          !c._deleted && (
+            (c.phone && normPhone(c.phone) === normP) ||
+            (c.email && c.email.toLowerCase() === searchStr)
+          )
+        );
+        if (!client) return json({ error: 'No se encontró ninguna cuenta con ese email o teléfono' }, 404);
+
+        const hasPassword = !!(client.passwordHash || client.password);
+        const hasEmail = !!(client.email && client.email.trim());
+        if (!hasPassword || !hasEmail) {
+          return json({
+            ok: true,
+            needsProfileCompletion: true,
+            client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '' }
+          });
+        }
+        const encoder = new TextEncoder();
+        const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(String(password) + 'tpv_salt_2026'));
+        const hashHex = Array.from(new Uint8Array(hashBuf)).map(x => x.toString(16).padStart(2, '0')).join('');
+        
+        const match = (client.passwordHash && client.passwordHash === hashHex) ||
+                      (client.password && client.password === password);
+        if (!match) return json({ error: 'Email/teléfono o contraseña incorrectos' }, 401);
+
+        return handleClientLogin(client.phone);
+      } catch(e) {
+        return json({ error: e.message }, 400);
+      }
+    }
+
+    case '/api/client/complete-profile': {
+      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+      try {
+        const b = await getBody();
+        if (!b.clientId || !b.email || !b.password) return json({ error: 'clientId, email y password obligatorios' }, 400);
+        if (b.password.length < 8) return json({ error: 'La contraseña debe tener al menos 8 caracteres' }, 400);
+
+        const d = await readData();
+        const client = (d.clients || []).find(c => c.id === b.clientId && !c._deleted);
+        if (!client) return json({ error: 'Cliente no encontrado' }, 404);
+
+        const encoder = new TextEncoder();
+        const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(String(b.password) + 'tpv_salt_2026'));
+        client.passwordHash = Array.from(new Uint8Array(hashBuf)).map(x => x.toString(16).padStart(2, '0')).join('');
+        client.email = b.email.trim();
+        client._modified = Date.now();
+        await writeData(d);
+        return json({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email } });
+      } catch(e) {
+        return json({ error: e.message }, 400);
+      }
+    }
+
+    case '/api/client/recover-password': {
+      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+      try {
+        const b = await getBody();
+        if (!b.email) return json({ error: 'Email obligatorio' }, 400);
+        const email = b.email.trim().toLowerCase();
+        const d = await readData();
+        const client = (d.clients || []).find(c => c.email && c.email.trim().toLowerCase() === email && !c._deleted);
+        if (!client) return json({ error: 'No existe ninguna cuenta con ese email' }, 404);
+
+        const code = Math.floor(100000 + Math.random() * 900000).toString();
+        client.recoveryCode = code;
+        client.recoveryExpires = Date.now() + 15 * 60 * 1000;
+        client._modified = Date.now();
+        await writeData(d);
+        return json({ ok: true, message: 'Código de recuperación enviado' });
+      } catch(e) {
+        return json({ error: e.message }, 400);
+      }
+    }
+
+    case '/api/client/reset-password': {
+      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+      try {
+        const b = await getBody();
+        if (!b.email || !b.code || !b.newPassword) return json({ error: 'Email, código y nueva contraseña obligatorios' }, 400);
+        if (b.newPassword.length < 8) return json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' }, 400);
+
+        const email = b.email.trim().toLowerCase();
+        const d = await readData();
+        const client = (d.clients || []).find(c => c.email && c.email.trim().toLowerCase() === email && !c._deleted);
+        if (!client) return json({ error: 'No existe ningún cliente registrado con ese email' }, 404);
+
+        if (!client.recoveryCode || client.recoveryCode !== b.code.trim() || !client.recoveryExpires || client.recoveryExpires < Date.now()) {
+          return json({ error: 'El código de recuperación es incorrecto o ha caducado' }, 400);
+        }
+
+        const encoder = new TextEncoder();
+        const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(String(b.newPassword) + 'tpv_salt_2026'));
+        client.passwordHash = Array.from(new Uint8Array(hashBuf)).map(x => x.toString(16).padStart(2, '0')).join('');
+        delete client.password;
+        delete client.recoveryCode;
+        delete client.recoveryExpires;
+        client._modified = Date.now();
+        await writeData(d);
+        return json({ ok: true, message: 'Contraseña restablecida con éxito' });
+      } catch(e) {
+        return json({ error: e.message }, 400);
+      }
+    }
+
     // === API: CLIENT ===
     case '/api/client': {
       if (request.method === 'GET') {
@@ -567,22 +684,44 @@ export async function onRequest(context) {
       if (request.method === 'POST') {
         try {
           const b = await getBody();
-          if (!b.name || !b.phone) {
-            return json({ error: 'name and phone required' }, 400);
+          if (!b.name || !b.phone || !b.email || !b.password) {
+            return json({ error: 'Nombre, teléfono, email y contraseña obligatorios' }, 400);
+          }
+          if (b.password.length < 8) {
+            return json({ error: 'La contraseña debe tener al menos 8 caracteres' }, 400);
           }
           const d = await readData();
-          if ((d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted)) {
-            return json({ error: 'Ya existe un cliente con ese teléfono' }, 409);
+          const existingByPhone = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
+          const existingByEmail = (d.clients||[]).find(c => c.email && c.email.toLowerCase() === b.email.trim().toLowerCase() && !c._deleted);
+
+          if (existingByPhone || existingByEmail) {
+            const existing = existingByPhone || existingByEmail;
+            if (!existing.passwordHash && !existing.password) {
+              existing.name = b.name;
+              existing.email = b.email.trim();
+              const encoder = new TextEncoder();
+              const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(String(b.password) + 'tpv_salt_2026'));
+              existing.passwordHash = Array.from(new Uint8Array(hashBuf)).map(x => x.toString(16).padStart(2, '0')).join('');
+              existing._modified = Date.now();
+              await writeData(d);
+              return json({ ok: true, client: { id: existing.id, name: existing.name, phone: existing.phone, email: existing.email } });
+            }
+            return json({ error: 'Ya existe un cliente registrado con este teléfono o email' }, 409);
           }
+          const encoder = new TextEncoder();
+          const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(String(b.password) + 'tpv_salt_2026'));
+          const passwordHash = Array.from(new Uint8Array(hashBuf)).map(x => x.toString(16).padStart(2, '0')).join('');
           const client = {
             id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
-            name: (b.name||'')+' (Online)', phone: b.phone, email: b.email||'',
+            name: (b.name||'')+' (Online)', phone: b.phone, email: b.email.trim(),
+            passwordHash,
             address: '', city: '', province: '', zip: '', nif: '', notes: '',
             historialTecnico: '', punctuality: '',
             visits: 0, totalSpent: 0, created: new Date().toISOString(),
             _modified: Date.now(), _deleted: false
           };
           d.clients.push(client);
+          await writeData(d);
           return json({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email, historialTecnico: client.historialTecnico, punctuality: client.punctuality } });
         } catch (e) {
           return json({ error: e.message }, 400);

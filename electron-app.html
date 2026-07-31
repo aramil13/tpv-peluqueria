@@ -64,6 +64,8 @@ tr:hover td { background: #f8f9fa; }
 .btn-warning { background: var(--secondary); color: #fff; }
 .btn-warning:hover { background: #d68910; }
 .btn-sm { padding: 5px 10px; font-size: 12px; }
+.pw-toggle { position:absolute; right:10px; top:32px; cursor:pointer; font-size:16px; user-select:none; opacity:.6; }
+.pw-toggle:hover { opacity:1; }
 .btn-group { display: flex; gap: 5px; }
 .form-group { margin-bottom: 12px; }
 .form-group label { display: block; font-size: 13px; font-weight: 500; margin-bottom: 4px; color: var(--text); }
@@ -474,6 +476,11 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Código Postal</label><input type="text" id="clientZip" placeholder="28001"></div>
       <div class="form-group"><label>Teléfono</label><input type="text" id="clientPhone" placeholder="Teléfono"></div>
       <div class="form-group"><label>Email</label><input type="email" id="clientEmail" placeholder="email@ejemplo.com"></div>
+      <div class="form-group" style="position:relative;"><label>Contraseña (para reservas online)</label>
+        <input type="password" id="clientPassword" placeholder="Mínimo 6 caracteres" style="padding-right:72px;" autocomplete="off">
+        <span class="pw-toggle" onclick="togglePW('clientPassword',this)">👁</span>
+        <button class="btn btn-sm" type="button" onclick="genClientPW()" style="position:absolute;right:4px;top:30px;padding:3px 6px;font-size:11px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;">Generar</button>
+      </div>
     </div>
     <div class="form-group"><label>Notas</label><textarea id="clientNotes" placeholder="Notas adicionales..."></textarea></div>
     <div class="form-group" style="margin-top:8px;"><label>Puntualidad</label><select id="clientPunctuality"><option value="">Seleccionar...</option><option value="puntual">Puntual</option><option value="impuntual">Impuntual</option><option value="dificil">Difícil</option></select></div>
@@ -1958,6 +1965,9 @@ function saveClient() {
   const id_ = document.getElementById('clientEditId').value;
   const name = document.getElementById('clientName').value.trim();
   if (!name) { alert('El nombre es obligatorio'); return; }
+  const pwField = document.getElementById('clientPassword');
+  const pw = pwField ? pwField.value : '';
+  if (pw && pw.length < 6) { alert('La contraseña debe tener al menos 6 caracteres'); return; }
   const obj = {
     name, nif: document.getElementById('clientNif').value.trim().toUpperCase(),
     address: document.getElementById('clientAddress').value.trim(),
@@ -1966,6 +1976,7 @@ function saveClient() {
     zip: document.getElementById('clientZip').value.trim(),
     phone: document.getElementById('clientPhone').value.trim(),
     email: document.getElementById('clientEmail').value.trim(),
+    passwordHash: pw ? hashPW(pw) : (() => { const c = data.clients.find(x => x.id === id_); return c ? c.passwordHash||'' : ''; })(),
     notes: document.getElementById('clientNotes').value.trim(),
     historialTecnico: document.getElementById('clientHistorial').value.trim(),
     punctuality: document.getElementById('clientPunctuality').value,
@@ -2014,7 +2025,8 @@ function editClient(id) {
   document.getElementById('clientZip').value = c.zip||'';
   document.getElementById('clientPhone').value = c.phone||'';
   document.getElementById('clientEmail').value = c.email||'';
-  document.getElementById('clientNotes').value = c.notes||'';
+  const pwField = document.getElementById('clientPassword');
+  if (pwField) pwField.value = '';
   document.getElementById('clientHistorial').value = c.historialTecnico||'';
   document.getElementById('clientPunctuality').value = c.punctuality||'';
   document.getElementById('clientWhatsApp').checked = !!c.whatsapp;
@@ -2060,12 +2072,43 @@ function updateClientWasToggle(checked) {
 }
 
 function clearClientForm() {
-  ['clientEditId','clientName','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNotes','clientHistorial'].forEach(id => document.getElementById(id).value='');
+  ['clientEditId','clientName','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNotes','clientHistorial','clientPassword'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('clientPunctuality').value = '';
   document.getElementById('clientWhatsApp').checked = false;
   updateClientWasToggle(false);
   document.getElementById('clientStats').style.display = 'none';
   document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
+}
+
+function togglePW(inputId, el) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  if (inp.type === 'password') { inp.type = 'text'; if (el) el.textContent = '🙈'; }
+  else { inp.type = 'password'; if (el) el.textContent = '👁'; }
+}
+
+function genClientPW() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let pw = '';
+  for (let i = 0; i < 8; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+  const inp = document.getElementById('clientPassword');
+  if (!inp) return;
+  inp.value = pw;
+  inp.type = 'text';
+  const toggle = inp.parentElement.querySelector('.pw-toggle');
+  if (toggle) toggle.textContent = '🙈';
+  const email = document.getElementById('clientEmail').value.trim();
+  const name = document.getElementById('clientName').value.trim();
+  const msg = email ? `Email: ${email} | Contraseña: ${pw}` : `Contraseña: ${pw}`;
+  setTimeout(() => { alert(`Contraseña generada para ${name || 'cliente'}\n\n${msg}\n\nGuárdala y compártela con el cliente.`); }, 100);
+}
+
+function hashPW(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h = h & h; }
+  let hex = (h >>> 0).toString(16);
+  for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); hex += (c * 9301 + 49297) % 233280; }
+  return btoa(unescape(encodeURIComponent(hex))).substring(0, 32);
 }
 
 // ============ EMPLOYEES ============

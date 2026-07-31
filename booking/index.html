@@ -29,13 +29,52 @@
       <p style="text-align:center;margin-bottom:20px;">Identifícate para gestionar tus citas o reservar una nueva</p>
       <div style="max-width:400px;margin:0 auto;">
         <p><strong>¿Ya estás registrado?</strong></p>
-        <div class="form-group"><label>Teléfono</label><input type="tel" id="loginPhone" placeholder="Tu número de teléfono" onkeydown="if(event.key==='Enter')loginClient()"></div>
+        <div class="form-group"><label>Email</label><input type="email" id="loginEmail" placeholder="tu@email.com" onkeydown="if(event.key==='Enter')loginClient()"></div>
+        <div class="form-group" style="position:relative;"><label>Contraseña</label><input type="password" id="loginPassword" placeholder="Contraseña" onkeydown="if(event.key==='Enter')loginClient()" style="padding-right:36px;"><span class="pw-toggle" onclick="togglePW('loginPassword',this)">👁</span></div>
         <button class="btn btn-primary btn-block" onclick="loginClient()">Entrar</button>
+        <div style="text-align:center;margin-top:8px;"><a href="#" onclick="showRecovery();return false;" style="font-size:13px;color:var(--primary);">¿Olvidaste tu contraseña?</a></div>
         <hr style="margin:25px 0;">
         <p><strong>¿Eres nuevo? Regístrate</strong></p>
         <div class="form-group"><label>Nombre y Apellidos *</label><input type="text" id="regName" placeholder="Ej: María García López"></div>
         <div class="form-group"><label>Teléfono *</label><input type="tel" id="regPhone" placeholder="Ej: 612345678"></div>
-        <button class="btn btn-secondary btn-block" onclick="registerClient()">Crear cuenta y reservar</button>
+        <div class="form-group"><label>Email *</label><input type="email" id="regEmail" placeholder="tu@email.com"></div>
+        <div class="form-group" style="position:relative;"><label>Contraseña *</label><input type="password" id="regPassword" placeholder="Mínimo 8 caracteres" minlength="8" style="padding-right:36px;"><span class="pw-toggle" onclick="togglePW('regPassword',this)">👁</span></div>
+        <button class="btn btn-secondary btn-block" onclick="registerClient()">Crear cuenta</button>
+      </div>
+    </div>
+
+    <!-- RECOVERY MODAL -->
+    <div id="recoveryModal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:400px;">
+        <span class="modal-close" onclick="closeRecovery()">&times;</span>
+        <h3>Recuperar contraseña</h3>
+        <div id="recoveryStep1">
+          <p style="font-size:14px;margin-bottom:15px;">Te enviaremos un código de verificación a tu email.</p>
+          <div class="form-group"><label>Email</label><input type="email" id="recoveryEmail" placeholder="tu@email.com" onkeydown="if(event.key==='Enter')sendRecoveryCode()"></div>
+          <div id="recoveryError" style="color:#e74c3c;font-size:13px;display:none;margin-bottom:10px;"></div>
+          <button class="btn btn-primary btn-block" onclick="sendRecoveryCode()">Enviar código</button>
+        </div>
+        <div id="recoveryStep2" style="display:none;">
+          <p style="font-size:14px;margin-bottom:15px;">Introduce el código recibido y tu nueva contraseña (mínimo 8 caracteres).</p>
+          <div class="form-group"><label>Código de verificación</label><input type="text" id="recoveryCode" placeholder="Código de 6 dígitos" onkeydown="if(event.key==='Enter')resetPassword()"></div>
+          <div class="form-group" style="position:relative;"><label>Nueva contraseña</label><input type="password" id="recoveryNewPW" placeholder="Mínimo 8 caracteres" minlength="8" style="padding-right:36px;"><span class="pw-toggle" onclick="togglePW('recoveryNewPW',this)">👁</span></div>
+          <div id="recoverySuccess" style="color:#27ae60;font-size:13px;display:none;margin-bottom:10px;"></div>
+          <div id="recoveryError2" style="color:#e74c3c;font-size:13px;display:none;margin-bottom:10px;"></div>
+          <button class="btn btn-primary btn-block" onclick="resetPassword()">Cambiar contraseña</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- COMPLETE PROFILE MODAL (for legacy/TPV clients) -->
+    <div id="completeProfileModal" class="modal" style="display:none;">
+      <div class="modal-content" style="max-width:400px;">
+        <span class="modal-close" onclick="closeCompleteProfile()">&times;</span>
+        <h3>Completar Perfil</h3>
+        <p style="font-size:14px;margin-bottom:15px;">Tu cuenta requiere Email y Contraseña para acceder a las reservas online.</p>
+        <div class="form-group"><label>Email *</label><input type="email" id="completeEmail" placeholder="tu@email.com"></div>
+        <div class="form-group" style="position:relative;"><label>Contraseña (mínimo 8 caracteres) *</label><input type="password" id="completePassword" placeholder="Mínimo 8 caracteres" minlength="8" style="padding-right:36px;"><span class="pw-toggle" onclick="togglePW('completePassword',this)">👁</span></div>
+        <div id="completeError" style="color:#e74c3c;font-size:13px;display:none;margin-bottom:10px;"></div>
+        <button class="btn btn-primary btn-block" onclick="completeClientProfile()">Guardar datos</button>
       </div>
     </div>
 

@@ -181,3 +181,7 @@ hr { border: none; border-top: 1px solid var(--border); margin: 20px 0; }
 .modal-close { position: absolute; top: 12px; right: 16px; font-size: 24px; cursor: pointer; color: var(--text-light); }
 .modal-close:hover { color: var(--text); }
 .modal h3 { margin-bottom: 15px; }
+
+/* Password toggle eye */
+.pw-toggle { position:absolute; right:10px; top:32px; cursor:pointer; font-size:16px; user-select:none; opacity:.6; }
+.pw-toggle:hover { opacity:1; }

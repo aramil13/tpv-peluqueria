@@ -544,7 +544,173 @@ module.exports = async (req, res) => {
     return;
   }
 
-  // === API: CLIENT ===
+  const crypto = require('crypto');
+  function hashPassword(pw) {
+    if (!pw) return '';
+    return crypto.createHash('sha256').update(String(pw) + 'tpv_salt_2026').digest('hex');
+  }
+
+  function verifyPassword(inputPw, client) {
+    if (!inputPw || !client) return false;
+    const hash = hashPassword(inputPw);
+    if (client.passwordHash && client.passwordHash === hash) return true;
+    if (client.password && client.password === inputPw) return true;
+    if (client.password && hashPassword(client.password) === hash) return true;
+    return false;
+  }
+
+  // === API: CLIENT LOGIN ===
+  if (url === '/api/client/login' && req.method === 'POST') {
+    try {
+      const b = await getBody(req);
+      const searchKey = (b.email || b.phone || '').trim();
+      const password = b.password || '';
+      if (!searchKey || !password) {
+        res.status(400).json({ error: 'Email/teléfono y contraseña obligatorios' });
+        return;
+      }
+      const normP = normPhone(searchKey);
+      const searchStr = searchKey.toLowerCase();
+      const d = await readData();
+      const client = (d.clients || []).find(c =>
+        !c._deleted && (
+          (c.phone && normPhone(c.phone) === normP) ||
+          (c.email && c.email.toLowerCase() === searchStr)
+        )
+      );
+      if (!client) {
+        res.status(404).json({ error: 'No se encontró ninguna cuenta con ese email o teléfono' });
+        return;
+      }
+      const hasPassword = !!(client.passwordHash || client.password);
+      const hasEmail = !!(client.email && client.email.trim());
+      if (!hasPassword || !hasEmail) {
+        res.json({
+          ok: true,
+          needsProfileCompletion: true,
+          client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '' }
+        });
+        return;
+      }
+      if (!verifyPassword(password, client)) {
+        res.status(401).json({ error: 'Email/teléfono o contraseña incorrectos' });
+        return;
+      }
+      await handleClientLogin(client.phone, res);
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+    return;
+  }
+
+  // === API: CLIENT COMPLETE PROFILE ===
+  if (url === '/api/client/complete-profile' && req.method === 'POST') {
+    try {
+      const b = await getBody(req);
+      if (!b.clientId || !b.email || !b.password) {
+        res.status(400).json({ error: 'clientId, email y password son obligatorios' });
+        return;
+      }
+      if (b.password.length < 8) {
+        res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+        return;
+      }
+      const d = await readData();
+      const client = (d.clients || []).find(c => c.id === b.clientId && !c._deleted);
+      if (!client) {
+        res.status(404).json({ error: 'Cliente no encontrado' });
+        return;
+      }
+      client.email = b.email.trim();
+      client.passwordHash = hashPassword(b.password);
+      client._modified = Date.now();
+      await writeData(d);
+      res.json({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email } });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+    return;
+  }
+
+  // === API: RECOVER PASSWORD ===
+  if (url === '/api/client/recover-password' && req.method === 'POST') {
+    try {
+      const b = await getBody(req);
+      if (!b.email) {
+        res.status(400).json({ error: 'Email obligatorio' });
+        return;
+      }
+      const email = b.email.trim().toLowerCase();
+      const d = await readData();
+      const client = (d.clients || []).find(c => c.email && c.email.trim().toLowerCase() === email && !c._deleted);
+      if (!client) {
+        res.status(404).json({ error: 'No existe ninguna cuenta con ese email' });
+        return;
+      }
+      const code = Math.floor(100000 + Math.random() * 900000).toString();
+      client.recoveryCode = code;
+      client.recoveryExpires = Date.now() + 15 * 60 * 1000;
+      client._modified = Date.now();
+      await writeData(d);
+      
+      let emailSent = false;
+      if (transporter && client.email) {
+        try {
+          await transporter.sendMail({
+            from: process.env.SMTP_FROM || 'no-reply@nymaraestilistas.es',
+            to: client.email,
+            subject: 'Código de recuperación de contraseña - Reservas Online',
+            text: `Tu código de recuperación es: ${code}\nEste código caduca en 15 minutos.`
+          });
+          emailSent = true;
+        } catch(mailErr) {
+          console.error('Error enviando mail de recuperación:', mailErr);
+        }
+      }
+      res.json({ ok: true, emailSent, message: 'Código de recuperación enviado' });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+    return;
+  }
+
+  // === API: RESET PASSWORD ===
+  if (url === '/api/client/reset-password' && req.method === 'POST') {
+    try {
+      const b = await getBody(req);
+      if (!b.email || !b.code || !b.newPassword) {
+        res.status(400).json({ error: 'Email, código y nueva contraseña obligatorios' });
+        return;
+      }
+      if (b.newPassword.length < 8) {
+        res.status(400).json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' });
+        return;
+      }
+      const email = b.email.trim().toLowerCase();
+      const d = await readData();
+      const client = (d.clients || []).find(c => c.email && c.email.trim().toLowerCase() === email && !c._deleted);
+      if (!client) {
+        res.status(404).json({ error: 'No existe ningún cliente registrado con ese email' });
+        return;
+      }
+      if (!client.recoveryCode || client.recoveryCode !== b.code.trim() || !client.recoveryExpires || client.recoveryExpires < Date.now()) {
+        res.status(400).json({ error: 'El código de recuperación es incorrecto o ha caducado' });
+        return;
+      }
+      client.passwordHash = hashPassword(b.newPassword);
+      delete client.password;
+      delete client.recoveryCode;
+      delete client.recoveryExpires;
+      client._modified = Date.now();
+      await writeData(d);
+      res.json({ ok: true, message: 'Contraseña restablecida con éxito' });
+    } catch (e) {
+      res.status(400).json({ error: e.message });
+    }
+    return;
+  }
+
+  // === API: CLIENT REGISTRATION & GET ===
   if (url === '/api/client') {
     if (req.method === 'GET') {
       const phone = (new URL(req.url, 'http://x')).searchParams.get('phone');
@@ -558,24 +724,44 @@ module.exports = async (req, res) => {
     if (req.method === 'POST') {
       try {
         const b = await getBody(req);
-        if (!b.name || !b.phone) {
-          res.status(400).json({ error: 'name and phone required' });
+        if (!b.name || !b.phone || !b.email || !b.password) {
+          res.status(400).json({ error: 'Nombre, teléfono, email y contraseña son obligatorios' });
+          return;
+        }
+        if (b.password.length < 8) {
+          res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
           return;
         }
         const d = await readData();
-        if ((d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted)) {
-          res.status(409).json({ error: 'Ya existe un cliente con ese teléfono' });
+        const existingByPhone = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
+        const existingByEmail = (d.clients||[]).find(c => c.email && c.email.toLowerCase() === b.email.trim().toLowerCase() && !c._deleted);
+
+        if (existingByPhone || existingByEmail) {
+          const existing = existingByPhone || existingByEmail;
+          // If existing legacy client without password, upgrade profile
+          if (!existing.passwordHash && !existing.password) {
+            existing.name = b.name;
+            existing.email = b.email.trim();
+            existing.passwordHash = hashPassword(b.password);
+            existing._modified = Date.now();
+            await writeData(d);
+            res.json({ ok: true, client: { id: existing.id, name: existing.name, phone: existing.phone, email: existing.email } });
+            return;
+          }
+          res.status(409).json({ error: 'Ya existe un cliente registrado con este teléfono o email' });
           return;
         }
         const client = {
           id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
-          name: (b.name||'')+' (Online)', phone: b.phone, email: b.email||'',
+          name: (b.name||'')+' (Online)', phone: b.phone, email: b.email.trim(),
+          passwordHash: hashPassword(b.password),
           address: '', city: '', province: '', zip: '', nif: '', notes: '',
           historialTecnico: '', punctuality: '',
           visits: 0, totalSpent: 0, created: new Date().toISOString(),
           _modified: Date.now(), _deleted: false
         };
         d.clients.push(client);
+        await writeData(d);
         res.json({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email, historialTecnico: client.historialTecnico, punctuality: client.punctuality } });
       } catch (e) {
         res.status(400).json({ error: e.message });

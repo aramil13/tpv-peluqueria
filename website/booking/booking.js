@@ -196,6 +196,36 @@ async function registerClient() {
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
 
+// === COMPLETE PROFILE (for legacy clients) ===
+function closeCompleteProfile() { document.getElementById('completeProfileModal').style.display = 'none'; }
+
+async function completeClientProfile() {
+  const phone = currentClient ? currentClient.phone : '';
+  const email = document.getElementById('completeEmail').value.trim();
+  const pw = document.getElementById('completePassword').value;
+  if (!email || !pw) { alert('Email y contraseña son obligatorios'); return; }
+  if (pw.length < 8) { alert('La contraseña debe tener al menos 8 caracteres'); return; }
+  if (!phone) { alert('Error: número de teléfono no disponible'); return; }
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client/complete-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, email, password: pw })
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      document.getElementById('completeError').textContent = d.error||'Error al guardar';
+      document.getElementById('completeError').style.display = 'block';
+      showLoading(false); return;
+    }
+    currentClient = d.client;
+    closeCompleteProfile();
+    showLoading(false);
+    alert('Perfil completado correctamente. Ya puedes usar email y contraseña para acceder.');
+  } catch(e) { document.getElementById('completeError').textContent = 'Error de conexión'; document.getElementById('completeError').style.display = 'block'; showLoading(false); }
+}
+
 // === MY APPOINTMENTS ===
 const SALON_PHONE = '624 14 36 58';
 function renderMyAppts() {

@@ -37,6 +37,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .btn-warning { background: var(--secondary); color: #fff; }
 .btn-sm { padding: 5px 10px; font-size: 11px; border-radius: 5px; }
 .btn-xs { padding: 3px 7px; font-size: 10px; border-radius: 4px; }
+.pw-toggle { position:absolute; right:10px; top:32px; cursor:pointer; font-size:16px; user-select:none; opacity:.6; }
+.pw-toggle:hover { opacity:1; }
 .btn-group { display: flex; gap: 4px; flex-wrap: wrap; }
 .agenda-nav { display: flex; align-items: center; gap: 8px; padding: 10px 14px; justify-content: center; }
 .agenda-nav h3 { font-size: 15px; min-width: 170px; text-align: center; font-weight: 600; }
@@ -279,6 +281,11 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
     </div>
     <div class="form-row">
       <div class="form-group"><label>Email</label><input type="email" id="clientEmail" placeholder="Email"></div>
+      <div class="form-group" style="position:relative;"><label>Contraseña (online)</label>
+        <input type="password" id="clientPassword" placeholder="Mínimo 6 caracteres" style="padding-right:60px;">
+        <span class="pw-toggle" onclick="togglePW('clientPassword',this)">👁</span>
+        <button class="btn btn-xs" type="button" onclick="genClientPW()" style="position:absolute;right:4px;top:30px;padding:2px 5px;font-size:10px;background:var(--primary);color:#fff;border:none;border-radius:3px;cursor:pointer;">Gen</button>
+      </div>
       <div class="form-group"><label>Notas</label><textarea id="clientNotes" placeholder="Notas..." style="min-height:40px;"></textarea></div>
     </div>
     <input type="checkbox" id="clientWhatsApp" style="display:none;">
@@ -1287,6 +1294,7 @@ function openClientModal() {
   document.getElementById('clientZip').value = '';
   document.getElementById('clientPhone').value = '';
   document.getElementById('clientEmail').value = '';
+  document.getElementById('clientPassword').value = '';
   document.getElementById('clientNotes').value = '';
   document.getElementById('clientWhatsApp').checked = false;
   updateClientWasToggle(false);
@@ -1305,6 +1313,7 @@ function editClient(id) {
   document.getElementById('clientZip').value = c.zip||'';
   document.getElementById('clientPhone').value = c.phone||'';
   document.getElementById('clientEmail').value = c.email||'';
+  document.getElementById('clientPassword').value = '';
   document.getElementById('clientNotes').value = c.notes||'';
   document.getElementById('clientWhatsApp').checked = !!c.whatsapp;
   updateClientWasToggle(!!c.whatsapp);
@@ -1329,6 +1338,9 @@ function saveClient() {
   const id_ = document.getElementById('clientEditId').value;
   const name = document.getElementById('clientName').value.trim();
   if (!name) { alert('El nombre es obligatorio'); return; }
+  const pwField = document.getElementById('clientPassword');
+  const pw = pwField ? pwField.value : '';
+  if (pw && pw.length < 6) { alert('La contraseña debe tener al menos 6 caracteres'); return; }
   const obj = {
     name, nif: document.getElementById('clientNif').value.trim().toUpperCase(),
     address: document.getElementById('clientAddress').value.trim(),
@@ -1337,6 +1349,7 @@ function saveClient() {
     zip: document.getElementById('clientZip').value.trim(),
     phone: document.getElementById('clientPhone').value.trim(),
     email: document.getElementById('clientEmail').value.trim(),
+    passwordHash: pw ? hashPW(pw) : (() => { const c = data.clients.find(x => x.id === id_); return c ? c.passwordHash||'' : ''; })(),
     notes: document.getElementById('clientNotes').value.trim(),
     whatsapp: document.getElementById('clientWhatsApp').checked,
     _modified: Date.now(),
@@ -1778,6 +1791,32 @@ function handleVersionClick() {
     alert('Nymara Estilistas v1.0 — Los datos se sincronizan con el servidor configurado');
   }
   setTimeout(() => { if (versionClicks > 0) versionClicks = 0; }, 3000);
+}
+
+function togglePW(inputId, el) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  if (inp.type === 'password') { inp.type = 'text'; if (el) el.textContent = '🙈'; }
+  else { inp.type = 'password'; if (el) el.textContent = '👁'; }
+}
+function genClientPW() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  let pw = '';
+  for (let i = 0; i < 8; i++) pw += chars[Math.floor(Math.random() * chars.length)];
+  const inp = document.getElementById('clientPassword');
+  if (!inp) return;
+  inp.value = pw;
+  inp.type = 'text';
+  const toggle = inp.parentElement.querySelector('.pw-toggle');
+  if (toggle) toggle.textContent = '🙈';
+  setTimeout(() => { alert(`Contraseña generada para el cliente\n\nContraseña: ${pw}\n\nGuárdala y compártela con el cliente.`); }, 100);
+}
+function hashPW(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h = h & h; }
+  let hex = (h >>> 0).toString(16);
+  for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); hex += (c * 9301 + 49297) % 233280; }
+  return btoa(unescape(encodeURIComponent(hex))).substring(0, 32);
 }
 
 // ============ SETTINGS ============
