@@ -103,6 +103,7 @@ async function handleClientLogin(phone, res) {
   const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
   appointments.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   res.json({
+    ok: true,
     client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '', historialTecnico: client.historialTecnico || '', punctuality: client.punctuality || '' },
     appointments: appointments.map(a => {
       const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);

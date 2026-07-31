@@ -94,6 +94,7 @@ async function handleClientLogin(phone, res) {
   const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
   res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
   res.end(JSON.stringify({
+    ok: true,
     client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '' },
     appointments: appointments.map(a => ({
       id: a.id, date: a.date, time: a.time, endTime: a.endTime || '',
@@ -908,6 +909,10 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         const b = JSON.parse(body);
         if (!b.name || !b.phone) {
           res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'name and phone required' }));
+          return;
+        }
+        if (b.password && !b.email) {
+          res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'Email obligatorio para poder recuperar la contraseña' }));
           return;
         }
         if (b.email && b.password && b.password.length < 8) {

@@ -169,17 +169,17 @@ function togglePW(inputId, el) {
 }
 
 async function loginClient() {
-  const email = document.getElementById('loginEmail').value.trim();
+  const phone = document.getElementById('loginPhone').value.trim();
   const pw = document.getElementById('loginPassword').value;
-  if (!email || !pw) { alert('Email y contraseña son obligatorios'); return; }
+  if (!phone || !pw) { alert('Teléfono y contraseña son obligatorios'); return; }
   showLoading(true);
   try {
     const r = await fetch(API+'/api/client/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password: pw })
+      body: JSON.stringify({ phone, password: pw })
     });
-    if (r.status === 404) { alert('Email o contraseña incorrectos'); showLoading(false); return; }
+    if (r.status === 404) { alert('Teléfono o contraseña incorrectos'); showLoading(false); return; }
     const d = await r.json();
     if (!d.ok) { alert(d.error||'Error al iniciar sesión'); showLoading(false); return; }
     if (d.needsProfileCompletion) {

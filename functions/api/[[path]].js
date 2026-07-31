@@ -208,6 +208,7 @@ export async function onRequest(context) {
       }
     }
     return json({
+      ok: true,
       client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '', historialTecnico: client.historialTecnico || '', punctuality: client.punctuality || '' },
       appointments: result
     });
