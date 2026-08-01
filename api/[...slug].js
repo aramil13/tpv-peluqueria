@@ -551,10 +551,20 @@ module.exports = async (req, res) => {
     return crypto.createHash('sha256').update(String(pw) + 'tpv_salt_2026').digest('hex');
   }
 
+  function clientHashPW(str) {
+    if (!str) return '';
+    let h = 0;
+    for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h = h & h; }
+    let hex = (h >>> 0).toString(16);
+    for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); hex += (c * 9301 + 49297) % 233280; }
+    return Buffer.from(hex, 'latin1').toString('base64').substring(0, 32);
+  }
+
   function verifyPassword(inputPw, client) {
     if (!inputPw || !client) return false;
     const hash = hashPassword(inputPw);
-    if (client.passwordHash && client.passwordHash === hash) return true;
+    const legacy = clientHashPW(inputPw);
+    if (client.passwordHash && (client.passwordHash === hash || client.passwordHash === legacy)) return true;
     if (client.password && client.password === inputPw) return true;
     if (client.password && hashPassword(client.password) === hash) return true;
     return false;

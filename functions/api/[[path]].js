@@ -130,6 +130,15 @@ export async function onRequest(context) {
     try { return JSON.parse(raw); } catch { return raw; }
   }
 
+  function clientHashPW(str) {
+    if (!str) return '';
+    let h = 0;
+    for (let i = 0; i < str.length; i++) { h = ((h << 5) - h) + str.charCodeAt(i); h = h & h; }
+    let hex = (h >>> 0).toString(16);
+    for (let i = 0; i < str.length; i++) { const c = str.charCodeAt(i); hex += (c * 9301 + 49297) % 233280; }
+    return btoa(hex).substring(0, 32);
+  }
+
   async function handleClientLogin(phone) {
     const norm = normPhone(phone);
     const d = await readData();
@@ -588,8 +597,9 @@ export async function onRequest(context) {
         const encoder = new TextEncoder();
         const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(String(password) + 'tpv_salt_2026'));
         const hashHex = Array.from(new Uint8Array(hashBuf)).map(x => x.toString(16).padStart(2, '0')).join('');
-        
-        const match = (client.passwordHash && client.passwordHash === hashHex) ||
+
+        const legacyHash = clientHashPW(password);
+        const match = (client.passwordHash && (client.passwordHash === hashHex || client.passwordHash === legacyHash)) ||
                       (client.password && client.password === password);
         if (!match) return json({ error: 'Email/teléfono o contraseña incorrectos' }, 401);
 
