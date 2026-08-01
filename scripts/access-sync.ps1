@@ -419,11 +419,44 @@ try {
         $cleaned = $delDup.ExecuteNonQuery()
     }
 
+    # Phase 3.5: Pull client surnames (Apellidos) from Access Clientes into JSON clients
+    $surnamesPulled = 0
+    try {
+        $jsonClientMap = @{}
+        foreach ($jc in @($json.clients)) { if ($jc.id) { $jsonClientMap[$jc.id] = $jc } }
+        $cmdSurname = $conn.CreateCommand()
+        $cmdSurname.Transaction = $tx
+        $cmdSurname.CommandText = "SELECT Codigo, Apellidos FROM Clientes"
+        $sr = $cmdSurname.ExecuteReader()
+        while ($sr.Read()) {
+            $codigo = $sr['Codigo']
+            $apellidos = if ($sr['Apellidos']) { $sr['Apellidos'].ToString().Trim() } else { '' }
+            if (-not $apellidos) { continue }
+            $matchId = "svcl_$codigo"
+            if ($jsonClientMap.ContainsKey($matchId)) {
+                $jsonClient = $jsonClientMap[$matchId]
+                $curAp = if ($jsonClient.apellidos) { [string]$jsonClient.apellidos } else { '' }
+                if ($curAp -ne $apellidos) {
+                    if ($jsonClient.PSObject.Properties['apellidos']) {
+                        $jsonClient.apellidos = $apellidos
+                    } else {
+                        $jsonClient | Add-Member -NotePropertyName 'apellidos' -NotePropertyValue $apellidos
+                    }
+                    $jsonClient._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                    $surnamesPulled++
+                }
+            }
+        }
+        $sr.Close()
+    } catch {
+        Write-Host "WARN: Apellidos sync skipped: $($_.Exception.Message)"
+    }
+
     # Commit transaction
     $tx.Commit()
     $conn.Close()
 
-    if ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0) {
+    if ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0 -or $surnamesPulled -gt 0) {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         [System.IO.File]::WriteAllText($JsonFile, ($json | ConvertTo-Json -Depth 10), $utf8NoBom)
     }
@@ -431,7 +464,7 @@ try {
     $sw.Stop()
     $wasAccess = $allAccessActive.Count
     $cancelled = $wasAccess - $updated
-    Write-Host "OK (${($sw.Elapsed.TotalSeconds.ToString('0.00'))}s): $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled, $accessCancelled access-cancelled, $cancelled cancelled, $cleaned dupes (JSON: $($activeAppts.Count), Access: $wasAccess)"
+    Write-Host "OK (${($sw.Elapsed.TotalSeconds.ToString('0.00'))}s): $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled, $accessCancelled access-cancelled, $cancelled cancelled, $cleaned dupes, $surnamesPulled surnames (JSON: $($activeAppts.Count), Access: $wasAccess)"
 } catch {
     if ($tx) { try { $tx.Rollback() } catch {} }
     if ($conn -and $conn.State -ne 'Closed') { try { $conn.Close() } catch {} }
