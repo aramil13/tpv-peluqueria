@@ -469,6 +469,7 @@ tr:hover td { background: #f8f9fa; }
     <div class="modal-header"><h3 id="clientModalTitle">Nuevo Cliente</h3><button class="modal-close" onclick="closeModal('clientModal')">&times;</button></div>
     <div class="grid-2">
       <div class="form-group"><label>Nombre / Razón Social *</label><input type="text" id="clientName" placeholder="Nombre completo"></div>
+      <div class="form-group"><label>Apellidos</label><input type="text" id="clientSurname" placeholder="Apellidos"></div>
       <div class="form-group"><label>NIF / CIF</label><input type="text" id="clientNif" placeholder="12345678A"></div>
       <div class="form-group"><label>Dirección</label><input type="text" id="clientAddress" placeholder="Calle, número"></div>
       <div class="form-group"><label>Población</label><input type="text" id="clientCity" placeholder="Ciudad"></div>
@@ -644,6 +645,7 @@ tr:hover td { background: #f8f9fa; }
     <div class="modal-header"><h3 id="employeeModalTitle">Nuevo Empleado</h3><button class="modal-close" onclick="closeModal('employeeModal')">&times;</button></div>
     <div class="grid-2">
       <div class="form-group"><label>Nombre *</label><input type="text" id="employeeName" placeholder="Nombre completo"></div>
+      <div class="form-group"><label>Apellidos</label><input type="text" id="employeeSurname" placeholder="Apellidos"></div>
       <div class="form-group"><label>Teléfono</label><input type="text" id="employeePhone" placeholder="Teléfono"></div>
       <div class="form-group"><label>Email</label><input type="email" id="employeeEmail" placeholder="email@ejemplo.com"></div>
       <div class="form-group"><label>Rol</label><select id="employeeRole"><option value="Peluquera">Peluquera</option><option value="Esteticista">Esteticista</option><option value="Otro">Otro</option></select></div>
@@ -1207,6 +1209,7 @@ function importData(key) {
 
 // ============ CURRENCY ============
 function cur(n) { return parseFloat(n||0).toFixed(2)+'€' }
+function fullName(p) { const n=(p&&p.name||'').trim(); const a=(p&&p.apellidos||'').trim(); return a ? (n?n+' '+a:a) : n; }
 
 
 
@@ -1935,16 +1938,21 @@ function toggleSettingsMaximize() {
 document.querySelectorAll('.modal').forEach(m => {
   m.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
 });
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  document.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show'));
+  document.querySelectorAll('.emp-sel-overlay').forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
+});
 
 // ============ CLIENTS ============
 function renderClients() {
   const q = (document.getElementById('searchClient').value||'').toLowerCase();
   const tbody = document.getElementById('clientsTable');
-  const list = data.clients.filter(c => !c._deleted && (c.name+' '+c.phone+' '+c.email).toLowerCase().includes(q))
+  const list = data.clients.filter(c => !c._deleted && (fullName(c)+' '+c.phone+' '+c.email).toLowerCase().includes(q))
     .sort((a,b) => a.name.localeCompare(b.name));
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay clientes</td></tr>'; return; }
   tbody.innerHTML = list.map(c => `<tr>
-    <td><strong>${esc(c.name)}</strong></td>
+    <td><strong>${esc(fullName(c))}</strong></td>
     <td>${esc(c.nif||'-')}</td>
     <td>${esc(c.phone||'-')}</td>
     <td>${esc(c.city||'-')}</td>
@@ -1965,7 +1973,7 @@ function saveClient() {
   const pw = pwField ? pwField.value : '';
   if (pw && pw.length < 6) { alert('La contraseña debe tener al menos 6 caracteres'); return; }
   const obj = {
-    name, nif: document.getElementById('clientNif').value.trim().toUpperCase(),
+    name, apellidos: document.getElementById('clientSurname').value.trim(), nif: document.getElementById('clientNif').value.trim().toUpperCase(),
     address: document.getElementById('clientAddress').value.trim(),
     city: document.getElementById('clientCity').value.trim(),
     province: document.getElementById('clientProvince').value.trim(),
@@ -1988,8 +1996,9 @@ function saveClient() {
       const np = normPhone(obj.phone);
       const existing = data.clients.find(c => normPhone(c.phone) === np);
       if (existing) {
-        if (!confirm('Ya existe un cliente con el teléfono ' + obj.phone + ' (' + existing.name + '). ¿Deseas fusionar?')) return;
+        if (!confirm('Ya existe un cliente con el teléfono ' + obj.phone + ' (' + fullName(existing) + '). ¿Deseas fusionar?')) return;
         existing.name = obj.name;
+        existing.apellidos = obj.apellidos;
         existing.nif = obj.nif;
         existing.address = obj.address;
         existing.city = obj.city;
@@ -2013,6 +2022,7 @@ function editClient(id) {
   if (!c) return;
   document.getElementById('clientEditId').value = id;
   document.getElementById('clientName').value = c.name;
+  document.getElementById('clientSurname').value = c.apellidos||'';
   document.getElementById('clientNif').value = c.nif||'';
   document.getElementById('clientAddress').value = c.address||'';
   document.getElementById('clientCity').value = c.city||'';
@@ -2052,7 +2062,7 @@ function deleteClient(id) {
 }
 
 function clearClientForm() {
-  ['clientEditId','clientName','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNotes','clientHistorial','clientPassword'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['clientEditId','clientName','clientSurname','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNotes','clientHistorial','clientPassword'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('clientPunctuality').value = '';
   document.getElementById('clientStats').style.display = 'none';
   document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
@@ -2077,8 +2087,10 @@ function genClientPW() {
   if (toggle) toggle.textContent = '🙈';
   const email = document.getElementById('clientEmail').value.trim();
   const name = document.getElementById('clientName').value.trim();
+  const surname = document.getElementById('clientSurname') ? document.getElementById('clientSurname').value.trim() : '';
+  const full = surname ? name+' '+surname : name;
   const msg = email ? `Email: ${email} | Contraseña: ${pw}` : `Contraseña: ${pw}`;
-  setTimeout(() => { alert(`Contraseña generada para ${name || 'cliente'}\n\n${msg}\n\nGuárdala y compártela con el cliente.`); }, 100);
+  setTimeout(() => { alert(`Contraseña generada para ${full || 'cliente'}\n\n${msg}\n\nGuárdala y compártela con el cliente.`); }, 100);
 }
 
 function hashPW(str) {
@@ -2093,11 +2105,11 @@ function hashPW(str) {
 function renderEmployees() {
   const q = (document.getElementById('searchEmployee').value||'').toLowerCase();
   const tbody = document.getElementById('employeesTable');
-  const list = data.employees.filter(e => !e._deleted && (e.name+' '+e.phone+' '+e.email).toLowerCase().includes(q))
+  const list = data.employees.filter(e => !e._deleted && (fullName(e)+' '+e.phone+' '+e.email).toLowerCase().includes(q))
     .sort((a,b) => a.name.localeCompare(b.name));
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No hay empleados</td></tr>'; return; }
   tbody.innerHTML = list.map(e => `<tr>
-    <td><strong>${esc(e.name)}</strong></td>
+    <td><strong>${esc(fullName(e))}</strong></td>
     <td>${esc(e.phone||'-')}</td>
     <td>${esc(e.email||'-')}</td>
     <td>${esc(e.role||'Peluquero')}</td>
@@ -2113,7 +2125,7 @@ function saveEmployee() {
   const name = document.getElementById('employeeName').value.trim();
   if (!name) { alert('El nombre es obligatorio'); return; }
   const obj = {
-    name, phone: document.getElementById('employeePhone').value.trim(),
+    name, apellidos: document.getElementById('employeeSurname').value.trim(), phone: document.getElementById('employeePhone').value.trim(),
     email: document.getElementById('employeeEmail').value.trim(),
     role: document.getElementById('employeeRole').value,
     _modified: Date.now(),
@@ -2133,6 +2145,7 @@ function editEmployee(id) {
   if (!e) return;
   document.getElementById('employeeEditId').value = id;
   document.getElementById('employeeName').value = e.name;
+  document.getElementById('employeeSurname').value = e.apellidos||'';
   document.getElementById('employeePhone').value = e.phone||'';
   document.getElementById('employeeEmail').value = e.email||'';
   document.getElementById('employeeRole').value = e.role||'Peluquera';
@@ -2150,6 +2163,7 @@ function deleteEmployee(id) {
 function clearEmployeeForm() {
   document.getElementById('employeeEditId').value = '';
   document.getElementById('employeeName').value = '';
+  document.getElementById('employeeSurname').value = '';
   document.getElementById('employeePhone').value = '';
   document.getElementById('employeeEmail').value = '';
   document.getElementById('employeeRole').value = 'Peluquera';
@@ -2169,7 +2183,7 @@ function populateServiceEmployees(selectedIds) {
   div.innerHTML = emps.map(e => {
     const checked = selectedIds && selectedIds.includes(e.id) ? 'checked' : '';
     return `<label style="display:flex;align-items:center;gap:4px;font-size:13px;padding:4px 8px;background:var(--bg);border-radius:4px;cursor:pointer;">
-      <input type="checkbox" value="${e.id}" ${checked}> ${esc(e.name)}</label>`;
+      <input type="checkbox" value="${e.id}" ${checked}> ${esc(fullName(e))}</label>`;
   }).join('');
 }
 
@@ -2866,7 +2880,7 @@ function renderAgenda() {
         const employee = data.employees.find(e => e.id === a.employeeId);
         const mins = a.time ? parseInt(a.time.split(':')[1]) : 0;
         const irregular = mins % 15 !== 0;
-        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?client.name:'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(employee.name)})</span>`:''}</div>`;
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?fullName(client):'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(fullName(employee))})</span>`:''}</div>`;
       }).join('')}
       ${appts.length>3?`<div style="font-size:9px;color:var(--primary);">+${appts.length-3} más</div>`:''}
     </div>`;
@@ -2884,7 +2898,7 @@ function renderAgenda() {
         const employee = data.employees.find(e => e.id === a.employeeId);
         const mins = a.time ? parseInt(a.time.split(':')[1]) : 0;
         const irregular = mins % 15 !== 0;
-        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?client.name:'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(employee.name)})</span>`:''}</div>`;
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?fullName(client):'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(fullName(employee))})</span>`:''}</div>`;
       }).join('')}
       ${appts.length>3?`<div style="font-size:9px;color:var(--primary);">+${appts.length-3} más</div>`:''}
     </div>`;
@@ -2906,7 +2920,7 @@ function renderAgenda() {
         const employee = data.employees.find(e => e.id === a.employeeId);
         const mins = a.time ? parseInt(a.time.split(':')[1]) : 0;
         const irregular = mins % 15 !== 0;
-        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?client.name:'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(employee.name)})</span>`:''}</div>`;
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?fullName(client):'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(fullName(employee))})</span>`:''}</div>`;
       }).join('')}
       ${appts.length>3?`<div style="font-size:9px;color:var(--primary);">+${appts.length-3} más</div>`:''}
     </div>`;
@@ -2995,7 +3009,7 @@ function showDayAppts(dateStr) {
   let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><span style="font-weight:500;">${title} — ${appts.length} cita(s)</span><button class="btn btn-primary btn-sm" onclick="quickAppt('${dateStr}')">+ Agendar</button></div>`;
   html += `<div style="overflow-x:auto;margin-bottom:8px;"><table class="appt-grid">`;
   html += '<thead><tr><th class="appt-grid-hdr">Hora</th>';
-  cols.forEach(e => { html += `<th class="appt-grid-hdr">${esc(e ? e.name : 'Sin asignar')}</th>`; });
+  cols.forEach(e => { html += `<th class="appt-grid-hdr">${esc(e ? fullName(e) : 'Sin asignar')}</th>`; });
   html += '</tr></thead><tbody>';
 
   const skipRow = {};
@@ -3043,11 +3057,11 @@ function showDayAppts(dateStr) {
         const colorKey = appt.blockGroupId || appt.id;
         const cellColor = (isPending && appt.source === 'online') ? '#8a8a8a' : (isPendingCancelWhatsApp ? '#d4a5a5' : (isPendingWhatsApp ? '#95a5a1' : colorMap[colorKey]));
         const pendingNote = appt.salonModified ? ' | ⏳ Pendiente de confirmación del cliente' : (appt.clientModified ? ' | ⏳ Pendiente de aprobación del salón' : '') + (isPendingCancelWhatsApp ? ' | ❌ Cancelación pendiente' : (isPendingWhatsApp ? ' | ⏳ Pendiente de confirmar' : ''));
-        const oldEmp = appt.employeeId ? (data.employees.find(e=>e.id===appt.employeeId)?.name||'') : '';
-        const pendEmp = appt.pendingEmployeeId ? (data.employees.find(e=>e.id===appt.pendingEmployeeId)?.name||'') : '';
+        const oldEmp = appt.employeeId ? fullName(data.employees.find(e=>e.id===appt.employeeId)) : '';
+        const pendEmp = appt.pendingEmployeeId ? fullName(data.employees.find(e=>e.id===appt.pendingEmployeeId)) : '';
         const clientPhone = appt.clientPhone || client?.phone || '';
         const blockLabel = isBlock ? ` | Bloque ${appt.blockNum}` : '';
-        const detail = `Cliente: ${client?client.name:'?'}${clientPhone?' 📱'+clientPhone:''} | Servicio: ${svcNames}${blockLabel} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${appt.source==='whatsapp'?' | 📱 WhatsApp':''}${pendingNote}`;
+        const detail = `Cliente: ${client?fullName(client):'?'}${clientPhone?' 📱'+clientPhone:''} | Servicio: ${svcNames}${blockLabel} | Hora: ${appt.time}${appt.endTime?' - '+appt.endTime:''}${appt.notes?' | '+appt.notes:''}${appt.source==='online'?' | 🌐 Online':''}${appt.source==='whatsapp'?' | 📱 WhatsApp':''}${pendingNote}`;
         const clickHandler = appt.clientModified ? `acceptClientMod('${appt.id}')` : (isPendingCancelWhatsApp ? `confirmCancelWhatsApp('${appt.id}')` : (isPendingWhatsApp ? `confirmWhatsAppAppt('${appt.id}')` : (isBlock ? `editApptBlock('${appt.id}','${appt.blockNum}')` : `editAppt('${appt.id}')`)));
         let cellContent = esc(appt.time)+(appt.endTime?'-'+esc(appt.endTime):'');
         if (appt.source === 'whatsapp' && clientPhone) {
@@ -3086,7 +3100,7 @@ function acceptClientMod(id) {
   const groupAppts = a.blockGroupId ? data.appointments.filter(x => x.blockGroupId === a.blockGroupId && !x._deleted) : [a];
   const b1 = groupAppts.find(x => x.blockNum === '1');
   const b2 = groupAppts.find(x => x.blockNum === '2');
-  const msg = `El cliente ${client?client.name:'?'} solicita modificar esta cita:\n\n`+
+  const msg = `El cliente ${client?fullName(client):'?'} solicita modificar esta cita:\n\n`+
     `Original: ${a.date} ${a.time}\n`+
     `Solicitado: ${a.pendingDate||a.date} ${a.pendingTime||a.time}\n\n`+
     (b2 ? `Bloque 2 se recalculará automáticamente.\n\n` : '')+
@@ -3156,19 +3170,19 @@ async function confirmWhatsAppAppt(id) {
 
   let msg;
   if (isModification) {
-    const pendEmp = a.pendingEmployeeId ? (data.employees.find(e=>e.id===a.pendingEmployeeId)?.name||'') : '';
+    const pendEmp = a.pendingEmployeeId ? fullName(data.employees.find(e=>e.id===a.pendingEmployeeId)) : '';
     msg = `El cliente solicita MODIFICAR esta cita${groupAppts.length > 1 ? ' (2 bloques)' : ''}:\n\n`+
-      `Cliente: ${client?client.name:'?'}\n`+
+      `Cliente: ${client?fullName(client):'?'}\n`+
       `Servicio: ${svcNames}${groupAppts.length > 1 ? ' (+ más servicios en bloque 2)' : ''}\n`+
-      `Original: ${a.date} ${a.time} ${emp?emp.name:''}\n`+
+      `Original: ${a.date} ${a.time} ${emp?fullName(emp):''}\n`+
       `Solicitado: ${a.pendingDate||a.date} ${a.pendingTime||a.time} ${pendEmp||''}\n\n`+
       `¿Confirmar la modificación?`;
   } else {
     msg = `¿Confirmar esta cita online${groupAppts.length > 1 ? ' (2 bloques)' : ''}?\n\n`+
-      `Cliente: ${client?client.name:'?'}\n`+
+      `Cliente: ${client?fullName(client):'?'}\n`+
       `Servicio: ${svcNames}${groupAppts.length > 1 ? ' (+ más servicios en bloque 2)' : ''}\n`+
       `Fecha: ${a.date} ${a.time}\n`+
-      `Empleado: ${emp?emp.name:'Sin asignar'}`;
+      `Empleado: ${emp?fullName(emp):'Sin asignar'}`;
   }
   if (!confirm(msg)) return;
 
@@ -3232,10 +3246,10 @@ async function confirmCancelWhatsApp(id) {
   const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
   const emp = data.employees.find(e => e.id === b1.employeeId);
   const msg = `El cliente solicita CANCELAR esta cita${groupAppts.length > 1 ? ' (2 bloques)' : ''} de WhatsApp:\n\n`+
-    `Cliente: ${client?client.name:'?'}\n`+
+    `Cliente: ${client?fullName(client):'?'}\n`+
     `Servicio: ${svcNames}\n`+
     `Fecha: ${b1.date} ${b1.time}\n`+
-    `Empleado: ${emp?emp.name:'Sin asignar'}\n\n`+
+    `Empleado: ${emp?fullName(emp):'Sin asignar'}\n\n`+
     `¿Aceptar la cancelación?`;
   if (!confirm(msg)) {
     if (!confirm('¿RECHAZAR la cancelación? La cita seguirá activa.')) return;
@@ -3707,11 +3721,11 @@ function fillAppointmentSelects() {
   const clientSel = document.getElementById('apptClient');
   clientSel.innerHTML = '<option value="">Seleccionar cliente...</option>' + 
     data.clients.filter(c => !c._deleted).sort((a,b) => a.name.localeCompare(b.name))
-      .map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+      .map(c => `<option value="${c.id}">${esc(fullName(c))}</option>`).join('');
   clientSel.onchange = checkApptClientPhone;
   const empSel = document.getElementById('apptEmployee');
   empSel.innerHTML = '<option value="">Sin asignar</option>' + 
-    data.employees.filter(e => !e._deleted).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
+    data.employees.filter(e => !e._deleted).map(e => `<option value="${e.id}">${esc(fullName(e))}</option>`).join('');
   const secSel = document.getElementById('apptSection');
   if (secSel) {
     secSel.innerHTML = '<option value="">Seleccionar sección...</option>' +
@@ -3744,7 +3758,7 @@ function addPhoneToApptClient() {
   if (!id) return;
   const client = data.clients.find(c => c.id === id);
   if (!client) return;
-  const phone = prompt('Teléfono para ' + client.name + ':');
+  const phone = prompt('Teléfono para ' + fullName(client) + ':');
   if (!phone || !phone.trim()) return;
   client.phone = phone.trim();
   client._modified = Date.now();
@@ -3791,9 +3805,9 @@ function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
       const cli = data.clients.find(c => c.id === a.clientId);
       const srv = data.services.find(s => s.id === a.serviceId);
       const slots = findFreeSlots(date, employeeId, (e1 - t1) * 60);
-      const label = (a.source === 'access') ? '📅 Cita de Access' : ((cli?.name || '?') + ' - ' + (srv?.name || '?'));
+      const label = (a.source === 'access') ? '📅 Cita de Access' : ((fullName(cli) || '?') + ' - ' + (srv?.name || '?'));
       const detail = (a.source === 'access' && a.notes) ? a.notes : label;
-      return { client: cli?.name || '?', service: srv?.name || '?', time: a.time, endTime: a.endTime, suggestions: slots, source: a.source, label: detail };
+      return { client: fullName(cli) || '?', service: srv?.name || '?', time: a.time, endTime: a.endTime, suggestions: slots, source: a.source, label: detail };
     }
   }
   return null;
@@ -3871,7 +3885,7 @@ function sendWAReminder(apptId) {
   const salonName = s.businessName || 'Nymara Estilistas';
   const dateFmt = new Date(a.date + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
   const hours = a.time + (a.endTime ? ' - ' + a.endTime : '');
-  const msg = `Hola ${client.name}, le recordamos su cita en ${salonName}:\n📅 ${dateFmt}\n⏰ ${hours}\n💇 ${svcNames}${emp ? '\n👤 ' + emp.name : ''}\n\n¡Le esperamos!`;
+  const msg = `Hola ${fullName(client)}, le recordamos su cita en ${salonName}:\n📅 ${dateFmt}\n⏰ ${hours}\n💇 ${svcNames}${emp ? '\n👤 ' + fullName(emp) : ''}\n\n¡Le esperamos!`;
   const waUrl = 'https://wa.me/34' + cleanPhone + '?text=' + encodeURIComponent(msg);
   window.open(waUrl, '_blank');
   a._waReminderCount = (a._waReminderCount || 0) + 1;
@@ -3920,7 +3934,7 @@ function renderReminders() {
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;margin-bottom:6px;border:1px solid var(--border);border-radius:8px;${isInWindow?'border-left:4px solid #25D366;':''}">
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
-          <strong>${esc(client.name)}</strong>
+          <strong>${esc(fullName(client))}</strong>
           <span style="color:var(--text-light);font-size:11px;">📱${esc(item.phone)}</span>
           ${isInWindow ? '<span style="font-size:10px;background:#25D366;color:#fff;padding:1px 6px;border-radius:8px;">Recordatorio</span>' : ''}
         </div>
@@ -3928,7 +3942,7 @@ function renderReminders() {
           <span>📅 ${a.date}</span>
           <span>⏰ ${a.time}${a.endTime ? '-' + a.endTime : ''}</span>
           <span>✂️ ${esc(svcNames)}</span>
-          ${emp ? '<span>👤 ' + esc(emp.name) + '</span>' : ''}
+          ${emp ? '<span>👤 ' + esc(fullName(emp)) + '</span>' : ''}
           <span style="color:${isInWindow ? '#25D366' : 'var(--text-light)'};">⏳ ${hourLabel}</span>
         </div>
         ${count > 0 ? `<div style="font-size:11px;color:#25D366;margin-top:2px;">📤 Recordatorio enviado ${count} vez${count !== 1 ? 'es' : ''}</div>` : ''}
@@ -4008,9 +4022,9 @@ function exportToIcs() {
     const end = new Date(start.getTime() + durationMin*60000);
     const dtEnd = end.getFullYear() + String(end.getMonth()+1).padStart(2,'0') + String(end.getDate()).padStart(2,'0') +
       'T' + String(end.getHours()).padStart(2,'0') + String(end.getMinutes()).padStart(2,'0') + '00';
-    const summary = (client?client.name:'Cliente') + (service?' - '+service.name:'');
+    const summary = (client?fullName(client):'Cliente') + (service?' - '+service.name:'');
     let desc = a.notes||'';
-    if (employee) desc += (desc?'\\n':'') + 'Empleado: ' + employee.name;
+    if (employee) desc += (desc?'\\n':'') + 'Empleado: ' + fullName(employee);
     ics.push('BEGIN:VEVENT');
     ics.push('UID:' + a.id + '@tpv');
     ics.push('DTSTART:' + dtStart);
@@ -4142,10 +4156,11 @@ function showEmployeeSelector(title, callback) {
   const div = document.createElement('div');
   div.innerHTML = `<div style="padding:10px;"><h3 style="margin:0 0 10px;font-size:15px;">${esc(title)}</h3>
     <div style="display:flex;flex-direction:column;gap:6px;">${emps.map(e =>
-      `<button class="btn btn-secondary" style="text-align:left;padding:8px 12px;font-size:14px;" data-id="${e.id}">👤 ${esc(e.name)}</button>`
+      `<button class="btn btn-secondary" style="text-align:left;padding:8px 12px;font-size:14px;" data-id="${e.id}">👤 ${esc(fullName(e))}</button>`
     ).join('')}
     <button class="btn btn-secondary" style="text-align:left;padding:8px 12px;font-size:14px;opacity:.7;" data-id="">❌ Ninguna</button></div></div>`;
   const modal = document.createElement('div');
+  modal.className = 'emp-sel-overlay';
   modal.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.4);z-index:9999;display:flex;align-items:center;justify-content:center;';
   modal.appendChild(div);
   div.style.cssText = 'background:#fff;border-radius:8px;max-width:300px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);';
@@ -4242,7 +4257,7 @@ function updateTicket() {
   const sel = document.getElementById('ticketClientSelect');
   const currentVal = sel.value;
   sel.innerHTML = '<option value="">Mostrador</option>' +
-    data.clients.filter(c => !c._deleted).map(c => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+    data.clients.filter(c => !c._deleted).map(c => `<option value="${c.id}">${esc(fullName(c))}</option>`).join('');
   sel.value = ticket.clientId || '';
   updateTicketClient();
 }
@@ -4251,7 +4266,7 @@ function updateTicketClient() {
   const sel = document.getElementById('ticketClientSelect');
   ticket.clientId = sel.value;
   const client = data.clients.find(c => c.id === sel.value);
-  document.getElementById('ticketClient').textContent = client ? client.name : 'Mostrador';
+  document.getElementById('ticketClient').textContent = client ? fullName(client) : 'Mostrador';
   const invoiceDiv = document.getElementById('ticketClientInvoice');
   if (client) {
     let info = '';
@@ -4579,7 +4594,7 @@ function showReceipt(sale, base, iva) {
       <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:var(--primary);margin-top:4px;padding-top:4px;border-top:2px solid var(--primary);"><span>TOTAL</span><span>${cur(sale.total)}</span></div>
     </div>
     <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px;font-size:11px;color:var(--text-light);">
-      <div>Cliente: ${esc(client?client.name:'Mostrador')}</div>
+      <div>Cliente: ${esc(client?fullName(client):'Mostrador')}</div>
       ${client && client.nif ? `<div>DNI/NIF: ${esc(client.nif)}</div>` : ''}
       ${client && client.address ? `<div>Dirección: ${esc(client.address)}${client.city ? ', ' + esc(client.city) : ''}</div>` : ''}
       <div>Pago: ${sale.paymentMethod==='card' ? 'Tarjeta' : 'Contado'}</div>
@@ -4625,7 +4640,7 @@ function showRectifyingReceipt(sale, base, iva) {
       <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;${isNegative?'color:var(--danger);':'color:var(--primary);'}margin-top:4px;padding-top:4px;border-top:2px solid ${isNegative?'var(--danger)':'var(--primary)'};"><span>${isNegative?'A DEVOLVER':'TOTAL'}</span><span>${cur(Math.abs(sale.total))}</span></div>
     </div>
     <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px;font-size:11px;color:var(--text-light);">
-      <div>Cliente: ${esc(client?client.name:'Mostrador')}</div>
+      <div>Cliente: ${esc(client?fullName(client):'Mostrador')}</div>
       ${client && client.nif ? `<div>DNI/NIF: ${esc(client.nif)}</div>` : ''}
       ${client && client.address ? `<div>Dirección: ${esc(client.address)}${client.city ? ', ' + esc(client.city) : ''}</div>` : ''}
       <div>Pago: ${sale.paymentMethod==='card' ? 'Tarjeta' : 'Contado'}</div>
@@ -4689,7 +4704,7 @@ function showInvoice(saleId) {
     </div>
     <div style="margin-bottom:20px;padding:12px;background:#f8f9fa;border-radius:8px;">
       <div style="font-size:13px;font-weight:600;color:var(--primary);margin-bottom:4px;">DATOS DEL CLIENTE</div>
-      <div style="font-size:13px;font-weight:700;">${esc(client?client.name:'')}</div>
+      <div style="font-size:13px;font-weight:700;">${esc(client?fullName(client):'')}</div>
       ${client && client.nif ? `<div style="font-size:12px;color:#555;">DNI/NIF: ${esc(client.nif)}</div>` : ''}
       ${client && client.address ? `<div style="font-size:12px;color:#555;">Dirección: ${esc(client.address)}</div>` : ''}
       ${client && (client.city||client.province) ? `<div style="font-size:12px;color:#555;">${esc(client.city||'')} ${esc(client.province||'')} ${esc(client.zip||'')}</div>` : ''}
@@ -4770,7 +4785,7 @@ function renderReports() {
           : isInvoice ? '<span class="badge badge-info">Factura</span>'
           : s.isRectifying ? '<span class="badge badge-warning">Rectif.</span>'
           : '<span class="badge badge-success">Ticket</span>';
-        return `<tr><td style="text-align:center;font-weight:600;">#${s.number||''}</td><td>${new Date(s.date).toLocaleString('es-ES')}</td><td>${esc(client?client.name:'Mostrador')}</td>
+        return `<tr><td style="text-align:center;font-weight:600;">#${s.number||''}</td><td>${new Date(s.date).toLocaleString('es-ES')}</td><td>${esc(client?fullName(client):'Mostrador')}</td>
           <td>${esc(items)}</td><td>${cur(s.base||0)}</td><td>${cur(s.iva||0)}</td><td><strong>${cur(s.total)}</strong></td>
           <td>${s.paymentMethod === 'card' ? '💳 Tarjeta' : '💰 Contado'}</td>
           <td>${tipoBadge}${invoiceNum ? `<br><small style="font-size:10px;color:var(--text-light);">${esc(invoiceNum)}</small>` : ''}${s.isRectifying ? `<br><small style="font-size:10px;color:var(--text-light);">→ #${s.originalNumber||''}</small>` : ''}</td>
@@ -4784,7 +4799,7 @@ function renderReports() {
     const list = data.clients.filter(c => !c._deleted).sort((a,b) => (b.totalSpent||0) - (a.totalSpent||0));
     if (!list.length) { div.innerHTML = '<div class="empty-state"><p>Sin clientes</p></div>'; return; }
     div.innerHTML = `<div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Nombre</th><th>NIF/CIF</th><th>Teléfono</th><th>Población</th><th>Visitas</th><th>Gasto Total</th></tr></thead><tbody>` +
-      list.map((c,i) => `<tr><td>${i+1}</td><td><strong>${esc(c.name)}</strong></td><td>${esc(c.nif||'-')}</td><td>${esc(c.phone||'-')}</td>
+      list.map((c,i) => `<tr><td>${i+1}</td><td><strong>${esc(fullName(c))}</strong></td><td>${esc(c.nif||'-')}</td><td>${esc(c.phone||'-')}</td>
         <td>${esc(c.city||'-')}</td><td>${c.visits||0}</td><td>${cur(c.totalSpent||0)}</td></tr>`).join('') + '</tbody></table></div>';
   } else if (reportTab === 'services') {
     const svcCount = {};
@@ -4824,7 +4839,7 @@ function renderReports() {
     const totalEmp = list.reduce((s, e) => s + e.total, 0);
     div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${list.length} empleados · Total facturado: <strong>${cur(totalEmp)}</strong></p>
       <div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Empleado</th><th>Servicios Realizados</th><th>Ventas</th><th>Total Facturado</th></tr></thead><tbody>` +
-      list.map((e,i) => `<tr><td>${i+1}</td><td><strong>${esc(e.name)}</strong></td><td>${e.qty}</td><td>${e.sales}</td><td><strong>${cur(e.total)}</strong></td></tr>`).join('') + '</tbody></table></div>';
+      list.map((e,i) => `<tr><td>${i+1}</td><td><strong>${esc(fullName(e))}</strong></td><td>${e.qty}</td><td>${e.sales}</td><td><strong>${cur(e.total)}</strong></td></tr>`).join('') + '</tbody></table></div>';
   }
 }
 
@@ -4841,7 +4856,7 @@ function showSaleDetail(id) {
   let html = `<p><strong>${title} ${numLabel}</strong></p>`;
   if (isRectifying) html += `<p><strong>Rectifica al ${s.originalInvoiceNumber ? 'factura #'+s.originalInvoiceNumber : 'ticket #'+s.originalNumber||''}</strong></p>`;
   html += `<p><strong>Fecha:</strong> ${new Date(s.date).toLocaleString('es-ES')}</p>
-    <p><strong>Cliente:</strong> ${client?esc(client.name):'Mostrador'}</p>`;
+    <p><strong>Cliente:</strong> ${client?esc(fullName(client)):'Mostrador'}</p>`;
   if (client && client.nif) html += `<p><strong>NIF/CIF:</strong> ${esc(client.nif)}</p>`;
   if (client && client.address) html += `<p><strong>Dirección:</strong> ${esc(client.address)}</p>`;
   if (client && (client.city||client.province)) html += `<p><strong>Población:</strong> ${esc(client.city||'')} ${esc(client.province||'')}</p>`;
@@ -4874,7 +4889,7 @@ function exportCSV() {
   sales.forEach(s => {
     const client = data.clients.find(c => c.id === s.clientId);
     const items = s.items.map(i => `${i.qty}x ${i.name}`).join('; ');
-    csv += `"${new Date(s.date).toLocaleString('es-ES')}","${client?client.name:'Mostrador'}","${items}",${(s.base||0).toFixed(2)},${(s.iva||0).toFixed(2)},${s.total.toFixed(2)},"${s.paymentMethod === 'card' ? 'Tarjeta' : 'Contado'}"\n`;
+    csv += `"${new Date(s.date).toLocaleString('es-ES')}","${client?fullName(client):'Mostrador'}","${items}",${(s.base||0).toFixed(2)},${(s.iva||0).toFixed(2)},${s.total.toFixed(2)},"${s.paymentMethod === 'card' ? 'Tarjeta' : 'Contado'}"\n`;
   });
   
   const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
@@ -5007,12 +5022,12 @@ function renderPendingConfirmations() {
           <div style="flex:1;cursor:pointer;" onclick="goToAgendaDay('${a.date||today}')" title="Ir a agenda">
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:2px;">
               <span class="badge badge-info" style="font-size:10px;">${typeIcon} ${typeText}</span>
-              <strong style="font-size:13px;">${esc(client ? client.name : '?')}</strong>
+              <strong style="font-size:13px;">${esc(client ? fullName(client) : '?')}</strong>
               ${a.time ? `<span style="color:var(--text-light);font-size:12px;">⏰ ${a.time}</span>` : ''}
             </div>
             <div style="font-size:12px;color:var(--text-light);display:flex;gap:8px;flex-wrap:wrap;">
               <span>✂️ ${esc(svcNames)}</span>
-              ${employee ? `<span>👤 ${esc(employee.name)}</span>` : ''}
+              ${employee ? `<span>👤 ${esc(fullName(employee))}</span>` : ''}
               ${a.pendingDate ? `<span style="color:var(--warning);">📅 Solicitado: ${a.pendingDate} ${a.pendingTime||''}</span>` : ''}
             </div>
           </div>
@@ -5057,7 +5072,7 @@ function renderDashboard() {
     salesDiv.innerHTML = '<div style="overflow-x:auto;"><table><thead><tr><th>Fecha</th><th>Total</th><th>IVA</th><th>Cliente</th><th>Pago</th></tr></thead><tbody>' +
       recentSales.map(s => {
         const client = data.clients.find(c => c.id === s.clientId);
-        return `<tr><td>${new Date(s.date).toLocaleString('es-ES')}</td><td><strong>${cur(s.total)}</strong></td><td>${cur(s.iva||0)}</td><td>${client?esc(client.name):'Mostrador'}</td><td>${s.paymentMethod === 'card' ? '💳 Tarjeta' : '💰 Contado'}</td></tr>`;
+        return `<tr><td>${new Date(s.date).toLocaleString('es-ES')}</td><td><strong>${cur(s.total)}</strong></td><td>${cur(s.iva||0)}</td><td>${client?esc(fullName(client)):'Mostrador'}</td><td>${s.paymentMethod === 'card' ? '💳 Tarjeta' : '💰 Contado'}</td></tr>`;
       }).join('') + '</tbody></table></div>';
   }
   
@@ -5078,7 +5093,7 @@ function renderDashboard() {
       const service = data.services.find(s => s.id === a.serviceId);
       const employee = data.employees.find(e => e.id === a.employeeId);
       return `<div style="display:flex;justify-content:space-between;padding:8px 12px;border:1px solid var(--border);border-radius:6px;margin-bottom:5px;">
-        <span><strong>${esc(a.time||'')}</strong> — ${esc(client?client.name:'?')} ${service?`<span style="color:var(--text-light)">(${esc(service.name)})</span>`:''} ${employee?`<span style="color:var(--text-light);font-size:11px;">👤 ${esc(employee.name)}</span>`:''}</span>
+        <span><strong>${esc(a.time||'')}</strong> — ${esc(client?fullName(client):'?')} ${service?`<span style="color:var(--text-light)">(${esc(service.name)})</span>`:''} ${employee?`<span style="color:var(--text-light);font-size:11px;">👤 ${esc(fullName(employee))}</span>`:''}</span>
       </div>`;
     }).join('');
   }

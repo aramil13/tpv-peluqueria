@@ -49,7 +49,9 @@ try {
     $clientMap = @{}
     if ($json.clients) {
         foreach ($c in $json.clients) {
-            if ($c.id) { $clientMap[$c.id] = $c.name }
+            if ($c.id) {
+                $clientMap[$c.id] = ((@([string]$c.name, [string]$c.apellidos) | Where-Object { $_ -ne '' }) -join ' ').Trim()
+            }
         }
     }
     $serviceMap = @{}
@@ -61,7 +63,9 @@ try {
     $employeeMap = @{}
     if ($json.employees) {
         foreach ($e in $json.employees) {
-            if ($e.id) { $employeeMap[$e.id] = $e.name }
+            if ($e.id) {
+                $employeeMap[$e.id] = ((@([string]$e.name, [string]$e.apellidos) | Where-Object { $_ -ne '' }) -join ' ').Trim()
+            }
         }
     }
 
