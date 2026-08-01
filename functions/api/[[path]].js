@@ -141,7 +141,7 @@ export async function onRequest(context) {
 
   async function sendRecoveryEmailResend(toEmail, clientName, code) {
     const apiKey = env.RESEND_API_KEY || '';
-    if (!apiKey) return false;
+    if (!apiKey) return { ok: false, reason: 'RESEND_API_KEY no configurada en Cloudflare Pages' };
     try {
       const from = env.EMAIL_FROM || 'Nymara Estilistas <onboarding@resend.dev>';
       const safeName = (clientName || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -160,11 +160,12 @@ export async function onRequest(context) {
       if (!r.ok) {
         const body = await r.text();
         console.error('[Resend]', r.status, body);
+        return { ok: false, reason: 'Resend rechazó: ' + r.status + ' ' + body.slice(0, 200) };
       }
-      return r.ok;
+      return { ok: true };
     } catch (e) {
       console.error('[Resend]', e.message);
-      return false;
+      return { ok: false, reason: 'Error de conexión con Resend: ' + e.message };
     }
   }
 
@@ -679,8 +680,9 @@ export async function onRequest(context) {
         client.recoveryExpires = Date.now() + 15 * 60 * 1000;
         client._modified = Date.now();
         await writeData(d);
-        const emailSent = await sendRecoveryEmailResend(client.email, client.name, code);
-        return json({ ok: true, emailSent, message: emailSent ? 'Código de recuperación enviado' : 'No se pudo enviar el email de recuperación' });
+        const emailResult = await sendRecoveryEmailResend(client.email, client.name, code);
+        const emailSent = emailResult.ok;
+        return json({ ok: true, emailSent, detail: emailSent ? '' : emailResult.reason, message: emailSent ? 'Código de recuperación enviado' : 'No se pudo enviar el email de recuperación' });
       } catch(e) {
         return json({ error: e.message }, 400);
       }
