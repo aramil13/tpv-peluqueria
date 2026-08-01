@@ -1321,12 +1321,14 @@ function pullFromSync() {
         let changed = false;
         LIST_KEYS.forEach(k => {
           if (Array.isArray(remote[k])) {
-            const before = (current[k]||[]).length;
+            const before = JSON.stringify(current[k]||[]);
             current[k] = mergeArray(Array.isArray(current[k]) ? current[k] : [], remote[k]);
-            if (current[k].length !== before) changed = true;
+            if (JSON.stringify(current[k]) !== before) changed = true;
           }
         });
+        const clientsBefore = (current.clients||[]).length;
         current.clients = dedupClients(current.clients);
+        if ((current.clients||[]).length !== clientsBefore) changed = true;
         if (Array.isArray(remote.appointments)) {
           const remoteMap = {};
           remote.appointments.forEach(a => { if (a.id) remoteMap[a.id] = a; });
