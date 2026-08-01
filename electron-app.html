@@ -1619,7 +1619,7 @@ function syncPush() {
   if (status) status.textContent = '🔄 Sincronizando...';
   cleanDupAppointments();
   const body = JSON.stringify({
-    appointments: Array.isArray(data.appointments) ? data.appointments : [],
+    appointments: Array.isArray(data.appointments) ? data.appointments.filter(a => a && !a._deleted && !a.cancelledBy) : [],
     clients: Array.isArray(data.clients) ? data.clients : [],
     services: Array.isArray(data.services) ? data.services : [],
     sections: Array.isArray(data.sections) ? data.sections : [],
@@ -1860,7 +1860,7 @@ function syncWebNow() {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      appointments: Array.isArray(data.appointments) ? data.appointments : [],
+      appointments: Array.isArray(data.appointments) ? data.appointments.filter(a => a && !a._deleted && !a.cancelledBy) : [],
       clients: Array.isArray(data.clients) ? data.clients : [],
       services: Array.isArray(data.services) ? data.services : [],
       sections: Array.isArray(data.sections) ? data.sections : [],
