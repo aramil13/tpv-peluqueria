@@ -264,19 +264,6 @@ export async function onRequest(context) {
 
 
 
-    // === ADMIN (TEMPORARY): PURGE DELETED/CANCELLED APPOINTMENTS ===
-    case '/api/admin/purge-appointments': {
-      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-      if (!requireWebAuth(request)) return json({ error: 'No autorizado' }, 401);
-      const d = await readData();
-      const before = (d.appointments || []).length;
-      const kept = (d.appointments || []).filter(a => !(a && (a._deleted || a.cancelledBy)));
-      const removed = before - kept.length;
-      d.appointments = kept;
-      await writeData(d);
-      return json({ ok: true, before, removed, after: kept.length });
-    }
-
     // === SYNC ===
     case '/sync':
     case '/sync/':
