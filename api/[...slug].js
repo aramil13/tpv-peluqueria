@@ -618,8 +618,8 @@ module.exports = async (req, res) => {
   if (url === '/api/client/complete-profile' && req.method === 'POST') {
     try {
       const b = await getBody(req);
-      if (!b.clientId || !b.email || !b.password) {
-        res.status(400).json({ error: 'clientId, email y password son obligatorios' });
+      if ((!b.clientId && !b.phone) || !b.email || !b.password) {
+        res.status(400).json({ error: 'clientId/teléfono, email y contraseña son obligatorios' });
         return;
       }
       if (b.password.length < 8) {
@@ -627,9 +627,15 @@ module.exports = async (req, res) => {
         return;
       }
       const d = await readData();
-      const client = (d.clients || []).find(c => c.id === b.clientId && !c._deleted);
+      const client = b.clientId
+        ? (d.clients || []).find(c => c.id === b.clientId && !c._deleted)
+        : (d.clients || []).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
       if (!client) {
         res.status(404).json({ error: 'Cliente no encontrado' });
+        return;
+      }
+      if (client.passwordHash || client.password) {
+        res.status(409).json({ error: 'Esta cuenta ya tiene contraseña. Usa la opción "¿Olvidaste tu contraseña?"' });
         return;
       }
       client.email = b.email.trim();

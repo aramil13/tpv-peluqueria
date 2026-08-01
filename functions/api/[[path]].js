@@ -642,12 +642,15 @@ export async function onRequest(context) {
       if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
       try {
         const b = await getBody();
-        if (!b.clientId || !b.email || !b.password) return json({ error: 'clientId, email y password obligatorios' }, 400);
+        if ((!b.clientId && !b.phone) || !b.email || !b.password) return json({ error: 'clientId/teléfono, email y contraseña obligatorios' }, 400);
         if (b.password.length < 8) return json({ error: 'La contraseña debe tener al menos 8 caracteres' }, 400);
 
         const d = await readData();
-        const client = (d.clients || []).find(c => c.id === b.clientId && !c._deleted);
+        const client = b.clientId
+          ? (d.clients || []).find(c => c.id === b.clientId && !c._deleted)
+          : (d.clients || []).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
         if (!client) return json({ error: 'Cliente no encontrado' }, 404);
+        if (client.passwordHash || client.password) return json({ error: 'Esta cuenta ya tiene contraseña. Usa la opción "¿Olvidaste tu contraseña?"' }, 409);
 
         const encoder = new TextEncoder();
         const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(String(b.password) + 'tpv_salt_2026'));

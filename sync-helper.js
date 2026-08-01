@@ -834,6 +834,10 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado' }));
         return;
       }
+      if (client.passwordHash || client.password) {
+        res.writeHead(409, CORS_HEADERS); res.end(JSON.stringify({ error: 'Esta cuenta ya tiene contraseña. Usa la opción "¿Olvidaste tu contraseña?"' }));
+        return;
+      }
       const email = b.email.trim();
       const dupEmail = (d.clients || []).find(c => c.id !== client.id && c.email && c.email.toLowerCase() === email.toLowerCase() && !c._deleted);
       if (dupEmail) {
