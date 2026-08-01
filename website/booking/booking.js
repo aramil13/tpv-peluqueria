@@ -1,4 +1,4 @@
-const API = window.location.origin;
+﻿const API = window.location.origin;
 let services = [], sections = [], employees = [], allClients = [];
 let selectedServices = [], selectedDate = '', selectedSlot = null;
 let currentClient = null, currentAppointments = [];
@@ -128,7 +128,7 @@ function showClosedTemporarily() {
   const overlay = document.getElementById('openingCountdown');
   overlay.style.display = 'flex';
   document.querySelector('.container').style.display = 'none';
-  document.getElementById('countdownIcon').textContent = '🔒';
+  document.getElementById('countdownIcon').textContent = 'ðŸ”’';
   document.getElementById('countdownTitle').textContent = 'Reservas Online cerradas temporalmente';
   document.getElementById('countdownSub').textContent = 'Estar pendientes de su apertura';
   document.getElementById('countdownDisplay').style.display = 'none';
@@ -164,14 +164,14 @@ function showCountdown(target) {
 function togglePW(inputId, el) {
   const inp = document.getElementById(inputId);
   if (!inp) return;
-  if (inp.type === 'password') { inp.type = 'text'; el.textContent = '🙈'; }
-  else { inp.type = 'password'; el.textContent = '👁'; }
+  if (inp.type === 'password') { inp.type = 'text'; el.textContent = 'ðŸ™ˆ'; }
+  else { inp.type = 'password'; el.textContent = 'ðŸ‘'; }
 }
 
 async function loginClient() {
   const phone = document.getElementById('loginPhone').value.trim();
   const pw = document.getElementById('loginPassword').value;
-  if (!phone || !pw) { alert('Teléfono y contraseña son obligatorios'); return; }
+  if (!phone || !pw) { alert('TelÃ©fono y contraseÃ±a son obligatorios'); return; }
   showLoading(true);
   try {
     const r = await fetch(API+'/api/client/login', {
@@ -179,9 +179,9 @@ async function loginClient() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone, password: pw })
     });
-    if (r.status === 404) { alert('Teléfono o contraseña incorrectos'); showLoading(false); return; }
+    if (r.status === 404) { alert('TelÃ©fono o contraseÃ±a incorrectos'); showLoading(false); return; }
     const d = await r.json();
-    if (!d.ok) { alert(d.error||'Error al iniciar sesión'); showLoading(false); return; }
+    if (!d.ok) { alert(d.error||'Error al iniciar sesiÃ³n'); showLoading(false); return; }
     if (d.needsProfileCompletion) {
       currentClient = d.client;
       showLoading(false);
@@ -201,7 +201,7 @@ async function registerClient() {
   const email = document.getElementById('regEmail').value.trim();
   const pw = document.getElementById('regPassword').value;
   if (!name || !phone || !email || !pw) { alert('Todos los campos son obligatorios'); return; }
-  if (pw.length < 8) { alert('La contraseña debe tener al menos 8 caracteres'); return; }
+  if (pw.length < 8) { alert('La contraseÃ±a debe tener al menos 8 caracteres'); return; }
   showLoading(true);
   try {
     const r = await fetch(API+'/api/client', {
@@ -243,11 +243,11 @@ async function sendRecoveryCode() {
     });
     const d = await r.json();
     if (!d.ok) { err.textContent = d.error||'Error'; err.style.display = 'block'; showLoading(false); return; }
-    if (d.emailSent === false) { err.textContent = 'No se pudo enviar el email. Inténtalo de nuevo en unos minutos.'; err.style.display = 'block'; showLoading(false); return; }
+    if (d.emailSent === false) { err.textContent = d.detail ? ('No se pudo enviar el email: '+d.detail) : 'No se pudo enviar el email. IntÃ©ntalo de nuevo en unos minutos.'; err.style.display = 'block'; showLoading(false); return; }
     showLoading(false);
     document.getElementById('recoveryStep1').style.display = 'none';
     document.getElementById('recoveryStep2').style.display = 'block';
-  } catch(e) { err.textContent = 'Error de conexión'; err.style.display = 'block'; showLoading(false); }
+  } catch(e) { err.textContent = 'Error de conexiÃ³n'; err.style.display = 'block'; showLoading(false); }
 }
 
 async function resetPassword() {
@@ -257,8 +257,8 @@ async function resetPassword() {
   const err = document.getElementById('recoveryError2');
   const success = document.getElementById('recoverySuccess');
   err.style.display = 'none'; success.style.display = 'none';
-  if (!code || !newPw) { alert('Código y nueva contraseña son obligatorios'); return; }
-  if (newPw.length < 8) { alert('La contraseña debe tener al menos 8 caracteres'); return; }
+  if (!code || !newPw) { alert('CÃ³digo y nueva contraseÃ±a son obligatorios'); return; }
+  if (newPw.length < 8) { alert('La contraseÃ±a debe tener al menos 8 caracteres'); return; }
   showLoading(true);
   try {
     const r = await fetch(API+'/api/client/reset-password', {
@@ -269,12 +269,12 @@ async function resetPassword() {
     const d = await r.json();
     if (!d.ok) { err.textContent = d.error||'Error'; err.style.display = 'block'; showLoading(false); return; }
     showLoading(false);
-    success.textContent = 'Contraseña cambiada correctamente. Ya puedes iniciar sesión.';
+    success.textContent = 'ContraseÃ±a cambiada correctamente. Ya puedes iniciar sesiÃ³n.';
     success.style.display = 'block';
     document.getElementById('recoveryCode').value = '';
     document.getElementById('recoveryNewPW').value = '';
     setTimeout(() => { closeRecovery(); }, 2000);
-  } catch(e) { err.textContent = 'Error de conexión'; err.style.display = 'block'; showLoading(false); }
+  } catch(e) { err.textContent = 'Error de conexiÃ³n'; err.style.display = 'block'; showLoading(false); }
 }
 
 // === COMPLETE PROFILE (for legacy clients) ===
@@ -284,9 +284,9 @@ async function completeClientProfile() {
   const phone = currentClient ? currentClient.phone : '';
   const email = document.getElementById('completeEmail').value.trim();
   const pw = document.getElementById('completePassword').value;
-  if (!email || !pw) { alert('Email y contraseña son obligatorios'); return; }
-  if (pw.length < 8) { alert('La contraseña debe tener al menos 8 caracteres'); return; }
-  if (!phone) { alert('Error: número de teléfono no disponible'); return; }
+  if (!email || !pw) { alert('Email y contraseÃ±a son obligatorios'); return; }
+  if (pw.length < 8) { alert('La contraseÃ±a debe tener al menos 8 caracteres'); return; }
+  if (!phone) { alert('Error: nÃºmero de telÃ©fono no disponible'); return; }
   showLoading(true);
   try {
     const r = await fetch(API+'/api/client/complete-profile', {
@@ -303,14 +303,14 @@ async function completeClientProfile() {
     currentClient = d.client;
     closeCompleteProfile();
     showLoading(false);
-    alert('Perfil completado correctamente. Ya puedes usar email y contraseña para acceder.');
-  } catch(e) { document.getElementById('completeError').textContent = 'Error de conexión'; document.getElementById('completeError').style.display = 'block'; showLoading(false); }
+    alert('Perfil completado correctamente. Ya puedes usar email y contraseÃ±a para acceder.');
+  } catch(e) { document.getElementById('completeError').textContent = 'Error de conexiÃ³n'; document.getElementById('completeError').style.display = 'block'; showLoading(false); }
 }
 
 // === MY APPOINTMENTS ===
 const SALON_PHONE = '624 14 36 58';
 function renderMyAppts() {
-  document.getElementById('clientInfo').innerHTML = '<strong>Cliente:</strong> '+esc(currentClient.name)+' &middot; 📞 '+esc(currentClient.phone);
+  document.getElementById('clientInfo').innerHTML = '<strong>Cliente:</strong> '+esc(currentClient.name)+' &middot; ðŸ“ž '+esc(currentClient.phone);
   goStep(1);
   const div = document.getElementById('myApptsList');
   const noMsg = document.getElementById('noApptsMsg');
@@ -343,19 +343,19 @@ function renderMyAppts() {
       '</div>'+ 
       '<div class="appt-card-info">'+ 
         '<div class="appt-card-service">'+esc(a.serviceName)+'</div>'+ 
-        (a.employeeName ? '<div class="appt-card-notes">👤 '+esc(a.employeeName)+'</div>' : '')+ 
+        (a.employeeName ? '<div class="appt-card-notes">ðŸ‘¤ '+esc(a.employeeName)+'</div>' : '')+ 
         (a.notes ? '<div class="appt-card-notes">'+esc(a.notes)+'</div>' : '')+ 
         (cancelledByClient ? '<div style="color:#e74c3c;font-weight:600;margin-top:4px;">Cancelada por ti</div>' : '')+ 
-        (modifiedBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;">⚠️ Cita modificada por el salón</div>' : '')+ 
-        (pendingClientMod ? '<div style="color:#f39c12;font-weight:600;font-size:13px;margin-top:6px;">⏳ Pendiente de aprobación del salón</div>'+
-          '<div style="color:#f39c12;font-size:12px;margin-top:3px;">'+esc(a.date)+' '+esc(a.time)+' → '+esc(a.pendingDate||a.date)+' '+esc(a.pendingTime||a.time)+'</div>'+
-          (a.pendingEmployeeId && a.employeeId !== a.pendingEmployeeId ? '<div style="color:#f39c12;font-size:12px;">👤 '+esc(a.employeeName||'?')+' → '+esc(a.pendingEmployeeName||'?')+'</div>' : '') : '')+ 
-        (pendingSalonConfirm ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">⏳ Cita pendiente de confirmar por el Salon</div>' : '')+ 
-        (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 Esta cita ha sido anulada por el salón.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+ 
+        (modifiedBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;">âš ï¸ Cita modificada por el salÃ³n</div>' : '')+ 
+        (pendingClientMod ? '<div style="color:#f39c12;font-weight:600;font-size:13px;margin-top:6px;">â³ Pendiente de aprobaciÃ³n del salÃ³n</div>'+
+          '<div style="color:#f39c12;font-size:12px;margin-top:3px;">'+esc(a.date)+' '+esc(a.time)+' â†’ '+esc(a.pendingDate||a.date)+' '+esc(a.pendingTime||a.time)+'</div>'+
+          (a.pendingEmployeeId && a.employeeId !== a.pendingEmployeeId ? '<div style="color:#f39c12;font-size:12px;">ðŸ‘¤ '+esc(a.employeeName||'?')+' â†’ '+esc(a.pendingEmployeeName||'?')+'</div>' : '') : '')+ 
+        (pendingSalonConfirm ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">â³ Cita pendiente de confirmar por el Salon</div>' : '')+ 
+        (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">ðŸš« Esta cita ha sido anulada por el salÃ³n.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+ 
       '</div>'+ 
       ((cancelledByClient || (!isPast && a.source==='online' && !pendingSalonConfirm)) ? '<div class="appt-card-actions">'+ 
         (!cancelledBySalon && !cancelledByClient && !modifiedBySalon && !pendingClientMod && !isPast ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+ 
-        (modifiedBySalon ? '<button class="btn btn-sm btn-success" onclick="acceptModification(\''+a.id+'\')">✔ Aceptar modificación</button>' : '')+
+        (modifiedBySalon ? '<button class="btn btn-sm btn-success" onclick="acceptModification(\''+a.id+'\')">âœ” Aceptar modificaciÃ³n</button>' : '')+
         (cancelledByClient ? '<button class="btn btn-sm btn-success" onclick="dismissCancelledAppt(\''+a.id+'\')">VISTO</button>' :
         (!isPast && a.source==='online' ? '<button class="btn btn-sm '+(cancelledBySalon?'btn-success':'btn-danger')+'" onclick="cancelAppt(\''+a.id+'\')">'+
           (cancelledBySalon ? 'VISTO' : 'Cancelar')+'</button>' : ''))+
@@ -368,9 +368,9 @@ async function cancelAppt(id) {
   const appt = currentAppointments.find(a => a.id === id);
   const isSalonCancelled = appt && appt.cancelledBy === 'salon';
   if (isSalonCancelled) {
-    if (!confirm('¿Has leído el aviso?')) return;
+    if (!confirm('Â¿Has leÃ­do el aviso?')) return;
   } else {
-    if (!confirm('¿Estás seguro de cancelar esta cita?')) return;
+    if (!confirm('Â¿EstÃ¡s seguro de cancelar esta cita?')) return;
   }
   showLoading(true);
   try {
@@ -402,7 +402,7 @@ function dismissCancelledAppt(id) {
 async function acceptModification(id) {
   const appt = currentAppointments.find(a => a.id === id);
   if (!appt) return;
-  if (!confirm('¿Aceptas la modificación realizada por el salón?')) return;
+  if (!confirm('Â¿Aceptas la modificaciÃ³n realizada por el salÃ³n?')) return;
   showLoading(true);
   try {
     const r = await fetch(API+'/api/accept-modification', {
@@ -482,12 +482,12 @@ async function modifyAppt(id) {
   const appt = currentAppointments.find(a => a.id === id);
   if (!appt) return;
   if (appt.salonModified) {
-    alert('Cita modificada por el Salón, ya no puede modificarla, si no le conviene puede cancelarla.');
+    alert('Cita modificada por el SalÃ³n, ya no puede modificarla, si no le conviene puede cancelarla.');
     modifyingApptId = null;
     return;
   }
   if (appt.clientModified) {
-    alert('Ya has solicitado una modificación que está pendiente de aprobación. Espera a que el salón la acepte o rechace.');
+    alert('Ya has solicitado una modificaciÃ³n que estÃ¡ pendiente de aprobaciÃ³n. Espera a que el salÃ³n la acepte o rechace.');
     modifyingApptId = null;
     return;
   }
@@ -564,7 +564,7 @@ async function confirmModify() {
     if (!d.ok) { alert(d.error||'Error al modificar'); showLoading(false); return; }
     closeModify();
     showLoading(false);
-    alert('Solicitud de modificación enviada. El salón debe aprobarla para que el cambio sea efectivo.');
+    alert('Solicitud de modificaciÃ³n enviada. El salÃ³n debe aprobarla para que el cambio sea efectivo.');
     refreshMyAppts();
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
@@ -653,7 +653,7 @@ function removeService(idx) {
 function renderSelectedServices() {
   const div = document.getElementById('selectedServicesList');
   if (!selectedServices.length) {
-    div.innerHTML = '<p style="font-size:13px;color:var(--text-light);">Ningún servicio seleccionado</p>';
+    div.innerHTML = '<p style="font-size:13px;color:var(--text-light);">NingÃºn servicio seleccionado</p>';
     return;
   }
   div.innerHTML = selectedServices.map((s, i) => {
@@ -757,7 +757,7 @@ function selectSlotFromTable(el) {
   const employeeId = el.getAttribute('data-eid');
   const employeeName = el.getAttribute('data-ename') || '';
   selectedSlot = { time, employeeId, employeeName };
-  document.getElementById('selectedSlot').textContent = employeeName ? esc(employeeName)+' · '+time : time;
+  document.getElementById('selectedSlot').textContent = employeeName ? esc(employeeName)+' Â· '+time : time;
   goStep(4);
   updateSummary();
 }
@@ -806,16 +806,16 @@ async function confirmBooking() {
       const waPhone = (currentClient.phone||'').replace(/[^0-9]/g,'');
       const waLink = 'https://wa.me/34' + waPhone + '?text=' + waMsg;
       let extra = '';
-      if (d.emailSent) extra = '✅ Te hemos enviado un email con los detalles.<br><br>';
-      extra += '💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Recibir aviso por WhatsApp</a>';
-      let msg = 'Tu cita ha sido enviada al salón y está <strong>pendiente de confirmación</strong>.<br><br>📅 <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+times+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+
-        '✂️ '+esc(svcNames)+'<br><br>'+extra;
+      if (d.emailSent) extra = 'âœ… Te hemos enviado un email con los detalles.<br><br>';
+      extra += 'ðŸ’¬ <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Recibir aviso por WhatsApp</a>';
+      let msg = 'Tu cita ha sido enviada al salÃ³n y estÃ¡ <strong>pendiente de confirmaciÃ³n</strong>.<br><br>ðŸ“… <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+times+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+
+        'âœ‚ï¸ '+esc(svcNames)+'<br><br>'+extra;
       if (d.apptTimes && d.apptTimes.length > 1) {
         const bloque1Svcs = selectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque).map(s=>s.name).join(', ');
         const bloque2Svcs = selectedServices.filter(s => s.bloque === 'bloque2').map(s=>s.name).join(', ');
-        msg = 'Tus citas han sido enviadas al salón y están <strong>pendientes de confirmación</strong>.<br><br>📅 <strong>'+fmtDate(selectedDate)+'</strong>:<br>'+
-          '• <strong>'+d.apptTimes[0]+'</strong> — '+esc(bloque1Svcs)+'<br>'+
-          '• <strong>'+d.apptTimes[1]+'</strong> — '+esc(bloque2Svcs)+'<br><br>'+
+        msg = 'Tus citas han sido enviadas al salÃ³n y estÃ¡n <strong>pendientes de confirmaciÃ³n</strong>.<br><br>ðŸ“… <strong>'+fmtDate(selectedDate)+'</strong>:<br>'+
+          'â€¢ <strong>'+d.apptTimes[0]+'</strong> â€” '+esc(bloque1Svcs)+'<br>'+
+          'â€¢ <strong>'+d.apptTimes[1]+'</strong> â€” '+esc(bloque2Svcs)+'<br><br>'+
           (selectedSlot.employeeName?'Con <strong>'+selectedSlot.employeeName+'</strong><br><br>':'')+
           extra;
       }
@@ -825,7 +825,7 @@ async function confirmBooking() {
       document.getElementById('confirmBtn').disabled = false;
       document.getElementById('confirmBtn').textContent = 'Confirmar Reserva';
     }
-  } catch(e) { alert('Error de conexión: '+e.message); document.getElementById('confirmBtn').disabled = false; document.getElementById('confirmBtn').textContent = 'Confirmar Reserva'; }
+  } catch(e) { alert('Error de conexiÃ³n: '+e.message); document.getElementById('confirmBtn').disabled = false; document.getElementById('confirmBtn').textContent = 'Confirmar Reserva'; }
   showLoading(false);
 }
 

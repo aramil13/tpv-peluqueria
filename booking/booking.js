@@ -243,7 +243,7 @@ async function sendRecoveryCode() {
     });
     const d = await r.json();
     if (!d.ok) { err.textContent = d.error||'Error'; err.style.display = 'block'; showLoading(false); return; }
-    if (d.emailSent === false) { err.textContent = 'No se pudo enviar el email. Inténtalo de nuevo en unos minutos.'; err.style.display = 'block'; showLoading(false); return; }
+    if (d.emailSent === false) { err.textContent = d.detail ? ('No se pudo enviar el email: '+d.detail) : 'No se pudo enviar el email. Inténtalo de nuevo en unos minutos.'; err.style.display = 'block'; showLoading(false); return; }
     showLoading(false);
     document.getElementById('recoveryStep1').style.display = 'none';
     document.getElementById('recoveryStep2').style.display = 'block';
