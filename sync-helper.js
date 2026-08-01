@@ -28,6 +28,8 @@ const SMTP_PORT = parseInt(process.env.SMTP_PORT) || 587;
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
+const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
+const EMAIL_FROM = process.env.EMAIL_FROM || (SMTP_FROM || 'Nymara Estilistas <onboarding@resend.dev>');
 const BUSINESS_NAME = process.env.BUSINESS_NAME || 'Nymara Estilistas';
 let transporter = null;
 if (SMTP_HOST && SMTP_USER && SMTP_PASS) {
@@ -251,25 +253,50 @@ function verifyPassword(inputPw, client) {
   return false;
 }
 
-function sendRecoveryEmail(clientEmail, clientName, code) {
-  if (!transporter || !clientEmail) return false;
-  transporter.sendMail({
-    from: SMTP_FROM,
-    to: clientEmail,
-    subject: 'Código de recuperación de contraseña - ' + BUSINESS_NAME,
-    html: `<div style="font-family:Arial;max-width:500px;margin:0 auto;">
-      <h2 style="color:#6C3483;">${BUSINESS_NAME}</h2>
-      <p>Hola <strong>${clientName}</strong>,</p>
-      <p>Has solicitado recuperar tu contraseña. Tu código de verificación es:</p>
-      <div style="background:#f5f2f7;border-radius:8px;padding:20px;text-align:center;font-size:32px;font-weight:700;letter-spacing:8px;color:#6C3483;margin:15px 0;">${code}</div>
-      <p>Este código caduca en <strong>15 minutos</strong>.</p>
-      <p style="color:#999;font-size:12px;">Si no has solicitado este cambio, ignora este email.<br>${BUSINESS_NAME}</p>
-    </div>`
-  }, (err, info) => {
-    if (err) console.error('Recovery email error:', err.message);
-    else console.log('Recovery email sent to', clientEmail, info.messageId);
-  });
-  return true;
+async function sendRecoveryEmail(clientEmail, clientName, code) {
+  if (!clientEmail) return false;
+  if (transporter) {
+    try {
+      await transporter.sendMail({
+        from: SMTP_FROM,
+        to: clientEmail,
+        subject: 'Código de recuperación de contraseña - ' + BUSINESS_NAME,
+        html: `<div style="font-family:Arial;max-width:500px;margin:0 auto;">
+          <h2 style="color:#6C3483;">${BUSINESS_NAME}</h2>
+          <p>Hola <strong>${clientName}</strong>,</p>
+          <p>Has solicitado recuperar tu contraseña. Tu código de verificación es:</p>
+          <div style="background:#f5f2f7;border-radius:8px;padding:20px;text-align:center;font-size:32px;font-weight:700;letter-spacing:8px;color:#6C3483;margin:15px 0;">${code}</div>
+          <p>Este código caduca en <strong>15 minutos</strong>.</p>
+          <p style="color:#999;font-size:12px;">Si no has solicitado este cambio, ignora este email.<br>${BUSINESS_NAME}</p>
+        </div>`
+      });
+      return true;
+    } catch (e) { console.error('Recovery email (SMTP) error:', e.message); }
+  }
+  if (RESEND_API_KEY) {
+    try {
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + RESEND_API_KEY, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: EMAIL_FROM,
+          to: [clientEmail],
+          subject: 'Código de recuperación de contraseña - ' + BUSINESS_NAME,
+          html: `<div style="font-family:Arial;max-width:500px;margin:0 auto;">
+            <h2 style="color:#6C3483;">${BUSINESS_NAME}</h2>
+            <p>Hola <strong>${clientName}</strong>,</p>
+            <p>Has solicitado recuperar tu contraseña. Tu código de verificación es:</p>
+            <div style="background:#f5f2f7;border-radius:8px;padding:20px;text-align:center;font-size:32px;font-weight:700;letter-spacing:8px;color:#6C3483;margin:15px 0;">${code}</div>
+            <p>Este código caduca en <strong>15 minutos</strong>.</p>
+            <p style="color:#999;font-size:12px;">Si no has solicitado este cambio, ignora este email.<br>${BUSINESS_NAME}</p>
+          </div>`
+        })
+      });
+      if (!r.ok) console.error('Recovery email (Resend) error:', r.status, await r.text());
+      return r.ok;
+    } catch (e) { console.error('Recovery email (Resend) error:', e.message); }
+  }
+  return false;
 }
 
 function parseBody(req) {
@@ -828,7 +855,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
 
   // === CLIENT RECOVER PASSWORD ===
   if (url === '/api/client/recover-password' && req.method === 'POST') {
-    parseBody(req).then(b => {
+    parseBody(req).then(async b => {
       if (!b.email) {
         res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'Email obligatorio' }));
         return;
@@ -845,9 +872,9 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       client.recoveryExpires = Date.now() + 15 * 60 * 1000;
       client._modified = Date.now();
       writeData(d);
-      const emailSent = sendRecoveryEmail(client.email, client.name, code);
+      const emailSent = await sendRecoveryEmail(client.email, client.name, code);
       res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, emailSent, message: 'Código de recuperación enviado' }));
+      res.end(JSON.stringify({ ok: true, emailSent, message: emailSent ? 'Código de recuperación enviado' : 'No se pudo enviar el email de recuperación' }));
     }).catch(e => {
       res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: e.message }));
     });

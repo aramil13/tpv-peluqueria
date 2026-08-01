@@ -139,6 +139,35 @@ export async function onRequest(context) {
     return btoa(hex).substring(0, 32);
   }
 
+  async function sendRecoveryEmailResend(toEmail, clientName, code) {
+    const apiKey = env.RESEND_API_KEY || '';
+    if (!apiKey) return false;
+    try {
+      const from = env.EMAIL_FROM || 'Nymara Estilistas <onboarding@resend.dev>';
+      const safeName = (clientName || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      const html = '<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:20px;">' +
+        '<h2 style="color:#2c3e50;">Recuperación de contraseña</h2>' +
+        '<p>Hola ' + safeName + ',</p>' +
+        '<p>Has solicitado recuperar tu contraseña en ' + BUSINESS_NAME + '. Tu código de verificación es:</p>' +
+        '<p style="font-size:28px;font-weight:bold;letter-spacing:4px;color:#e91e63;">' + code + '</p>' +
+        '<p>Este código es válido durante 15 minutos. Si no has sido tú, ignora este email.</p>' +
+        '</div>';
+      const r = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + apiKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to: [toEmail], subject: 'Código de recuperación - ' + BUSINESS_NAME, html })
+      });
+      if (!r.ok) {
+        const body = await r.text();
+        console.error('[Resend]', r.status, body);
+      }
+      return r.ok;
+    } catch (e) {
+      console.error('[Resend]', e.message);
+      return false;
+    }
+  }
+
   async function handleClientLogin(phone) {
     const norm = normPhone(phone);
     const d = await readData();
@@ -647,7 +676,8 @@ export async function onRequest(context) {
         client.recoveryExpires = Date.now() + 15 * 60 * 1000;
         client._modified = Date.now();
         await writeData(d);
-        return json({ ok: true, message: 'Código de recuperación enviado' });
+        const emailSent = await sendRecoveryEmailResend(client.email, client.name, code);
+        return json({ ok: true, emailSent, message: emailSent ? 'Código de recuperación enviado' : 'No se pudo enviar el email de recuperación' });
       } catch(e) {
         return json({ error: e.message }, 400);
       }

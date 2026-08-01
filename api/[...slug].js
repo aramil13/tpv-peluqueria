@@ -678,7 +678,26 @@ module.exports = async (req, res) => {
           console.error('Error enviando mail de recuperación:', mailErr);
         }
       }
-      res.json({ ok: true, emailSent, message: 'Código de recuperación enviado' });
+      if (!emailSent && process.env.RESEND_API_KEY && client.email) {
+        try {
+          const from = process.env.EMAIL_FROM || 'Nymara Estilistas <onboarding@resend.dev>';
+          const r = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + process.env.RESEND_API_KEY, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              from,
+              to: [client.email],
+              subject: 'Código de recuperación de contraseña - Reservas Online',
+              text: `Tu código de recuperación es: ${code}\nEste código caduca en 15 minutos.`
+            })
+          });
+          emailSent = r.ok;
+          if (!r.ok) console.error('Recovery email (Resend) error:', r.status, await r.text());
+        } catch(resendErr) {
+          console.error('Recovery email (Resend) error:', resendErr.message);
+        }
+      }
+      res.json({ ok: true, emailSent, message: emailSent ? 'Código de recuperación enviado' : 'No se pudo enviar el email de recuperación' });
     } catch (e) {
       res.status(400).json({ error: e.message });
     }
