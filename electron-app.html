@@ -1929,7 +1929,15 @@ function updateClock() {
 updateClock(); setInterval(updateClock, 1000);
 
 // ============ MODALS ============
-function openModal(id) { document.getElementById(id).classList.add('show'); }
+function openModal(id) {
+  document.querySelectorAll('.modal.show').forEach(m => { if (m.id !== id) m.classList.remove('show'); });
+  document.getElementById(id).classList.add('show');
+  setTimeout(() => {
+    const m = document.getElementById(id);
+    const f = m && m.querySelector('input[type="text"], input:not([type]), textarea');
+    if (f && !f.disabled && !f.readOnly) { try { f.focus(); } catch (e) {} }
+  }, 80);
+}
 function closeModal(id) { document.getElementById(id).classList.remove('show'); }
 function toggleSettingsMaximize() {
   const content = document.querySelector('#settingsModal .modal-content');
@@ -4166,7 +4174,9 @@ function showEmployeeSelector(title, callback) {
   div.style.cssText = 'background:#fff;border-radius:8px;max-width:300px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.2);';
   modal.onclick = e => { if (e.target === modal) document.body.removeChild(modal); };
   div.querySelectorAll('button').forEach(btn => {
-    btn.onclick = () => { callback(btn.dataset.id); document.body.removeChild(modal); };
+    btn.onclick = () => {
+      try { callback(btn.dataset.id); } finally { if (modal.parentNode) document.body.removeChild(modal); }
+    };
   });
   document.body.appendChild(modal);
 }
