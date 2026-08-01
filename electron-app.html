@@ -486,10 +486,6 @@ tr:hover td { background: #f8f9fa; }
     <div class="form-group" style="margin-top:8px;"><label>Puntualidad</label><select id="clientPunctuality"><option value="">Seleccionar...</option><option value="puntual">Puntual</option><option value="impuntual">Impuntual</option><option value="dificil">Difícil</option></select></div>
     <div class="form-group"><label>Historial Técnico</label><textarea id="clientHistorial" placeholder="Historial técnico del cliente..." rows="4"></textarea></div>
     <div id="clientStats" style="margin:10px 0;padding:10px;background:var(--bg);border-radius:6px;display:none;"><strong style="font-size:13px;">Estadísticas</strong><div id="clientStatsContent" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:6px;font-size:12px;"></div></div>
-    <div class="form-group-inline" style="justify-content:space-between;flex-wrap:wrap;gap:4px 12px;">
-      <input type="checkbox" id="clientWhatsApp" style="display:none;">
-    <div id="clientWhatsAppToggle" onclick="toggleClientWas(this)" style="width:44px;height:24px;background:#ccc;border-radius:12px;position:relative;transition:background .2s;cursor:pointer;"><div style="width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .2s;pointer-events:none;"></div></div>
-    </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button><button class="btn btn-primary" onclick="saveClient()">Guardar</button></div>
     <input type="hidden" id="clientEditId">
   </div>
@@ -1980,7 +1976,6 @@ function saveClient() {
     notes: document.getElementById('clientNotes').value.trim(),
     historialTecnico: document.getElementById('clientHistorial').value.trim(),
     punctuality: document.getElementById('clientPunctuality').value,
-    whatsapp: document.getElementById('clientWhatsApp').checked,
     _modified: Date.now(),
     _deleted: false
   };
@@ -2029,8 +2024,6 @@ function editClient(id) {
   if (pwField) pwField.value = '';
   document.getElementById('clientHistorial').value = c.historialTecnico||'';
   document.getElementById('clientPunctuality').value = c.punctuality||'';
-  document.getElementById('clientWhatsApp').checked = !!c.whatsapp;
-  updateClientWasToggle(!!c.whatsapp);
   document.getElementById('clientModalTitle').textContent = 'Editar Cliente';
   const appointments = data.appointments.filter(a => a.clientId === id);
   const totalApps = appointments.length;
@@ -2058,24 +2051,9 @@ function deleteClient(id) {
   saveKey('clients'); saveKey('appointments'); renderClients(); renderAgenda(); syncPush();
 }
 
-function toggleClientWas(el) {
-  const cb = document.getElementById('clientWhatsApp');
-  cb.checked = !cb.checked;
-  updateClientWasToggle(cb.checked);
-}
-function updateClientWasToggle(checked) {
-  const toggle = document.getElementById('clientWhatsAppToggle');
-  const ball = toggle ? toggle.querySelector('div') : null;
-  if (!toggle || !ball) return;
-  toggle.style.background = checked ? '#28a745' : '#ccc';
-  ball.style.left = checked ? '22px' : '2px';
-}
-
 function clearClientForm() {
   ['clientEditId','clientName','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNotes','clientHistorial','clientPassword'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('clientPunctuality').value = '';
-  document.getElementById('clientWhatsApp').checked = false;
-  updateClientWasToggle(false);
   document.getElementById('clientStats').style.display = 'none';
   document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
 }

@@ -288,9 +288,6 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
       </div>
       <div class="form-group"><label>Notas</label><textarea id="clientNotes" placeholder="Notas..." style="min-height:40px;"></textarea></div>
     </div>
-    <input type="checkbox" id="clientWhatsApp" style="display:none;">
-    <div id="clientWhatsAppToggle" onclick="toggleClientWas(this)" style="width:44px;height:24px;background:#ccc;border-radius:12px;position:relative;transition:background .2s;cursor:pointer;"><div style="width:20px;height:20px;background:#fff;border-radius:50%;position:absolute;top:2px;left:2px;transition:left .2s;pointer-events:none;"></div></div>
-
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveClient()">Guardar</button>
@@ -1296,8 +1293,6 @@ function openClientModal() {
   document.getElementById('clientEmail').value = '';
   document.getElementById('clientPassword').value = '';
   document.getElementById('clientNotes').value = '';
-  document.getElementById('clientWhatsApp').checked = false;
-  updateClientWasToggle(false);
   document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
   document.getElementById('clientModal').classList.add('show');
 }
@@ -1315,23 +1310,8 @@ function editClient(id) {
   document.getElementById('clientEmail').value = c.email||'';
   document.getElementById('clientPassword').value = '';
   document.getElementById('clientNotes').value = c.notes||'';
-  document.getElementById('clientWhatsApp').checked = !!c.whatsapp;
-  updateClientWasToggle(!!c.whatsapp);
   document.getElementById('clientModalTitle').textContent = 'Editar Cliente';
   document.getElementById('clientModal').classList.add('show');
-}
-
-function toggleClientWas(el) {
-  const cb = document.getElementById('clientWhatsApp');
-  cb.checked = !cb.checked;
-  updateClientWasToggle(cb.checked);
-}
-function updateClientWasToggle(checked) {
-  const toggle = document.getElementById('clientWhatsAppToggle');
-  const ball = toggle ? toggle.querySelector('div') : null;
-  if (!toggle || !ball) return;
-  toggle.style.background = checked ? '#28a745' : '#ccc';
-  ball.style.left = checked ? '22px' : '2px';
 }
 
 function saveClient() {
@@ -1351,7 +1331,6 @@ function saveClient() {
     email: document.getElementById('clientEmail').value.trim(),
     passwordHash: pw ? hashPW(pw) : (() => { const c = data.clients.find(x => x.id === id_); return c ? c.passwordHash||'' : ''; })(),
     notes: document.getElementById('clientNotes').value.trim(),
-    whatsapp: document.getElementById('clientWhatsApp').checked,
     _modified: Date.now(),
     _deleted: false
   };
