@@ -70,9 +70,11 @@
       <div class="modal-content" style="max-width:400px;">
         <span class="modal-close" onclick="closeCompleteProfile()">&times;</span>
         <h3>Completar Perfil</h3>
-        <p style="font-size:14px;margin-bottom:15px;">Tu cuenta requiere Email y Contraseña para acceder a las reservas online.</p>
-        <div class="form-group"><label>Email *</label><input type="email" id="completeEmail" placeholder="tu@email.com"></div>
-        <div class="form-group" style="position:relative;"><label>Contraseña (mínimo 8 caracteres) *</label><input type="password" id="completePassword" placeholder="Mínimo 8 caracteres" minlength="8" style="padding-right:36px;"><span class="pw-toggle" onclick="togglePW('completePassword',this)">👁</span></div>
+        <p style="font-size:14px;margin-bottom:15px;">Tu cuenta aún no tiene contraseña. Créala para acceder a las reservas online.</p>
+        <div class="form-group"><label>Email (solo si quieres añadirlo o cambiarlo)</label><input type="email" id="completeEmail" placeholder="tu@email.com"></div>
+        <div id="completeEmailHint" style="color:#27ae60;font-size:12px;margin:-5px 0 10px;display:none;"></div>
+        <div class="form-group" style="position:relative;"><label>Nueva contraseña (mínimo 8 caracteres) *</label><input type="password" id="completePassword" placeholder="Mínimo 8 caracteres" minlength="8" style="padding-right:36px;"><span class="pw-toggle" onclick="togglePW('completePassword',this)">👁</span></div>
+        <div class="form-group" style="position:relative;"><label>Confirmar contraseña *</label><input type="password" id="completePassword2" placeholder="Repite la contraseña" minlength="8" style="padding-right:36px;"><span class="pw-toggle" onclick="togglePW('completePassword2',this)">👁</span></div>
         <div id="completeError" style="color:#e74c3c;font-size:13px;display:none;margin-bottom:10px;"></div>
         <button class="btn btn-primary btn-block" onclick="completeClientProfile()">Guardar datos</button>
       </div>

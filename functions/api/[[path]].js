@@ -616,8 +616,7 @@ export async function onRequest(context) {
         if (!client) return json({ error: 'No se encontró ninguna cuenta con ese email o teléfono' }, 404);
 
         const hasPassword = !!(client.passwordHash || client.password);
-        const hasEmail = !!(client.email && client.email.trim());
-        if (!hasPassword || !hasEmail) {
+        if (!hasPassword) {
           return json({
             ok: true,
             needsProfileCompletion: true,
@@ -643,7 +642,7 @@ export async function onRequest(context) {
       if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
       try {
         const b = await getBody();
-        if ((!b.clientId && !b.phone) || !b.email || !b.password) return json({ error: 'clientId/teléfono, email y contraseña obligatorios' }, 400);
+        if ((!b.clientId && !b.phone) || !b.password) return json({ error: 'Teléfono y contraseña obligatorios' }, 400);
         if (b.password.length < 8) return json({ error: 'La contraseña debe tener al menos 8 caracteres' }, 400);
 
         const d = await readData();
@@ -653,10 +652,12 @@ export async function onRequest(context) {
         if (!client) return json({ error: 'Cliente no encontrado' }, 404);
         if (client.passwordHash || client.password) return json({ error: 'Esta cuenta ya tiene contraseña. Usa la opción "¿Olvidaste tu contraseña?"' }, 409);
 
+        if (b.email && b.email.trim()) {
+          client.email = b.email.trim();
+        }
         const encoder = new TextEncoder();
         const hashBuf = await crypto.subtle.digest('SHA-256', encoder.encode(String(b.password) + 'tpv_salt_2026'));
         client.passwordHash = Array.from(new Uint8Array(hashBuf)).map(x => x.toString(16).padStart(2, '0')).join('');
-        client.email = b.email.trim();
         client._modified = Date.now();
         await writeData(d);
         return json({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email } });

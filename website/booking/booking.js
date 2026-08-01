@@ -185,6 +185,18 @@ async function loginClient() {
     if (d.needsProfileCompletion) {
       currentClient = d.client;
       showLoading(false);
+      const hint = document.getElementById('completeEmailHint');
+      if (d.client.email) {
+        document.getElementById('completeEmail').value = d.client.email;
+        hint.textContent = 'Tu email ya está registrado: '+d.client.email+'. Solo tienes que crear una contraseña.';
+        hint.style.display = 'block';
+      } else {
+        document.getElementById('completeEmail').value = '';
+        hint.style.display = 'none';
+      }
+      document.getElementById('completePassword').value = '';
+      document.getElementById('completePassword2').value = '';
+      document.getElementById('completeError').style.display = 'none';
       document.getElementById('completeProfileModal').style.display = 'flex';
       return;
     }
@@ -284,9 +296,11 @@ async function completeClientProfile() {
   const phone = currentClient ? currentClient.phone : '';
   const email = document.getElementById('completeEmail').value.trim();
   const pw = document.getElementById('completePassword').value;
-  if (!email || !pw) { alert('Email y contraseÃ±a son obligatorios'); return; }
-  if (pw.length < 8) { alert('La contraseÃ±a debe tener al menos 8 caracteres'); return; }
-  if (!phone) { alert('Error: nÃºmero de telÃ©fono no disponible'); return; }
+  const pw2 = document.getElementById('completePassword2').value;
+  if (!pw || !pw2) { alert('La contraseña es obligatoria'); return; }
+  if (pw.length < 8) { alert('La contraseña debe tener al menos 8 caracteres'); return; }
+  if (pw !== pw2) { alert('Las contraseñas no coinciden'); return; }
+  if (!phone) { alert('Error: número de teléfono no disponible'); return; }
   showLoading(true);
   try {
     const r = await fetch(API+'/api/client/complete-profile', {

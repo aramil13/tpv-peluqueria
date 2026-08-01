@@ -594,8 +594,7 @@ module.exports = async (req, res) => {
         return;
       }
       const hasPassword = !!(client.passwordHash || client.password);
-      const hasEmail = !!(client.email && client.email.trim());
-      if (!hasPassword || !hasEmail) {
+      if (!hasPassword) {
         res.json({
           ok: true,
           needsProfileCompletion: true,
@@ -618,8 +617,8 @@ module.exports = async (req, res) => {
   if (url === '/api/client/complete-profile' && req.method === 'POST') {
     try {
       const b = await getBody(req);
-      if ((!b.clientId && !b.phone) || !b.email || !b.password) {
-        res.status(400).json({ error: 'clientId/teléfono, email y contraseña son obligatorios' });
+      if ((!b.clientId && !b.phone) || !b.password) {
+        res.status(400).json({ error: 'Teléfono y contraseña son obligatorios' });
         return;
       }
       if (b.password.length < 8) {
@@ -638,7 +637,9 @@ module.exports = async (req, res) => {
         res.status(409).json({ error: 'Esta cuenta ya tiene contraseña. Usa la opción "¿Olvidaste tu contraseña?"' });
         return;
       }
-      client.email = b.email.trim();
+      if (b.email && b.email.trim()) {
+        client.email = b.email.trim();
+      }
       client.passwordHash = hashPassword(b.password);
       client._modified = Date.now();
       await writeData(d);

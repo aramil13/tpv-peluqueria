@@ -798,8 +798,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         return;
       }
       const hasPassword = !!(client.passwordHash || client.password);
-      const hasEmail = !!(client.email && client.email.trim());
-      if (!hasPassword || !hasEmail) {
+      if (!hasPassword) {
         res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true, needsProfileCompletion: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '' } }));
         return;
@@ -818,8 +817,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
   // === CLIENT COMPLETE PROFILE (legacy clients without email/password) ===
   if (url === '/api/client/complete-profile' && req.method === 'POST') {
     parseBody(req).then(b => {
-      if ((!b.clientId && !b.phone) || !b.email || !b.password) {
-        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'clientId/teléfono, email y contraseña son obligatorios' }));
+      if ((!b.clientId && !b.phone) || !b.password) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'Teléfono y contraseña son obligatorios' }));
         return;
       }
       if (b.password.length < 8) {
@@ -838,13 +837,15 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         res.writeHead(409, CORS_HEADERS); res.end(JSON.stringify({ error: 'Esta cuenta ya tiene contraseña. Usa la opción "¿Olvidaste tu contraseña?"' }));
         return;
       }
-      const email = b.email.trim();
-      const dupEmail = (d.clients || []).find(c => c.id !== client.id && c.email && c.email.toLowerCase() === email.toLowerCase() && !c._deleted);
-      if (dupEmail) {
-        res.writeHead(409, CORS_HEADERS); res.end(JSON.stringify({ error: 'Ya existe un cliente con ese email' }));
-        return;
+      if (b.email && b.email.trim()) {
+        const email = b.email.trim();
+        const dupEmail = (d.clients || []).find(c => c.id !== client.id && c.email && c.email.toLowerCase() === email.toLowerCase() && !c._deleted);
+        if (dupEmail) {
+          res.writeHead(409, CORS_HEADERS); res.end(JSON.stringify({ error: 'Ya existe un cliente con ese email' }));
+          return;
+        }
+        client.email = email;
       }
-      client.email = email;
       client.passwordHash = hashPassword(b.password);
       delete client.password;
       client._modified = Date.now();
