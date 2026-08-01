@@ -231,7 +231,46 @@ async function registerClient() {
 }
 
 // === PASSWORD RECOVERY ===
-function showRecovery() { document.getElementById('recoveryModal').style.display = 'flex'; }
+async function showRecovery() {
+  const phone = document.getElementById('loginPhone').value.trim();
+  const err = document.getElementById('recoveryError');
+  err.style.display = 'none';
+  if (!phone) { alert('Introduce primero tu teléfono en el formulario de acceso para poder recuperar tu contraseña'); return; }
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client?phone='+encodeURIComponent(phone));
+    if (r.status === 404) {
+      showLoading(false);
+      err.textContent = 'No existe ninguna cuenta con ese teléfono';
+      err.style.display = 'block';
+      document.getElementById('recoveryModal').style.display = 'flex';
+      return;
+    }
+    const d = await r.json();
+    showLoading(false);
+    if (!d.ok) { err.textContent = d.error||'Error'; err.style.display = 'block'; document.getElementById('recoveryModal').style.display = 'flex'; return; }
+    const emailInput = document.getElementById('recoveryEmail');
+    const email = (d.client && d.client.email) || '';
+    emailInput.value = email;
+    emailInput.readOnly = true;
+    emailInput.style.background = '#f0f0f0';
+    document.getElementById('recoveryStep1').style.display = 'block';
+    document.getElementById('recoveryStep2').style.display = 'none';
+    document.getElementById('recoveryError').style.display = 'none';
+    document.getElementById('recoveryError2').style.display = 'none';
+    document.getElementById('recoverySuccess').style.display = 'none';
+    if (!email) {
+      err.textContent = 'Tu cuenta no tiene email asociado. Contacta con la peluquería en el teléfono 624 14 36 58 para recuperar tu contraseña.';
+      err.style.display = 'block';
+    }
+    document.getElementById('recoveryModal').style.display = 'flex';
+  } catch(e) {
+    showLoading(false);
+    err.textContent = 'Error de conexión';
+    err.style.display = 'block';
+    document.getElementById('recoveryModal').style.display = 'flex';
+  }
+}
 function closeRecovery() {
   document.getElementById('recoveryModal').style.display = 'none';
   document.getElementById('recoveryStep1').style.display = 'block';
@@ -239,6 +278,10 @@ function closeRecovery() {
   document.getElementById('recoveryError').style.display = 'none';
   document.getElementById('recoveryError2').style.display = 'none';
   document.getElementById('recoverySuccess').style.display = 'none';
+  const emailInput = document.getElementById('recoveryEmail');
+  emailInput.value = '';
+  emailInput.readOnly = false;
+  emailInput.style.background = '';
 }
 
 async function sendRecoveryCode() {
