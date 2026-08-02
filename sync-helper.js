@@ -751,6 +751,20 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     return;
   }
 
+  if (url === '/api/booking-info' && req.method === 'GET') {
+    const d = readData();
+    const live = (arr) => (Array.isArray(arr) ? arr : []).filter(x => x && !x._deleted);
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      services: live(d.services),
+      sections: live(d.sections),
+      employees: live(d.employees),
+      clients: live(d.clients),
+      settings: d.settings || {}
+    }));
+    return;
+  }
+
   if (url === '/api/online-status' && req.method === 'GET') {
     const d = readData();
     const s = d.settings || {};
