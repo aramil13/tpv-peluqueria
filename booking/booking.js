@@ -68,7 +68,7 @@ function goStep(n) {
 async function loadData() {
   showLoading(true);
   try {
-    const r = await fetch(API + '/booking-info');
+    const r = await fetch(API + '/api/booking-info');
     const d = await r.json();
     services = (d.services||[]).filter(s => !s._deleted);
     sections = (d.sections||[]).filter(s => !s._deleted);
