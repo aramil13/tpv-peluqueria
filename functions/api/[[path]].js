@@ -264,6 +264,25 @@ export async function onRequest(context) {
 
 
 
+    // === BOOKING INFO (payload ligero para la web de reservas) ===
+    case '/booking-info':
+    case '/booking-info/':
+    case '/api/booking-info':
+    case '/api/booking-info/': {
+      if (request.method !== 'GET') {
+        return json({ error: 'Método no permitido' }, 405);
+      }
+      const data = await readData();
+      const live = (arr) => (Array.isArray(arr) ? arr : []).filter(x => x && !x._deleted);
+      return json({
+        services: live(data.services),
+        sections: live(data.sections),
+        employees: live(data.employees),
+        clients: live(data.clients),
+        settings: data.settings || {}
+      }, 200, { 'Cache-Control': 'no-cache' });
+    }
+
     // === SYNC ===
     case '/sync':
     case '/sync/':
