@@ -51,6 +51,7 @@ function Set-AccessSynced($appt) {
 try {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
+    $jsonFileStamp = (Get-Item -LiteralPath $JsonFile).LastWriteTimeUtc
     $raw = Get-Content -Path $JsonFile -Encoding UTF8 -Raw
     $json = $raw | ConvertFrom-Json
     $activeAppts = @($json.appointments | Where-Object { -not $_._deleted })
@@ -304,6 +305,7 @@ try {
             $matchedNumCitas[$nextNumCita] = $true
             $nextNumCita++
             $inserted++
+            Set-AccessSynced $appt
         }
     }
 
@@ -503,11 +505,24 @@ try {
         Write-Host "WARN: Apellidos sync skipped: $($_.Exception.Message)"
     }
 
+    $shouldWrite = ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0 -or $surnamesPulled -gt 0 -or $accessSynced -gt 0)
+
+    # Detect concurrent edits: if the JSON file changed while we were reading Access,
+    # roll back everything so a stale snapshot never overwrites the TPV's latest changes.
+    # The next queued run re-syncs from scratch.
+    $currentStamp = (Get-Item -LiteralPath $JsonFile).LastWriteTimeUtc
+    if ($shouldWrite -and $currentStamp -ne $jsonFileStamp) {
+        $tx.Rollback()
+        $conn.Close()
+        Write-Host "ABORTED: JSON changed during processing ($($currentStamp.ToString('HH:mm:ss.fff')) != $($jsonFileStamp.ToString('HH:mm:ss.fff'))). Next run will re-sync."
+        exit 0
+    }
+
     # Commit transaction
     $tx.Commit()
     $conn.Close()
 
-    if ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0 -or $surnamesPulled -gt 0 -or $accessSynced -gt 0) {
+    if ($shouldWrite) {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         [System.IO.File]::WriteAllText($JsonFile, ($json | ConvertTo-Json -Depth 10), $utf8NoBom)
     }
