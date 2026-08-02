@@ -22,6 +22,16 @@ const SYNC_FORWARD_KEY = process.env.SYNC_FORWARD_KEY || '';
 const WEB_API_KEY = process.env.WEB_API_KEY || '';
 let lastAccessSyncTs = 0;
 
+function madridNow() {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(new Date());
+  const val = (t) => parseInt((parts.find(p => p.type === t) || { value: '0' }).value, 10);
+  return new Date(val('year'), val('month') - 1, val('day'), val('hour'), val('minute'), val('second'));
+}
+
+function todayMadrid() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
 // Email config
 const SMTP_HOST = process.env.SMTP_HOST || '';
 const SMTP_PORT = parseInt(process.env.SMTP_PORT) || 587;
@@ -90,7 +100,7 @@ async function handleClientLogin(phone, res) {
     res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado. ¿El teléfono está registrado?' }));
     return;
   }
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayMadrid();
   const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || a.cancelledBy === 'client' || a.cancelledBy === 'salon')).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
   const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
@@ -511,9 +521,8 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
     const duration = service.duration || 30;
     const employeesList = (data.employees||[]).filter(e => !e._deleted);
     const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted && !a.cancelledBy);
-    const now = new Date();
-    const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const isToday = date === todayLocal.toISOString().split('T')[0];
+    const now = madridNow();
+    const isToday = date === todayMadrid();
     const currentHour = now.getHours() + now.getMinutes() / 60;
 
     const dayHours = getOpeningHoursForDay(date, data.settings);
@@ -768,7 +777,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
   if (url === '/api/online-status' && req.method === 'GET') {
     const d = readData();
     const s = d.settings || {};
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayMadrid();
     const dayCfg = (s.onlineOpening || {})[today] || {};
     if (dayCfg.time === undefined && dayCfg.enabled === undefined) {
       const oh = getOpeningHoursForDay(today, s);
@@ -1028,7 +1037,7 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Solo puedes cancelar citas creadas online' }));
           return;
         }
-        if (appt.date < new Date().toISOString().split('T')[0]) {
+        if (appt.date < todayMadrid()) {
           res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'No puedes cancelar una cita pasada' }));
           return;
         }

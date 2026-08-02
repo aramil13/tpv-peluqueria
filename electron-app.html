@@ -2048,7 +2048,7 @@ function editClient(id) {
   const completed = appointments.filter(a => a.status === 'completed' && !a._deleted).length;
   const cancelled = appointments.filter(a => a._deleted || a.cancelledBy).length;
   const modified = appointments.filter(a => (a.modificationCount||0) > 0).length;
-  const pending = appointments.filter(a => !a._deleted && a.date >= new Date().toISOString().split('T')[0]).length;
+  const pending = appointments.filter(a => !a._deleted && a.date >= madridDateStr()).length;
   const totalSpent = c.totalSpent||0;
   const statsEl = document.getElementById('clientStats');
   const statsContent = document.getElementById('clientStatsContent');
@@ -3608,7 +3608,7 @@ function quickAppt(dateStr, time, employeeId) {
   editingBlockNum = null;
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
-  document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
+  document.getElementById('apptDate').value = dateStr || madridDateStr();
   document.getElementById('apptTime').value = time || '10:00';
   document.getElementById('apptEndTime').value = '';
   document.getElementById('apptEmployee').value = employeeId || '';
@@ -3904,9 +3904,14 @@ function sendWAReminder(apptId) {
   if (sec && sec.classList.contains('active')) renderReminders();
 }
 
+function madridDateStr(d) {
+  const dt = d || new Date();
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(dt);
+}
+
 function getReminderAppts() {
   const now = Date.now();
-  const today = new Date().toISOString().split('T')[0];
+  const today = madridDateStr();
   const result = [];
   (data.appointments||[]).forEach(a => {
     if (a._deleted || a.cancelledBy === 'salon') return;
@@ -4993,7 +4998,7 @@ function confirmPendingItem(id) {
 }
 
 function renderPendingConfirmations() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = madridDateStr();
   const raw = getPendingAppts();
 
   const grouped = {};
@@ -5053,7 +5058,7 @@ function renderPendingConfirmations() {
 
 function renderDashboard() {
   const visibleSales = data.sales.filter(s => !isSaleArchived(s));
-  const today = new Date().toISOString().split('T')[0];
+  const today = madridDateStr();
   const todaySales = visibleSales.filter(s => s.date.startsWith(today));
   const todayTotal = todaySales.reduce((sum, s) => sum + s.total, 0);
   const todayIva = todaySales.reduce((sum, s) => sum + (s.iva||0), 0);
@@ -5273,11 +5278,11 @@ function cleanDupAppointments() {
 }
 
 function init() {
-  const today = new Date().toISOString().split('T')[0];
+  const today = madridDateStr();
   document.getElementById('apptDate').value = today;
   document.getElementById('reportTo').value = today;
   const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth()-1);
-  document.getElementById('reportFrom').value = monthAgo.toISOString().split('T')[0];
+  document.getElementById('reportFrom').value = madridDateStr(monthAgo);
   
   cleanOldAppointments();
   cleanDupAppointments();

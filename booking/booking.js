@@ -8,6 +8,11 @@ let onlineStatusPoller = null;
 
 function showLoading(v) { document.getElementById('loadingOverlay').style.display = v ? 'flex' : 'none'; }
 
+function madridDateStr(d) {
+  const dt = d || new Date();
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(dt);
+}
+
 function getOpeningHoursForDay(dateStr, settings) {
   const DEFAULT_HOURS = {
     0: { open: '09:00', close: '14:00', closed: true },
@@ -76,7 +81,7 @@ async function loadData() {
     allClients = (d.clients||[]).filter(c => !c._deleted);
     const settings = d.settings || {};
     document.getElementById('footerInfo').textContent = settings.businessName || 'Nymara Estilistas';
-    const today = new Date().toISOString().split('T')[0];
+    const today = madridDateStr();
     const dayCfg = (settings.onlineOpening || {})[today] || {};
     const openingTime = dayCfg.time || '18:00';
     const enabled = dayCfg.enabled !== false;
@@ -112,7 +117,7 @@ function startOnlineStatusPoller() {
       const r = await fetch(API + '/api/online-status');
       const d = await r.json();
       if (!d.enabled) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = madridDateStr();
         const oh = getOpeningHoursForDay(today, d.settings || {});
         if (!oh.closed) return; else { location.reload(); return; }
       }
@@ -377,7 +382,7 @@ function renderMyAppts() {
     return;
   }
   noMsg.style.display = 'none';
-  const today = new Date().toISOString().split('T')[0];
+  const today = madridDateStr();
   div.innerHTML = currentAppointments.map(a => {
     const isPast = a.date < today;
     const cancelledByClient = a._deleted && a.cancelledBy === 'client';
@@ -557,7 +562,7 @@ async function modifyAppt(id) {
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const dateInput = document.getElementById('modifyDate');
   dateInput.value = appt.date;
-  dateInput.min = tomorrow.toISOString().split('T')[0];
+  dateInput.min = madridDateStr(tomorrow);
   document.getElementById('modifyDateDisplay').textContent = '('+fmtDate(appt.date)+')';
   selectedModifySlot = null;
   document.getElementById('modifyBtn').disabled = true;

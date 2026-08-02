@@ -1,9 +1,10 @@
 param(
     [Parameter(Mandatory=$true)]
-    [string]$JsonFile
+    [string]$JsonFile,
+    [string]$DbPath = 'C:\TPVGratuito\peluqueria\TpvPeluqueria.accdb'
 )
 
-$dbPath = 'C:\TPVGratuito\peluqueria\TpvPeluqueria.accdb'
+$dbPath = $DbPath
 $password = '131201%SolKerMediaP'
 $connStr = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$dbPath;Jet OLEDB:Database Password=$password"
 

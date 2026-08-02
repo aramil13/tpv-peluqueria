@@ -34,6 +34,16 @@ export async function onRequest(context) {
     return (parseInt(p[0])||0) + (parseInt(p[1])||0) / 60;
   }
 
+  function madridNow() {
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(new Date());
+    const val = (t) => parseInt((parts.find(p => p.type === t) || { value: '0' }).value, 10);
+    return new Date(val('year'), val('month') - 1, val('day'), val('hour'), val('minute'), val('second'));
+  }
+
+  function todayMadrid() {
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  }
+
   function getOpeningHoursForDay(dateStr, settings) {
     if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false, breakStart: null, breakEnd: null };
     const d = new Date(dateStr + 'T12:00:00').getDay();
@@ -176,7 +186,7 @@ export async function onRequest(context) {
     if (!client) {
       return json({ error: 'Cliente no encontrado. ¿El teléfono está registrado?' }, 404);
     }
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayMadrid();
     const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && !a._deleted).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
     const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
     const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
@@ -372,9 +382,8 @@ export async function onRequest(context) {
       const totalDuration = hasBlocks ? bloque1Dur + gap + bloque2Dur : bloque1Dur + bloque2Dur;
       const employeesList = (data.employees||[]).filter(e => !e._deleted);
       const appts = (data.appointments||[]).filter(a => a.date === date && !a._deleted && !a.cancelledBy);
-      const now = new Date();
-      const todayLocal = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const isToday = date === todayLocal.toISOString().split('T')[0];
+      const now = madridNow();
+      const isToday = date === todayMadrid();
       const currentHour = now.getHours() + now.getMinutes() / 60;
       const dayHours = getOpeningHoursForDay(date, data.settings);
       if (dayHours.closed) {
@@ -816,7 +825,7 @@ export async function onRequest(context) {
         if (appt.source !== 'online') {
           return json({ error: 'Solo puedes cancelar citas creadas online' }, 403);
         }
-        if (appt.date < new Date().toISOString().split('T')[0]) {
+        if (appt.date < todayMadrid()) {
           return json({ error: 'No puedes cancelar una cita pasada' }, 400);
         }
         const toCancel = appt.blockGroupId ? (d.appointments||[]).filter(a => a.blockGroupId === appt.blockGroupId && !a._deleted) : [appt];
@@ -1125,7 +1134,7 @@ export async function onRequest(context) {
       if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405);
       const d = await readData();
       const s = d.settings || {};
-      const today = new Date().toISOString().split('T')[0];
+      const today = todayMadrid();
       const dayCfg = (s.onlineOpening || {})[today] || {};
       if (dayCfg.time === undefined && dayCfg.enabled === undefined) {
         const oh = getOpeningHoursForDay(today, s);
