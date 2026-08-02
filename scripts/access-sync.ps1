@@ -38,6 +38,16 @@ function Set-Params($cmd, $values) {
     foreach ($v in $values) { Add-Param $cmd $v }
 }
 
+function Set-AccessSynced($appt) {
+    $ts = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+    if ($appt.PSObject.Properties['_modifiedAccess']) {
+        if ([int64]$appt._modifiedAccess -ne $ts) { $appt._modifiedAccess = $ts; $script:accessSynced++ }
+    } else {
+        $appt | Add-Member -NotePropertyName '_modifiedAccess' -NotePropertyValue $ts
+        $script:accessSynced++
+    }
+}
+
 try {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -144,6 +154,7 @@ try {
     $updated = 0
     $reactivated = 0
     $pulledFromAccess = 0
+    $accessSynced = 0
     $matchedNumCitas = @{}
 
     # === REUSABLE COMMAND OBJECTS ===
@@ -225,21 +236,42 @@ try {
             }
 
             if ($accessChanged) {
-                # Pull changes INTO JSON instead of overwriting Access
-                $appt.clientId = $(if ($snap.cliente -gt 0) { "svcl_$($snap.cliente)" } else { $appt.clientId })
-                $appt.employeeId = $(if ($snap.empleado -gt 0) { "svem_$($snap.empleado)" } else { $appt.employeeId })
-                $appt.serviceId = $(if ($snap.servicio -gt 0) { "svsv_$($snap.servicio)" } else { $appt.serviceId })
-                $appt.date = $snapDate
-                $appt.time = $snapTime
-                $appt.endTime = $snapEndTime
-                $appt.notes = $snap.motivo
-                $appt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
-                $matchedNumCitas[$existingNumCita] = $true
-                $pulledFromAccess++
-                if (-not $snap.uid -or $snap.uid -eq '') {
-                    $pUid.Value = $uid
-                    $pNc.Value = $existingNumCita
-                    $cmdFixUid.ExecuteNonQuery() | Out-Null
+                # Prioridad por origen: si el JSON se modifico (TPV) DESPUES de la ultima reconciliacion con Access -> gana el TPV
+                $effAccessMod = if ($null -ne $appt._modifiedAccess) { [int64]$appt._modifiedAccess } else { [int64]0 }
+                $tpvWins = ([int64]$appt._modified -gt $effAccessMod)
+                if ($tpvWins) {
+                    # TPV gana -> empujar JSON a Access
+                    $cmdUpdate.Parameters[0].Value = $clienteCode
+                    $cmdUpdate.Parameters[1].Value = $empleadoCode
+                    $cmdUpdate.Parameters[2].Value = $servicioCode
+                    $cmdUpdate.Parameters[3].Value = $fecha
+                    $cmdUpdate.Parameters[4].Value = $horaInicio
+                    $cmdUpdate.Parameters[5].Value = $horaFinal
+                    $cmdUpdate.Parameters[6].Value = $motivo
+                    $cmdUpdate.Parameters[7].Value = $uid
+                    $cmdUpdate.Parameters[8].Value = $existingNumCita
+                    $cmdUpdate.ExecuteNonQuery() | Out-Null
+                    $matchedNumCitas[$existingNumCita] = $true
+                    if ($allAccessActive.ContainsKey($existingNumCita)) { $updated++ } else { $reactivated++ }
+                    Set-AccessSynced $appt
+                } else {
+                    # Access gana -> traer Access al JSON
+                    $appt.clientId = $(if ($snap.cliente -gt 0) { "svcl_$($snap.cliente)" } else { $appt.clientId })
+                    $appt.employeeId = $(if ($snap.empleado -gt 0) { "svem_$($snap.empleado)" } else { $appt.employeeId })
+                    $appt.serviceId = $(if ($snap.servicio -gt 0) { "svsv_$($snap.servicio)" } else { $appt.serviceId })
+                    $appt.date = $snapDate
+                    $appt.time = $snapTime
+                    $appt.endTime = $snapEndTime
+                    $appt.notes = $snap.motivo
+                    $appt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                    Set-AccessSynced $appt
+                    $matchedNumCitas[$existingNumCita] = $true
+                    $pulledFromAccess++
+                    if (-not $snap.uid -or $snap.uid -eq '') {
+                        $pUid.Value = $uid
+                        $pNc.Value = $existingNumCita
+                        $cmdFixUid.ExecuteNonQuery() | Out-Null
+                    }
                 }
             } else {
                 # Push JSON to Access
@@ -287,13 +319,24 @@ try {
         $cnc = $cancelReader['num_cita']
         if ($jsonUidActive.ContainsKey($cuid)) {
             $appt = $jsonUidActive[$cuid]
-            $appt._deleted = $true
-            $appt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
-            $appt.cancelledBy = 'salon'
-            # Remove from active map so it doesn't match again
-            $jsonUidActive.Remove($cuid)
-            if ($matchedNumCitas.ContainsKey($cnc)) { $matchedNumCitas.Remove($cnc) }
-            $accessCancelled++
+            $effAccessMod = if ($null -ne $appt._modifiedAccess) { [int64]$appt._modifiedAccess } else { [int64]0 }
+            $tpvWins = ([int64]$appt._modified -gt $effAccessMod)
+            if ($tpvWins) {
+                # TPV lo modifico despues -> la cancelacion de Access no manda; reactivar Access
+                $pReactNc.Value = $cnc
+                $cmdReactivate.ExecuteNonQuery() | Out-Null
+                $matchedNumCitas[$cnc] = $true
+                $reactivated++
+            } else {
+                $appt._deleted = $true
+                $appt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                $appt.cancelledBy = 'salon'
+                Set-AccessSynced $appt
+                # Remove from active map so it doesn't match again
+                $jsonUidActive.Remove($cuid)
+                if ($matchedNumCitas.ContainsKey($cnc)) { $matchedNumCitas.Remove($cnc) }
+                $accessCancelled++
+            }
         }
     }
     $cancelReader.Close()
@@ -337,6 +380,7 @@ try {
                 status = 'confirmed'
                 _deleted = $false
                 _modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                _modifiedAccess = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
                 cancelledBy = ''
                 salonModified = $false
                 clientModified = $false
@@ -363,13 +407,20 @@ try {
             if ($existingAppt) {
                 $isDeleted = $existingAppt._deleted -eq $true -or ($existingAppt.cancelledBy -ne '' -and $existingAppt.cancelledBy -ne $null)
                 if ($isDeleted) {
-                    $existingAppt._deleted = $false
-                    $existingAppt.cancelledBy = ''
-                    $existingAppt.notes = $motivoText
-                    $existingAppt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
-                    $jsonUidActive[$newUid] = $existingAppt
-                    $matchedNumCitas[$nc] = $true
-                    $pulledFromAccess++
+                    $effAccessMod = if ($null -ne $existingAppt._modifiedAccess) { [int64]$existingAppt._modifiedAccess } else { [int64]0 }
+                    $tpvWins = ([int64]$existingAppt._modified -gt $effAccessMod)
+                    if ($tpvWins) {
+                        # TPV lo borro despues -> no reactivar; Phase 3 cancelara la cita en Access
+                    } else {
+                        $existingAppt._deleted = $false
+                        $existingAppt.cancelledBy = ''
+                        $existingAppt.notes = $motivoText
+                        $existingAppt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                        Set-AccessSynced $existingAppt
+                        $jsonUidActive[$newUid] = $existingAppt
+                        $matchedNumCitas[$nc] = $true
+                        $pulledFromAccess++
+                    }
                 }
             }
         }
@@ -456,7 +507,7 @@ try {
     $tx.Commit()
     $conn.Close()
 
-    if ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0 -or $surnamesPulled -gt 0) {
+    if ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0 -or $surnamesPulled -gt 0 -or $accessSynced -gt 0) {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         [System.IO.File]::WriteAllText($JsonFile, ($json | ConvertTo-Json -Depth 10), $utf8NoBom)
     }
