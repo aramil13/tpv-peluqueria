@@ -187,7 +187,7 @@ export async function onRequest(context) {
       return json({ error: 'Cliente no encontrado. ¿El teléfono está registrado?' }, 404);
     }
     const today = todayMadrid();
-    const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && !a._deleted).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+    const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || a.cancelledBy === 'client' || a.cancelledBy === 'salon')).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
     const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
     const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
     appointments.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
