@@ -1613,12 +1613,8 @@ function isInSyncTimeWindow() {
 }
 
 function appointmentsForSync() {
-  const cutoff = Date.now() - 60 * 24 * 3600 * 1000;
-  return (data.appointments || []).filter(a => a && (
-    (!a._deleted && !a.cancelledBy) ||
-    a.cancelledBy ||
-    ((a._modified || 0) > cutoff)
-  ));
+  const today = madridDateStr();
+  return (data.appointments || []).filter(a => a && a.date && a.date >= today);
 }
 
 function syncPush() {
