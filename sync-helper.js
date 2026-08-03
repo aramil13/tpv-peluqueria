@@ -321,6 +321,24 @@ function parseBody(req) {
   });
 }
 
+function purgePastAppointments() {
+  try {
+    const data = readData();
+    const today = todayMadrid();
+    const appts = data.appointments || [];
+    const kept = appts.filter(a => !a || !a.date || a.date >= today);
+    if (kept.length !== appts.length) {
+      data.appointments = kept;
+      writeData(data);
+      console.log(`[Cleanup] ${appts.length - kept.length} citas anteriores a ${today} borradas al arrancar`);
+    } else {
+      console.log(`[Cleanup] Sin citas pasadas que borrar (hoy ${today})`);
+    }
+  } catch (e) {
+    console.error('[Cleanup] error:', e.message || e);
+  }
+}
+
 // === SEED DATA for fresh deployments ===
 function seedInitialData() {
   if (fs.existsSync(SYNC_FILE)) {
@@ -1437,6 +1455,7 @@ function forwardAppointment(appt, client) {
 }
 
 seedInitialData();
+purgePastAppointments();
 
 if (SYNC_FORWARD_URL) {
   pullFromSync();

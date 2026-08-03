@@ -69,6 +69,7 @@ try {
     $raw = Get-Content -Path $JsonFile -Encoding UTF8 -Raw
     $json = $raw | ConvertFrom-Json
     $activeAppts = @($json.appointments | Where-Object { -not $_._deleted })
+    $todayStr = (Get-Date).ToString('yyyy-MM-dd')
 
     # Build lookup maps for client/service/employee names
     $clientMap = @{}
@@ -381,6 +382,7 @@ try {
         $hiVal = $pullReader['Hora_Inicio']
         $hfVal = $pullReader['Hora_Final']
         $dateStr = if ($fechaVal -is [DateTime]) { $fechaVal.ToString('yyyy-MM-dd') } else { '' }
+        if ($dateStr -and $dateStr -lt $todayStr) { continue }
         $timeStr = if ($hiVal -is [DateTime]) { $hiVal.ToString('HH:mm') } else { '' }
         $endTimeStr = if ($hfVal -is [DateTime]) { $hfVal.ToString('HH:mm') } else { '' }
         $endTimeValid = Get-ValidEndTime $endTimeStr $timeStr

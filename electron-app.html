@@ -866,7 +866,7 @@ let data = {
 const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','movements'];
 ARRAY_KEYS.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 
-// Auto-clean removed - past appointments are preserved locally.
+// Past appointments are purged automatically on TPV start (cleanOldAppointments).
 
 // Migrate openingHours from old format (open/close) to new format (morningOpen/morningClose/afternoonOpen/afternoonClose)
 if (data.settings && data.settings.openingHours) {
@@ -5158,6 +5158,12 @@ function isSaleArchived(s) {
 
 // ============ INIT ============
 function cleanOldAppointments() {
+  const today = madridDateStr();
+  const before = (data.appointments || []).length;
+  data.appointments = (data.appointments || []).filter(a => !a || !a.date || a.date >= today);
+  if (data.appointments.length !== before) {
+    saveKey('appointments');
+  }
 }
 
 let selectedProductLetter = 'TODOS';
