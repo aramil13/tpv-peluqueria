@@ -101,7 +101,7 @@ async function handleClientLogin(phone, res) {
     return;
   }
   const today = todayMadrid();
-  const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || a.cancelledBy === 'client' || a.cancelledBy === 'salon')).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+  const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || ((a.cancelledBy === 'client' || a.cancelledBy === 'salon') && !a._dismissedByClient))).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
   const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
   res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
@@ -409,13 +409,17 @@ const server = http.createServer((req, res) => {
     merged.settings = remote.settings || current.settings || {};
     merged.clients = dedupClients(merged.clients);
     (merged.appointments||[]).forEach(a => {
+      const orig = (current.appointments||[]).find(x => x && x.id === a.id);
+      if (!orig) return;
+      if (orig._dismissedByClient && !a._dismissedByClient) {
+        a._dismissedByClient = true;
+        a._modified = Date.now();
+      }
       if (a && !a.cancelledBy && !a._deleted && wasCancelledOrDeleted.has(a.id)) {
-        const orig = (current.appointments||[]).find(x => x && x.id === a.id);
-        if (orig) {
-          if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
-          if (orig._deleted) a._deleted = true;
-          if (orig.cancelledBy || orig._deleted) a._modified = Date.now();
-        }
+        if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
+        if (orig._deleted) a._deleted = true;
+        if (orig._dismissedByClient) a._dismissedByClient = true;
+        if (orig.cancelledBy || orig._deleted || orig._dismissedByClient) a._modified = Date.now();
       }
     });
     writeData(merged);
@@ -1052,6 +1056,39 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         }
         writeData(d);
         forwardAppointment(appt, client);
+        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch(e) {
+        res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (url === '/api/dismiss' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(body);
+        if (!b.appointmentId || !b.phone) {
+          res.writeHead(400, CORS_HEADERS); res.end(JSON.stringify({ error: 'appointmentId and phone required' }));
+          return;
+        }
+        const d = readData();
+        const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
+        if (!client) {
+          res.writeHead(403, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cliente no encontrado' }));
+          return;
+        }
+        const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && a._deleted);
+        if (!appt) {
+          res.writeHead(404, CORS_HEADERS); res.end(JSON.stringify({ error: 'Cita no encontrada' }));
+          return;
+        }
+        appt._dismissedByClient = true;
+        appt._modified = Date.now();
+        writeData(d);
         res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: true }));
       } catch(e) {

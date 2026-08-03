@@ -456,9 +456,22 @@ async function cancelAppt(id) {
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
 
-function dismissCancelledAppt(id) {
-  currentAppointments = currentAppointments.filter(a => a.id !== id);
-  renderMyAppts();
+async function dismissCancelledAppt(id) {
+  const appt = currentAppointments.find(a => a.id === id);
+  if (!appt) return;
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/dismiss', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointmentId: id, phone: currentClient.phone })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error||'Error al marcar como visto'); showLoading(false); return; }
+    showLoading(false);
+    currentAppointments = currentAppointments.filter(a => a.id !== id);
+    renderMyAppts();
+  } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
 
 async function acceptModification(id) {

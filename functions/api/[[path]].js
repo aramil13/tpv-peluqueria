@@ -187,7 +187,7 @@ export async function onRequest(context) {
       return json({ error: 'Cliente no encontrado. ¿El teléfono está registrado?' }, 404);
     }
     const today = todayMadrid();
-    const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || a.cancelledBy === 'client' || a.cancelledBy === 'salon')).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
+    const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || ((a.cancelledBy === 'client' || a.cancelledBy === 'salon') && !a._dismissedByClient))).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
     const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
     const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
     appointments.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
@@ -317,13 +317,17 @@ export async function onRequest(context) {
           merged.settings = remote.settings || current.settings || {};
           merged.clients = dedupClients(merged.clients);
           (merged.appointments||[]).forEach(a => {
+            const orig = (current.appointments||[]).find(x => x && x.id === a.id);
+            if (!orig) return;
+            if (orig._dismissedByClient && !a._dismissedByClient) {
+              a._dismissedByClient = true;
+              a._modified = Date.now();
+            }
             if (a && !a.cancelledBy && !a._deleted && wasCancelledOrDeleted.has(a.id)) {
-              const orig = (current.appointments||[]).find(x => x && x.id === a.id);
-              if (orig) {
-                if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
-                if (orig._deleted) a._deleted = true;
-                if (orig.cancelledBy || orig._deleted) a._modified = Date.now();
-              }
+              if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
+              if (orig._deleted) a._deleted = true;
+              if (orig._dismissedByClient) a._dismissedByClient = true;
+              if (orig.cancelledBy || orig._deleted || orig._dismissedByClient) a._modified = Date.now();
             }
           });
           await writeData(merged);
@@ -839,6 +843,32 @@ export async function onRequest(context) {
           }
           tc._modified = Date.now();
         }
+        await writeData(d);
+        return json({ ok: true });
+      } catch (e) {
+        return json({ error: e.message }, 400);
+      }
+    }
+
+    // === API: DISMISS CANCELLED APPOINTMENT (client marks as seen, persists) ===
+    case '/api/dismiss': {
+      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
+      try {
+        const b = await getBody();
+        if (!b.appointmentId || !b.phone) {
+          return json({ error: 'appointmentId and phone required' }, 400);
+        }
+        const d = await readData();
+        const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
+        if (!client) {
+          return json({ error: 'Cliente no encontrado' }, 403);
+        }
+        const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && a._deleted);
+        if (!appt) {
+          return json({ error: 'Cita no encontrada' }, 404);
+        }
+        appt._dismissedByClient = true;
+        appt._modified = Date.now();
         await writeData(d);
         return json({ ok: true });
       } catch (e) {
