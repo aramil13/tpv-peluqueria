@@ -24,6 +24,19 @@ function Parse-Time($timeStr) {
     return [DateTime]::Parse("1899-12-30 ${h}:${m}:00")
 }
 
+function Get-ValidEndTime($endStr, $startStr) {
+    if (-not $endStr -or $endStr -notmatch '^(\d{1,2}):(\d{2})$') { return $null }
+    $eh = [int]$Matches[1]; $em = [int]$Matches[2]
+    if ($eh -gt 23 -or $em -gt 59) { return $null }
+    $endMin = $eh * 60 + $em
+    if ($startStr -and $startStr -match '^(\d{1,2}):(\d{2})$') {
+        $sh = [int]$Matches[1]; $sm = [int]$Matches[2]
+        $startMin = $sh * 60 + $sm
+        if ($endMin -le $startMin) { return $null }
+    }
+    return [DateTime]::Parse("1899-12-30 ${eh}:${em}:00")
+}
+
 function Add-Param($cmd, $value) {
     $p = $cmd.CreateParameter()
     $p.Value = $value
@@ -193,7 +206,8 @@ try {
         $servicioCode = Extract-Code $appt.serviceId 'svsv_'
         $fecha = [DateTime]::Parse($appt.date)
         $horaInicio = Parse-Time $appt.time
-        $horaFinal = Parse-Time $appt.endTime
+        $validEnd = Get-ValidEndTime $appt.endTime $appt.time
+        $horaFinal = if ($validEnd) { $validEnd } else { $null }
         $notes = if ($appt.notes) { $appt.notes } else { '' }
         $isOnline = ($appt.source -eq 'online') -or ($notes -match 'Reserva online')
         $clientName = if ($appt.clientId -and $clientMap.ContainsKey($appt.clientId)) { $clientMap[$appt.clientId] } else { '' }
@@ -263,7 +277,9 @@ try {
                     $appt.serviceId = $(if ($snap.servicio -gt 0) { "svsv_$($snap.servicio)" } else { $appt.serviceId })
                     $appt.date = $snapDate
                     $appt.time = $snapTime
-                    $appt.endTime = $snapEndTime
+                    if (Get-ValidEndTime $snapEndTime $snapTime) {
+                        $appt.endTime = $snapEndTime
+                    }
                     $appt.notes = $snap.motivo
                     $appt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
                     Set-AccessSynced $appt
@@ -367,6 +383,7 @@ try {
         $dateStr = if ($fechaVal -is [DateTime]) { $fechaVal.ToString('yyyy-MM-dd') } else { '' }
         $timeStr = if ($hiVal -is [DateTime]) { $hiVal.ToString('HH:mm') } else { '' }
         $endTimeStr = if ($hfVal -is [DateTime]) { $hfVal.ToString('HH:mm') } else { '' }
+        $endTimeValid = Get-ValidEndTime $endTimeStr $timeStr
         $motivoText = if ($pullReader['Motivo']) { $pullReader['Motivo'].ToString() } else { '' }
         if (-not $jsonUidAll.ContainsKey($newUid)) {
             $newAppt = [ordered]@{
@@ -377,7 +394,7 @@ try {
                 serviceIds = @()
                 date = $dateStr
                 time = $timeStr
-                endTime = $endTimeStr
+                endTime = if ($endTimeValid) { $endTimeStr } else { '' }
                 notes = $motivoText
                 source = 'access'
                 status = 'confirmed'

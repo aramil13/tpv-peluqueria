@@ -955,65 +955,29 @@ export async function onRequest(context) {
         const isBlockGroup = !!appt.blockGroupId;
         const gap = (d.settings && d.settings.bloques && d.settings.bloques.bloqueGap) ? d.settings.bloques.bloqueGap : 45;
         const allApptsToModify = [];
-        let block1NewTime = b.newTime;
-        let block1NewDate = newDate;
-        let block1SrvDuration = 30;
+        const fmtMin = (min) => String(Math.floor(min / 60)).padStart(2,'0') + ':' + String(min % 60).padStart(2,'0');
         if (isBlockGroup) {
           const groupAppts = (d.appointments||[]).filter(a => a.blockGroupId === appt.blockGroupId && !a._deleted);
           const b1 = groupAppts.find(a => a.blockNum === '1');
           const b2 = groupAppts.find(a => a.blockNum === '2');
-          if (b1) {
-            const srv1 = (d.services||[]).find(s => s.id === b1.serviceId);
-            block1SrvDuration = srv1 ? (srv1.duration || 30) : 30;
-          }
-          if (appt.blockNum === '2' && b1) {
-            block1NewTime = b.newTime;
-            const b1StartMin = parseTime(block1NewTime);
-            const b1EndMin = b1StartMin + block1SrvDuration / 60;
+          const b1StartMin = Math.round(parseTime(b.newTime) * 60);
+          const b1Srv = (d.services||[]).find(s => s.id === (b1 ? b1.serviceId : appt.serviceId));
+          const b1Dur = b1Srv ? (b1Srv.duration || 30) : 30;
+          const b1EndMin = b1StartMin + b1Dur;
+          allApptsToModify.push({ appt: b1 || appt, pendingTime: b.newTime, pendingDate: newDate, endTime: fmtMin(b1EndMin) });
+          if (b2) {
             const b2StartMin = b1EndMin + gap;
-            const b2H = Math.floor(b2StartMin / 60);
-            const b2M = Math.round((b2StartMin - b2H) * 60);
-            const b2NewTime = String(b2H).padStart(2,'0') + ':' + String(b2M).padStart(2,'0');
-            const srv2 = (d.services||[]).find(s => s.id === (b2 ? b2.serviceId : appt.serviceId));
-            const b2Dur = srv2 ? (srv2.duration || 30) : 30;
-            const b2EndMin = b2StartMin + b2Dur / 60;
-            const b2EndH = Math.floor(b2EndMin / 60);
-            const b2EndM = Math.round((b2EndMin - b2EndH) * 60);
-            if (b2) {
-              allApptsToModify.push({ appt: b2, pendingTime: b2NewTime, pendingDate: newDate, endTime: String(b2EndH).padStart(2,'0') + ':' + String(b2EndM).padStart(2,'0') });
-            }
-            if (b1) {
-              const b1EndH2 = Math.floor(b1EndMin / 60);
-              const b1EndM2 = Math.round((b1EndMin - b1EndH2) * 60);
-              allApptsToModify.push({ appt: b1, pendingTime: block1NewTime, pendingDate: newDate, endTime: String(b1EndH2).padStart(2,'0') + ':' + String(b1EndM2).padStart(2,'0') });
-            }
-          } else {
-            const b1StartMin = parseTime(b.newTime);
-            const b1EndMin = b1StartMin + block1SrvDuration / 60;
-            const b1EndH = Math.floor(b1EndMin / 60);
-            const b1EndM = Math.round((b1EndMin - b1EndH) * 60);
-            allApptsToModify.push({ appt: b1 || appt, pendingTime: b.newTime, pendingDate: newDate, endTime: String(b1EndH).padStart(2,'0') + ':' + String(b1EndM).padStart(2,'0') });
-            if (b2) {
-              const b2StartMin = b1EndMin + gap;
-              const b2H = Math.floor(b2StartMin / 60);
-              const b2M = Math.round((b2StartMin - b2H) * 60);
-              const b2NewTime = String(b2H).padStart(2,'0') + ':' + String(b2M).padStart(2,'0');
-              const srv2 = (d.services||[]).find(s => s.id === b2.serviceId);
-              const b2Dur = srv2 ? (srv2.duration || 30) : 30;
-              const b2EndMin = b2StartMin + b2Dur / 60;
-              const b2EndH = Math.floor(b2EndMin / 60);
-              const b2EndM = Math.round((b2EndMin - b2EndH) * 60);
-              allApptsToModify.push({ appt: b2, pendingTime: b2NewTime, pendingDate: newDate, endTime: String(b2EndH).padStart(2,'0') + ':' + String(b2EndM).padStart(2,'0') });
-            }
+            const b2Srv = (d.services||[]).find(s => s.id === b2.serviceId);
+            const b2Dur = b2Srv ? (b2Srv.duration || 30) : 30;
+            const b2EndMin = b2StartMin + b2Dur;
+            allApptsToModify.push({ appt: b2, pendingTime: fmtMin(b2StartMin), pendingDate: newDate, endTime: fmtMin(b2EndMin) });
           }
         } else {
           const srv = (d.services||[]).find(s => s.id === appt.serviceId);
-          const srvDuration = srv ? srv.duration : 30;
-          const reqStart = parseTime(b.newTime);
-          const reqEnd = reqStart + srvDuration / 60;
-          const b1EndH = Math.floor(reqEnd / 60);
-          const b1EndM = Math.round((reqEnd - b1EndH) * 60);
-          allApptsToModify.push({ appt: appt, pendingTime: b.newTime, pendingDate: newDate, endTime: String(b1EndH).padStart(2,'0') + ':' + String(b1EndM).padStart(2,'0') });
+          const srvDuration = srv ? (srv.duration || 30) : 30;
+          const reqStartMin = Math.round(parseTime(b.newTime) * 60);
+          const reqEndMin = reqStartMin + srvDuration;
+          allApptsToModify.push({ appt: appt, pendingTime: b.newTime, pendingDate: newDate, endTime: fmtMin(reqEndMin) });
         }
         for (const item of allApptsToModify) {
           const reqStart = parseTime(item.pendingTime);

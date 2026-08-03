@@ -3013,7 +3013,7 @@ function showDayAppts(dateStr) {
     cols.forEach((e, ci) => {
       const list = e ? appts.filter(a => a.employeeId === e.id) : appts.filter(a => !a.employeeId);
       apptGrid[t][ci] = list.find(a => {
-        const aEnd = a.endTime || addMinutes(a.time, 30);
+        const aEnd = (a.endTime && a.endTime > a.time) ? a.endTime : addMinutes(a.time, 30);
         return t >= a.time && t < aEnd;
       }) || null;
     });
@@ -3806,6 +3806,15 @@ function onApptSectionChange() {
   filterServiceDropdown();
 }
 
+function apptEndTimeStr(a) {
+  const e = a.endTime;
+  if (e) {
+    const [eh, em] = e.split(':').map(Number);
+    if (isFinite(eh) && isFinite(em) && e > (a.time || '')) return e;
+  }
+  return addMinutes(a.time, 30);
+}
+
 function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
   if (!employeeId || !endTime) return null;
   const t1 = parseFloat(time.split(':')[0]) + parseFloat(time.split(':')[1])/60;
@@ -3813,7 +3822,7 @@ function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
   const appts = data.appointments.filter(a => a.id !== excludeId && a.date === date && a.employeeId === employeeId && !a._deleted && a.endTime);
   for (const a of appts) {
     const t2 = parseFloat(a.time.split(':')[0]) + parseFloat(a.time.split(':')[1])/60;
-    const e2 = parseFloat(a.endTime.split(':')[0]) + parseFloat(a.endTime.split(':')[1])/60;
+    const e2 = parseFloat(apptEndTimeStr(a).split(':')[0]) + parseFloat(apptEndTimeStr(a).split(':')[1])/60;
     if (t1 < e2 && e1 > t2) {
       const cli = data.clients.find(c => c.id === a.clientId);
       const srv = data.services.find(s => s.id === a.serviceId);
@@ -3850,7 +3859,7 @@ function findFreeSlots(date, empId, duration) {
       if (timeEnd > w.end) break;
       const conflict = appts.some(a => {
         const as = parseFloat(a.time.split(':')[0]) + parseFloat(a.time.split(':')[1])/60;
-        const ae = parseFloat(a.endTime.split(':')[0]) + parseFloat(a.endTime.split(':')[1])/60;
+        const ae = parseFloat(apptEndTimeStr(a).split(':')[0]) + parseFloat(apptEndTimeStr(a).split(':')[1])/60;
         return h < ae && timeEnd > as;
       });
       if (!conflict) {
