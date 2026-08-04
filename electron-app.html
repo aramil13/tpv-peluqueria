@@ -621,7 +621,7 @@ tr:hover td { background: #f8f9fa; }
         <div id="apptServicesList" style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;"></div>
         <div style="display:flex;gap:6px;align-items:center;">
           <div style="position:relative;flex:1;">
-            <input type="text" id="apptServiceSearch" placeholder="Buscar servicio..." autocomplete="off" oninput="filterServiceDropdown()" onfocus="toggleServiceSelect(true)" onblur="setTimeout(()=>toggleServiceSelect(false),200)">
+            <input type="text" id="apptServiceSearch" placeholder="Buscar servicio..." autocomplete="off" oninput="filterServiceDropdown()" onfocus="toggleServiceSelect(true)" onblur="scheduleServiceDropdownClose()">
             <div id="apptServiceDropdown" style="position:absolute;top:100%;left:0;width:100%;z-index:100;display:none;background:#fff;border:1px solid #ccc;border-radius:4px;box-shadow:0 4px 12px rgba(0,0,0,.15);max-height:200px;overflow-y:auto;"></div>
           </div>
           <button class="btn btn-secondary btn-sm" onclick="addApptService()" style="white-space:nowrap;">+ Añadir</button>
@@ -1943,7 +1943,10 @@ function openModal(id) {
     if (f && !f.disabled && !f.readOnly) { try { f.focus(); } catch (e) {} }
   }, 80);
 }
-function closeModal(id) { document.getElementById(id).classList.remove('show'); }
+function closeModal(id) {
+  document.getElementById(id).classList.remove('show');
+  if (id === 'appointmentModal') editingBlockNum = null;
+}
 function toggleSettingsMaximize() {
   const content = document.querySelector('#settingsModal .modal-content');
   content.classList.toggle('maximized');
@@ -3312,6 +3315,7 @@ function editAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
   if (a.clientModified) { acceptClientMod(id); return; }
+  editingBlockNum = null;
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = id;
   document.getElementById('apptDate').value = a.date;
@@ -3623,13 +3627,26 @@ function quickAppt(dateStr, time, employeeId) {
   checkApptClientPhone();
 }
 
-function toggleServiceSelect(show) {
+let svcDdBlurTimer = null;
+
+function scheduleServiceDropdownClose() {
+  clearTimeout(svcDdBlurTimer);
+  svcDdBlurTimer = setTimeout(() => toggleServiceSelect(false), 200);
+}
+
+function showServiceDropdown() {
   const dd = document.getElementById('apptServiceDropdown');
+  if (!dd) return;
+  dd.style.display = 'block';
+  try { dd.scrollIntoView({ block: 'nearest' }); } catch (e) {}
+}
+
+function toggleServiceSelect(show) {
   if (show) {
+    clearTimeout(svcDdBlurTimer);
     filterServiceDropdown();
-    dd.style.display = 'block';
   } else {
-    dd.style.display = 'none';
+    document.getElementById('apptServiceDropdown').style.display = 'none';
   }
 }
 
@@ -3639,19 +3656,19 @@ function filterServiceDropdown() {
   const secId = document.getElementById('apptSection').value;
   if (!secId) {
     dd.innerHTML = '<div class="service-dd-empty">Selecciona una sección para ver los servicios</div>';
-    dd.style.display = 'block';
+    showServiceDropdown();
     return;
   }
   const services = data.services.filter(s => !s._deleted && s.sectionId === secId && (!q || s.name.toLowerCase().includes(q)));
   if (!services.length) {
     dd.innerHTML = '<div class="service-dd-empty">' + (q ? 'Sin resultados para "' + esc(q) + '"' : 'No hay servicios en esta sección') + '</div>';
-    dd.style.display = 'block';
+    showServiceDropdown();
     return;
   }
   dd.innerHTML = services.map(s =>
     `<div class="service-dd-item" data-id="${s.id}" onmousedown="toggleApptServiceFromDropdown('${s.id}',event)">${esc(s.name)}${s.price ? ' - ' + cur(s.price) : ''}${apptSelectedServices.some(x => x.id === s.id) ? ' <span style="opacity:.7;">&#10003;</span>' : ''}</div>`
   ).join('');
-  dd.style.display = 'block';
+  showServiceDropdown();
 }
 
 function toggleApptServiceFromDropdown(id, ev) {
