@@ -420,7 +420,7 @@ let dedupRemoved = 0;
   const rank = (a) => (isCancelled(a) ? 2 : 1) * 10000000000000 + (a._modified || 0);
   (data.appointments||[]).forEach(a => {
     if (!a || typeof a !== 'object') return;
-    const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'');
+    const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'') + '|' + String(a.blockNum||'');
     const existing = seen.get(key);
     if (!existing) { seen.set(key, a); return; }
     dedupRemoved++;
@@ -1152,36 +1152,44 @@ function saveAppointment() {
   }
   const gap = (data.settings && data.settings.bloques && data.settings.bloques.bloqueGap) ? data.settings.bloques.bloqueGap : 45;
 
-  if (editingBlockNum === '1') {
+  if (editingBlockNum === '1' || editingBlockNum === '2') {
     const bloque1Svcs = apptSelectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque);
     const bloque2Svcs = apptSelectedServices.filter(s => s.bloque === 'bloque2');
-    if (!bloque1Svcs.length) { alert('Añade servicios del Bloque 1'); return; }
-    const block1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-    const block1End = addMinutes(time, block1Dur);
     const block1Appt = data.appointments.find(x => x.id === id_);
     if (!block1Appt) { alert('Cita no encontrada'); return; }
-    const blockGroupId = block1Appt.blockGroupId || id_ || id();
-    Object.assign(block1Appt, {
-      clientId, employeeId, date, time,
-      endTime: block1End,
-      notes,
-      serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
-      serviceIds: bloque1Svcs.map(s => s.id),
-      _modified: Date.now(), _deleted: false,
-      blockGroupId, blockNum: '1'
-    });
+    const blockGroupId = block1Appt.blockGroupId || id_;
+    const block1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+
+    if (bloque1Svcs.length) {
+      const block1End = addMinutes(time, block1Dur);
+      Object.assign(block1Appt, {
+        clientId, employeeId, date, time,
+        endTime: block1End,
+        notes,
+        serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
+        serviceIds: bloque1Svcs.map(s => s.id),
+        _modified: Date.now(), _deleted: false,
+        blockGroupId, blockNum: '1'
+      });
+    } else {
+      block1Appt._modified = Date.now();
+      block1Appt._deleted = true;
+    }
+
+    const block2Appt = data.appointments.find(x => x.blockGroupId === blockGroupId && x.blockNum === '2');
     if (bloque2Svcs.length) {
-      const block2StartMin = timeToMinutes(time) + block1Dur + gap;
+      const block2StartMin = bloque1Svcs.length ? timeToMinutes(time) + block1Dur + gap : timeToMinutes(time);
       const block2Start = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
       const block2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
       const block2End = addMinutes(block2Start, block2Dur);
-      let block2Appt = data.appointments.find(x => x.blockGroupId === blockGroupId && x.blockNum === '2');
       if (block2Appt) {
         Object.assign(block2Appt, {
+          clientId, employeeId, date,
           time: block2Start, endTime: block2End,
+          notes,
           serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
           serviceIds: bloque2Svcs.map(s => s.id),
-          _modified: Date.now()
+          _modified: Date.now(), _deleted: false
         });
       } else {
         data.appointments.push({
@@ -1194,31 +1202,11 @@ function saveAppointment() {
           blockGroupId, blockNum: '2'
         });
       }
-    } else {
-      const staleBlock2 = data.appointments.find(x => x.blockGroupId === blockGroupId && x.blockNum === '2');
-      if (staleBlock2) { staleBlock2._modified = Date.now(); staleBlock2._deleted = true; }
+    } else if (block2Appt) {
+      block2Appt._modified = Date.now();
+      block2Appt._deleted = true;
     }
-    editingBlockNum = null;
-    saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
-    return;
-  }
 
-  if (editingBlockNum === '2') {
-    const bloque2Svcs = apptSelectedServices.filter(s => s.bloque === 'bloque2');
-    if (!bloque2Svcs.length) { alert('Añade servicios del Bloque 2'); return; }
-    const block2Appt = data.appointments.find(x => x.id === id_);
-    if (!block2Appt) { alert('Cita no encontrada'); return; }
-    const block2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-    const block2End = addMinutes(time, block2Dur);
-    Object.assign(block2Appt, {
-      clientId, employeeId, date, time,
-      endTime: block2End,
-      notes,
-      serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
-      serviceIds: bloque2Svcs.map(s => s.id),
-      _modified: Date.now(), _deleted: false,
-      blockGroupId: block2Appt.blockGroupId, blockNum: '2'
-    });
     editingBlockNum = null;
     saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
     return;
@@ -1228,48 +1216,105 @@ function saveAppointment() {
     const blockGroupId = id_ || id();
     const bloque1Svcs = apptSelectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque);
     const bloque2Svcs = apptSelectedServices.filter(s => s.bloque === 'bloque2');
-    if (!bloque1Svcs.length) { alert('Añade servicios del Bloque 1'); return; }
-    const block1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-    const block1End = addMinutes(time, block1Dur);
-    if (id_) {
-      const existing = data.appointments.find(x => x.id === id_);
-      if (existing) {
-        const wasModified = existing._modified;
-        Object.assign(existing, {
-          clientId, employeeId, date, time,
-          endTime: block1End, notes,
+    if (bloque1Svcs.length && bloque2Svcs.length) {
+      const block1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+      const block1End = addMinutes(time, block1Dur);
+      if (id_) {
+        const existing = data.appointments.find(x => x.id === id_);
+        if (existing) {
+          const wasModified = existing._modified;
+          Object.assign(existing, {
+            clientId, employeeId, date, time,
+            endTime: block1End, notes,
+            serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
+            serviceIds: bloque1Svcs.map(s => s.id),
+            _modified: Date.now(), _deleted: false,
+            blockGroupId, blockNum: '1'
+          });
+          if (wasModified && wasModified < Date.now() - 5000) existing._modified = wasModified;
+        }
+      } else {
+        data.appointments.push({
+          id: blockGroupId, clientId, employeeId,
+          date, time, endTime: block1End,
+          notes,
           serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
           serviceIds: bloque1Svcs.map(s => s.id),
           _modified: Date.now(), _deleted: false,
           blockGroupId, blockNum: '1'
         });
-        if (wasModified && wasModified < Date.now() - 5000) existing._modified = wasModified;
       }
-    } else {
-      data.appointments.push({
-        id: blockGroupId, clientId, employeeId,
-        date, time, endTime: block1End,
-        notes,
-        serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
-        serviceIds: bloque1Svcs.map(s => s.id),
-        _modified: Date.now(), _deleted: false,
-        blockGroupId, blockNum: '1'
-      });
-    }
-    if (bloque2Svcs.length) {
-      const block2StartMin = timeToMinutes(time) + block1Dur + gap;
-      const block2Start = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
+      if (bloque2Svcs.length) {
+        const block2StartMin = timeToMinutes(time) + block1Dur + gap;
+        const block2Start = String(Math.floor(block2StartMin / 60)).padStart(2,'0') + ':' + String(block2StartMin % 60).padStart(2,'0');
+        const block2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+        const block2End = addMinutes(block2Start, block2Dur);
+        data.appointments.push({
+          id: id(), clientId, employeeId,
+          date, time: block2Start, endTime: block2End,
+          notes,
+          serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
+          serviceIds: bloque2Svcs.map(s => s.id),
+          _modified: Date.now(), _deleted: false,
+          blockGroupId, blockNum: '2'
+        });
+      }
+    } else if (bloque2Svcs.length) {
       const block2Dur = bloque2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
-      const block2End = addMinutes(block2Start, block2Dur);
-      data.appointments.push({
-        id: id(), clientId, employeeId,
-        date, time: block2Start, endTime: block2End,
-        notes,
-        serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
-        serviceIds: bloque2Svcs.map(s => s.id),
-        _modified: Date.now(), _deleted: false,
-        blockGroupId, blockNum: '2'
-      });
+      const block2End = addMinutes(time, block2Dur);
+      if (id_) {
+        const existing = data.appointments.find(x => x.id === id_);
+        if (existing) {
+          const wasModified = existing._modified;
+          Object.assign(existing, {
+            clientId, employeeId, date, time,
+            endTime: block2End, notes,
+            serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
+            serviceIds: bloque2Svcs.map(s => s.id),
+            _modified: Date.now(), _deleted: false,
+            blockGroupId, blockNum: '2'
+          });
+          if (wasModified && wasModified < Date.now() - 5000) existing._modified = wasModified;
+        }
+      } else {
+        data.appointments.push({
+          id: blockGroupId, clientId, employeeId,
+          date, time, endTime: block2End,
+          notes,
+          serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
+          serviceIds: bloque2Svcs.map(s => s.id),
+          _modified: Date.now(), _deleted: false,
+          blockGroupId, blockNum: '2'
+        });
+      }
+    } else if (bloque1Svcs.length) {
+      const block1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+      const block1End = addMinutes(time, block1Dur);
+      if (id_) {
+        const existing = data.appointments.find(x => x.id === id_);
+        if (existing) {
+          const wasModified = existing._modified;
+          Object.assign(existing, {
+            clientId, employeeId, date, time,
+            endTime: block1End, notes,
+            serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
+            serviceIds: bloque1Svcs.map(s => s.id),
+            _modified: Date.now(), _deleted: false,
+            blockGroupId, blockNum: '1'
+          });
+          if (wasModified && wasModified < Date.now() - 5000) existing._modified = wasModified;
+        }
+      } else {
+        data.appointments.push({
+          id: blockGroupId, clientId, employeeId,
+          date, time, endTime: block1End,
+          notes,
+          serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
+          serviceIds: bloque1Svcs.map(s => s.id),
+          _modified: Date.now(), _deleted: false,
+          blockGroupId, blockNum: '1'
+        });
+      }
     }
     saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
     return;
