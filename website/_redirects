@@ -1,0 +1,5 @@
+# Cloudflare Pages _redirects
+# Las rutas de la API van a Vercel (o donde esté el backend)
+# Las rutas de booking sirven la SPA de reservas
+/booking /booking/index.html 200
+/booking/* /booking/:splat 200
