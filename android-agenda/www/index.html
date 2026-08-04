@@ -703,6 +703,15 @@ function acceptClientMod(id) {
   renderAgenda();
 }
 
+function ensureApptSection() {
+  const secSel = document.getElementById('apptSection');
+  if (!secSel) return;
+  const val = secSel.value;
+  if (val && data.sections.some(s => !s._deleted && s.id === val)) return;
+  const first = data.sections.find(s => !s._deleted);
+  secSel.value = first ? first.id : '';
+}
+
 function editAppt(id) {
   const a = data.appointments.find(x => x.id === id);
   if (!a) return;
@@ -723,6 +732,7 @@ function editAppt(id) {
     const firstSvc = apptSelectedServices[0];
     if (firstSvc && firstSvc.sectionId) secSel.value = firstSvc.sectionId;
   }
+  ensureApptSection();
   updateApptEndFromServices();
   document.getElementById('apptServiceSearch').value = '';
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
@@ -801,6 +811,7 @@ function editApptBlock(id, blockNum) {
     const firstSvc = apptSelectedServices[0];
     if (firstSvc && firstSvc.sectionId) secSel.value = firstSvc.sectionId;
   }
+  ensureApptSection();
   document.getElementById('apptServiceSearch').value = '';
   document.getElementById('apptServiceSearch').dataset.selectedId = '';
   document.getElementById('apptServiceDropdown').style.display = 'none';
@@ -836,10 +847,6 @@ function quickAppt(dateStr, time, employeeId) {
 function toggleServiceSelect(show) {
   const dd = document.getElementById('apptServiceDropdown');
   if (show) {
-    if (!document.getElementById('apptSection').value) {
-      dd.style.display = 'none';
-      return;
-    }
     filterServiceDropdown();
     dd.style.display = 'block';
   } else {
@@ -851,24 +858,38 @@ function filterServiceDropdown() {
   const q = document.getElementById('apptServiceSearch').value.toLowerCase().trim();
   const dd = document.getElementById('apptServiceDropdown');
   const secId = document.getElementById('apptSection').value;
-  if (!secId) { dd.style.display = 'none'; return; }
-  const services = data.services.filter(s => !s._deleted && s.sectionId === secId && (!q || s.name.toLowerCase().includes(q)));
-  dd.innerHTML = services.map(s =>
-    `<div class="service-dd-item" data-id="${s.id}" onmousedown="selectServiceFromDropdown('${s.id}')">${esc(s.name)}</div>`
-  ).join('');
-  if (!services.length) {
-    dd.innerHTML = '<div class="service-dd-empty">Sin resultados</div>';
+  if (!secId) {
+    dd.innerHTML = '<div class="service-dd-empty">Selecciona una sección para ver los servicios</div>';
+    dd.style.display = 'block';
+    return;
   }
+  const services = data.services.filter(s => !s._deleted && s.sectionId === secId && (!q || s.name.toLowerCase().includes(q)));
+  if (!services.length) {
+    dd.innerHTML = '<div class="service-dd-empty">' + (q ? 'Sin resultados para "' + esc(q) + '"' : 'No hay servicios en esta sección') + '</div>';
+    dd.style.display = 'block';
+    return;
+  }
+  dd.innerHTML = services.map(s =>
+    `<div class="service-dd-item" data-id="${s.id}" onmousedown="toggleApptServiceFromDropdown('${s.id}',event)">${esc(s.name)}${s.price ? ' - ' + cur(s.price) : ''}${apptSelectedServices.some(x => x.id === s.id) ? ' <span style="opacity:.7;">&#10003;</span>' : ''}</div>`
+  ).join('');
   dd.style.display = 'block';
 }
 
-function selectServiceFromDropdown(id) {
-  const svc = data.services.find(s => s.id === id);
-  if (!svc) return;
+function toggleApptServiceFromDropdown(id, ev) {
+  if (ev && ev.preventDefault) ev.preventDefault();
+  const idx = apptSelectedServices.findIndex(s => s.id === id);
+  if (idx >= 0) apptSelectedServices.splice(idx, 1);
+  else {
+    const svc = data.services.find(s => s.id === id);
+    if (svc) apptSelectedServices.push(svc);
+  }
   const inp = document.getElementById('apptServiceSearch');
-  inp.value = svc.name;
-  inp.dataset.selectedId = id;
-  document.getElementById('apptServiceDropdown').style.display = 'none';
+  inp.value = '';
+  inp.dataset.selectedId = '';
+  renderApptServices();
+  updateApptEndFromServices();
+  filterServiceDropdown();
+  try { inp.focus(); } catch (e) {}
 }
 
 let apptSelectedServices = [];
@@ -886,14 +907,20 @@ function renderApptServices() {
 
 function addApptService() {
   const inp = document.getElementById('apptServiceSearch');
+  const secId = document.getElementById('apptSection').value;
+  const q = inp.value.toLowerCase().trim();
+  let svc = null;
   const selId = inp.dataset.selectedId || '';
-  if (!selId) { alert('Selecciona un servicio de la lista'); return; }
-  if (apptSelectedServices.find(s => s.id === selId)) { alert('Servicio ya añadido'); return; }
-  const svc = data.services.find(s => s.id === selId);
-  if (svc) { apptSelectedServices.push(svc); renderApptServices(); updateApptEndFromServices(); }
+  if (selId) svc = data.services.find(s => s.id === selId);
+  else if (q && secId) svc = data.services.find(s => !s._deleted && s.sectionId === secId && s.name.toLowerCase() === q);
+  if (!svc) { alert('Escribe el nombre y elígelo de la lista'); return; }
+  if (!apptSelectedServices.find(s => s.id === svc.id)) apptSelectedServices.push(svc);
+  renderApptServices();
+  updateApptEndFromServices();
   inp.value = '';
   inp.dataset.selectedId = '';
-  document.getElementById('apptServiceDropdown').style.display = 'none';
+  filterServiceDropdown();
+  try { inp.focus(); } catch (e) {}
 }
 
 function removeApptService(id) {
@@ -943,8 +970,10 @@ function fillAppointmentSelects() {
   empSel.innerHTML = '<option value="">Sin asignar</option>' + data.employees.filter(e => !e._deleted).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('');
   const secSel = document.getElementById('apptSection');
   if (secSel) {
+    const cur = secSel.value;
     secSel.innerHTML = '<option value="">Seleccionar sección...</option>' +
       data.sections.filter(s => !s._deleted).map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+    if (cur && data.sections.some(s => !s._deleted && s.id === cur)) secSel.value = cur;
   }
 }
 
