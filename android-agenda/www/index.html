@@ -412,6 +412,26 @@ let restored = 0;
 });
 if (restored) { DB.set('appointments', data.appointments); }
 
+// Dedup: colapsa citas duplicadas (misma cliente+fecha+hora+empleado+bloque, p.ej. UUID + svap_ de Access) - el contador del calendario debe cuadrar con los stacks
+let dedupRemoved = 0;
+{
+  const seen = new Map();
+  const isCancelled = (a) => !!(a && (a._deleted || a.cancelledBy));
+  const rank = (a) => (isCancelled(a) ? 2 : 1) * 10000000000000 + (a._modified || 0);
+  (data.appointments||[]).forEach(a => {
+    if (!a || typeof a !== 'object') return;
+    const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'');
+    const existing = seen.get(key);
+    if (!existing) { seen.set(key, a); return; }
+    dedupRemoved++;
+    if (rank(a) > rank(existing)) seen.set(key, a);
+  });
+  if (dedupRemoved > 0) {
+    data.appointments = Array.from(seen.values());
+    DB.set('appointments', data.appointments);
+  }
+}
+
 // Clean up any corrupted entries in main entities (caused by sync of binary-imported files on Windows)
 ['clients', 'employees', 'services', 'products', 'sections', 'providers'].forEach(k => {
   if (Array.isArray(data[k])) {
