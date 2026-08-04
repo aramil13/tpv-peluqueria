@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 const { syncToAccess } = require('./lib/access-sync');
-const { normPhone, mergeArray, dedupClients } = require('./lib/kv-data');
+const { normPhone, mergeArray, dedupClients, dedupAppointments } = require('./lib/kv-data');
 
 process.env.TZ = 'Europe/Madrid';
 console.log('Starting sync-helper... Forward URL:', process.env.SYNC_FORWARD_URL || '(none)');
@@ -195,6 +195,9 @@ function readData() {
 function writeData(data) {
   try {
     ensureDir(SYNC_FILE);
+    if (data && Array.isArray(data.appointments)) {
+      data.appointments = dedupAppointments(data.appointments);
+    }
     data.lastModified = Date.now();
     fs.writeFileSync(SYNC_FILE, JSON.stringify(data, null, 2), 'utf8');
     syncToAccess(SYNC_FILE).catch(e => console.error('[AccessSync] writeData hook failed:', e.message || e));
@@ -208,6 +211,9 @@ function writeData(data) {
 function writeDataSilent(data) {
   try {
     ensureDir(SYNC_FILE);
+    if (data && Array.isArray(data.appointments)) {
+      data.appointments = dedupAppointments(data.appointments);
+    }
     data.lastModified = Date.now();
     fs.writeFileSync(SYNC_FILE, JSON.stringify(data, null, 2), 'utf8');
     return true;
