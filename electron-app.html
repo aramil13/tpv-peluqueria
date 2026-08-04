@@ -3321,7 +3321,7 @@ function editAppt(id) {
   document.getElementById('apptNotes').value = a.notes||'';
   document.getElementById('appointmentModalTitle').textContent = 'Editar Cita';
   document.getElementById('apptClient').value = a.clientId;
-  apptSelectedServices = (a.serviceIds||(a.serviceId?[a.serviceId]:[])).map(sid => data.services.find(s=>s.id===sid)).filter(Boolean);
+  apptSelectedServices = ((a.serviceIds && a.serviceIds.length) ? a.serviceIds : (a.serviceId ? [a.serviceId] : [])).map(sid => data.services.find(s=>s.id===sid)).filter(Boolean);
   renderApptServices();
   const secSel = document.getElementById('apptSection');
   if (secSel && apptSelectedServices.length) {
@@ -3485,7 +3485,6 @@ function saveAppointment() {
       if (id_) {
         const existing = data.appointments.find(x => x.id === id_);
         if (existing) {
-          const wasModified = existing._modified;
           Object.assign(existing, {
             clientId, employeeId, date, time,
             endTime: block1End, notes, status: 'pending',
@@ -3494,7 +3493,6 @@ function saveAppointment() {
             _modified: Date.now(), _deleted: false,
             blockGroupId, blockNum: '1'
           });
-          if (wasModified && wasModified < Date.now() - 5000) existing._modified = wasModified;
         }
       } else {
         data.appointments.push({
@@ -3528,7 +3526,6 @@ function saveAppointment() {
       if (id_) {
         const existing = data.appointments.find(x => x.id === id_);
         if (existing) {
-          const wasModified = existing._modified;
           Object.assign(existing, {
             clientId, employeeId, date, time,
             endTime: block2End, notes, status: 'pending',
@@ -3537,7 +3534,6 @@ function saveAppointment() {
             _modified: Date.now(), _deleted: false,
             blockGroupId, blockNum: '2'
           });
-          if (wasModified && wasModified < Date.now() - 5000) existing._modified = wasModified;
         }
       } else {
         data.appointments.push({
@@ -3556,7 +3552,6 @@ function saveAppointment() {
       if (id_) {
         const existing = data.appointments.find(x => x.id === id_);
         if (existing) {
-          const wasModified = existing._modified;
           Object.assign(existing, {
             clientId, employeeId, date, time,
             endTime: block1End, notes, status: 'pending',
@@ -3565,7 +3560,6 @@ function saveAppointment() {
             _modified: Date.now(), _deleted: false,
             blockGroupId, blockNum: '1'
           });
-          if (wasModified && wasModified < Date.now() - 5000) existing._modified = wasModified;
         }
       } else {
         data.appointments.push({
