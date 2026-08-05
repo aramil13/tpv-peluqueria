@@ -314,6 +314,11 @@ try {
                 $cmdUpdate.ExecuteNonQuery() | Out-Null
                 $matchedNumCitas[$existingNumCita] = $true
                 if ($allAccessActive.ContainsKey($existingNumCita)) { $updated++ } else { $reactivated++ }
+                # El TPV pudo "tocar" la cita (ej. confirmar reserva online) sin cambiar sus datos.
+                # Registramos ese push en _modifiedAccess para que no parezca una modificacion pendiente
+                # (eso hara que _modified deje de ser > _modifiedAccess y Access recupere su prioridad).
+                $modAcc = if ($null -ne $appt._modifiedAccess) { [int64]$appt._modifiedAccess } else { [int64]0 }
+                if ([int64]$appt._modified -gt $modAcc) { Set-AccessSynced $appt }
             }
         } else {
             # INSERT new
@@ -340,25 +345,33 @@ try {
     $accessCancelled = 0
     $cancelDetect = $conn.CreateCommand()
     $cancelDetect.Transaction = $tx
-    $cancelDetect.CommandText = "SELECT num_cita, client_uid FROM Agenda WHERE Anulado=True AND client_uid IS NOT NULL AND client_uid <> ''"
+    $cancelDetect.CommandText = "SELECT num_cita, client_uid, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final FROM Agenda WHERE Anulado=True AND client_uid IS NOT NULL AND client_uid <> ''"
     $cancelReader = $cancelDetect.ExecuteReader()
     while ($cancelReader.Read()) {
         $cuid = $cancelReader['client_uid'].ToString().Trim()
         $cnc = $cancelReader['num_cita']
         if ($jsonUidActive.ContainsKey($cuid)) {
             $appt = $jsonUidActive[$cuid]
-            $hasAccessMod = $null -ne $appt.PSObject.Properties['_modifiedAccess'] -and $null -ne $appt._modifiedAccess
-            $effAccessMod = if ($hasAccessMod) { [int64]$appt._modifiedAccess } else { [int64]0 }
-            # TPV gana SOLO si hay registro de sync previo (campo _modifiedAccess) y el TPV modifico DESPUES de ese sync.
-            # Sin _modifiedAccess no hay evidencia de que el TPV tocase la cita -> la cancelacion de Access manda.
-            $tpvWins = $hasAccessMod -and ([int64]$appt._modified -gt $effAccessMod)
-            if ($tpvWins) {
-                # TPV lo modifico despues -> la cancelacion de Access no manda; reactivar Access
-                $pReactNc.Value = $cnc
-                $cmdReactivate.ExecuteNonQuery() | Out-Null
-                $matchedNumCitas[$cnc] = $true
-                $reactivated++
-            } else {
+            # Comparar datos reales: si el TPV modifico los datos de la cita (cliente/empleado/servicio/fecha/hora)
+            # respecto a lo que Access tiene, el TPV gana. Si coinciden, la cancelacion de Access manda.
+            # (NO usar timestamps: _modifiedAccess queda congelado desde el insert, y confirmar una reserva
+            #  online sube _modified sin reflejarse en Access -> pareceria que el TPV gano sin haberlo hecho.)
+            $cCli = if ($cancelReader['Cliente']) { [int]$cancelReader['Cliente'] } else { 0 }
+            $cEmp = if ($cancelReader['Empleado']) { [int]$cancelReader['Empleado'] } else { 0 }
+            $cSvc = if ($cancelReader['Servicio']) { [int]$cancelReader['Servicio'] } else { 0 }
+            $cDate = if ($cancelReader['Fecha'] -is [DateTime]) { $cancelReader['Fecha'].ToString('yyyy-MM-dd') } else { '' }
+            $cTime = if ($cancelReader['Hora_Inicio'] -is [DateTime]) { $cancelReader['Hora_Inicio'].ToString('HH:mm') } else { '' }
+            $cEnd = if ($cancelReader['Hora_Final'] -is [DateTime]) { $cancelReader['Hora_Final'].ToString('HH:mm') } else { '' }
+            $jCli = Extract-Code $appt.clientId 'svcl_'
+            $jEmp = Extract-Code $appt.employeeId 'svem_'
+            $jSvc = Extract-Code $appt.serviceId 'svsv_'
+            $jDate = [string]$appt.date
+            $jTime = [string]$appt.time
+            $jEnd = if ($appt.endTime) { [string]$appt.endTime } else { '' }
+            $sameData = ($cCli -eq $jCli) -and ($cEmp -eq $jEmp) -and ($cSvc -eq $jSvc) -and
+                        ($cDate -eq $jDate) -and ($cTime -eq $jTime) -and ($cEnd -eq $jEnd)
+            if ($sameData) {
+                # Access no fue modificado en sus datos -> la cancelacion de Access manda
                 Set-ApptField $appt '_deleted' $true
                 Set-ApptField $appt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
                 Set-ApptField $appt 'cancelledBy' 'salon'
@@ -367,6 +380,12 @@ try {
                 $jsonUidActive.Remove($cuid)
                 if ($matchedNumCitas.ContainsKey($cnc)) { $matchedNumCitas.Remove($cnc) }
                 $accessCancelled++
+            } else {
+                # El TPV modifico los datos de la cita -> gana TPV, reactivar Access
+                $pReactNc.Value = $cnc
+                $cmdReactivate.ExecuteNonQuery() | Out-Null
+                $matchedNumCitas[$cnc] = $true
+                $reactivated++
             }
         }
     }
