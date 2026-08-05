@@ -3089,6 +3089,17 @@ function showDayAppts(dateStr) {
             cellContent += `<br><span style="font-size:9px">${esc(oldEmp||'?')}→${esc(pendEmp||'?')}</span>`;
           }
         }
+        if (appt.source === 'online') {
+          cellContent += `<br><span style="font-size:9px;font-weight:700;">🌐 Reserva online</span>`;
+        }
+        const clientName = client ? fullName(client) : '';
+        const serviceName = services.map(s => s.name).join(', ');
+        if (clientName || serviceName) {
+          if (clientName) cellContent += `<br><span style="font-size:9px;">${esc(clientName)}</span>`;
+          if (serviceName) cellContent += `<br><span style="font-size:9px;">${esc(serviceName)}</span>`;
+        } else if (appt.notes) {
+          cellContent += `<br><span style="font-size:9px;">${esc(appt.notes)}</span>`;
+        }
         const extraClass = isPendingCancelWhatsApp ? ' appt-pending-cancel-whatsapp' : (isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : ''));
         const reminderCount = appt._waReminderCount || 0;
         const waBtn = clientPhone ? `<span class="appt-grid-wa" onclick="event.stopPropagation();sendWAReminder('${appt.id}')" title="Enviar recordatorio WhatsApp${reminderCount > 0 ? ' (enviado ' + reminderCount + ' vez' + (reminderCount !== 1 ? 'es' : '') + ')' : ''}">📱${reminderCount > 0 ? '<sup style="font-size:7px;background:#fff;color:#25D366;border-radius:50%;padding:1px 3px;font-weight:700;">' + reminderCount + '</sup>' : ''}</span>` : '';
