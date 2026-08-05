@@ -62,6 +62,14 @@ function Set-AccessSynced($appt) {
     }
 }
 
+function Set-ApptField($appt, $name, $value) {
+    if ($appt.PSObject.Properties[$name]) {
+        $appt.$name = $value
+    } else {
+        $appt | Add-Member -NotePropertyName $name -NotePropertyValue $value
+    }
+}
+
 try {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
 
@@ -273,16 +281,16 @@ try {
                     Set-AccessSynced $appt
                 } else {
                     # Access gana -> traer Access al JSON
-                    $appt.clientId = $(if ($snap.cliente -gt 0) { "svcl_$($snap.cliente)" } else { $appt.clientId })
-                    $appt.employeeId = $(if ($snap.empleado -gt 0) { "svem_$($snap.empleado)" } else { $appt.employeeId })
-                    $appt.serviceId = $(if ($snap.servicio -gt 0) { "svsv_$($snap.servicio)" } else { $appt.serviceId })
-                    $appt.date = $snapDate
-                    $appt.time = $snapTime
+                    Set-ApptField $appt 'clientId' $(if ($snap.cliente -gt 0) { "svcl_$($snap.cliente)" } else { $appt.clientId })
+                    Set-ApptField $appt 'employeeId' $(if ($snap.empleado -gt 0) { "svem_$($snap.empleado)" } else { $appt.employeeId })
+                    Set-ApptField $appt 'serviceId' $(if ($snap.servicio -gt 0) { "svsv_$($snap.servicio)" } else { $appt.serviceId })
+                    Set-ApptField $appt 'date' $snapDate
+                    Set-ApptField $appt 'time' $snapTime
                     if (Get-ValidEndTime $snapEndTime $snapTime) {
-                        $appt.endTime = $snapEndTime
+                        Set-ApptField $appt 'endTime' $snapEndTime
                     }
-                    $appt.notes = $snap.motivo
-                    $appt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                    Set-ApptField $appt 'notes' $snap.motivo
+                    Set-ApptField $appt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
                     Set-AccessSynced $appt
                     $matchedNumCitas[$existingNumCita] = $true
                     $pulledFromAccess++
@@ -339,8 +347,11 @@ try {
         $cnc = $cancelReader['num_cita']
         if ($jsonUidActive.ContainsKey($cuid)) {
             $appt = $jsonUidActive[$cuid]
-            $effAccessMod = if ($null -ne $appt._modifiedAccess) { [int64]$appt._modifiedAccess } else { [int64]0 }
-            $tpvWins = ([int64]$appt._modified -gt $effAccessMod)
+            $hasAccessMod = $null -ne $appt.PSObject.Properties['_modifiedAccess'] -and $null -ne $appt._modifiedAccess
+            $effAccessMod = if ($hasAccessMod) { [int64]$appt._modifiedAccess } else { [int64]0 }
+            # TPV gana SOLO si hay registro de sync previo (campo _modifiedAccess) y el TPV modifico DESPUES de ese sync.
+            # Sin _modifiedAccess no hay evidencia de que el TPV tocase la cita -> la cancelacion de Access manda.
+            $tpvWins = $hasAccessMod -and ([int64]$appt._modified -gt $effAccessMod)
             if ($tpvWins) {
                 # TPV lo modifico despues -> la cancelacion de Access no manda; reactivar Access
                 $pReactNc.Value = $cnc
@@ -348,9 +359,9 @@ try {
                 $matchedNumCitas[$cnc] = $true
                 $reactivated++
             } else {
-                $appt._deleted = $true
-                $appt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
-                $appt.cancelledBy = 'salon'
+                Set-ApptField $appt '_deleted' $true
+                Set-ApptField $appt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
+                Set-ApptField $appt 'cancelledBy' 'salon'
                 Set-AccessSynced $appt
                 # Remove from active map so it doesn't match again
                 $jsonUidActive.Remove($cuid)
@@ -434,10 +445,10 @@ try {
                     if ($tpvWins) {
                         # TPV lo borro despues -> no reactivar; Phase 3 cancelara la cita en Access
                     } else {
-                        $existingAppt._deleted = $false
-                        $existingAppt.cancelledBy = ''
-                        $existingAppt.notes = $motivoText
-                        $existingAppt._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                        Set-ApptField $existingAppt '_deleted' $false
+                        Set-ApptField $existingAppt 'cancelledBy' ''
+                        Set-ApptField $existingAppt 'notes' $motivoText
+                        Set-ApptField $existingAppt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
                         Set-AccessSynced $existingAppt
                         $jsonUidActive[$newUid] = $existingAppt
                         $matchedNumCitas[$nc] = $true
@@ -510,11 +521,7 @@ try {
                 $jsonClient = $jsonClientMap[$matchId]
                 $curAp = if ($jsonClient.apellidos) { [string]$jsonClient.apellidos } else { '' }
                 if ($curAp -ne $apellidos) {
-                    if ($jsonClient.PSObject.Properties['apellidos']) {
-                        $jsonClient.apellidos = $apellidos
-                    } else {
-                        $jsonClient | Add-Member -NotePropertyName 'apellidos' -NotePropertyValue $apellidos
-                    }
+                    Set-ApptField $jsonClient 'apellidos' $apellidos
                     $jsonClient._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
                     $surnamesPulled++
                 }
