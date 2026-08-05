@@ -1483,7 +1483,7 @@ setInterval(() => {
       if (SYNC_FORWARD_KEY) fwdHeaders['Authorization'] = 'Bearer ' + SYNC_FORWARD_KEY;
       const fwdMod = fwdUrl.startsWith('https') ? https : http;
       const fwdBody = JSON.stringify({
-        appointments: (fresh.appointments||[]).filter(a => !a._deleted),
+        appointments: fresh.appointments||[],
         clients: fresh.clients||[],
         services: fresh.services||[],
         employees: fresh.employees||[]
