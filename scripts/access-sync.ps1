@@ -250,6 +250,9 @@ try {
             # Detect if Access was modified externally
             $snap = $accessSnapshot[$existingNumCita]
             $accessChanged = $false
+            $motivoChanged = $false
+            $snapMotivo = ''
+            $jsonNotes = if ($appt.notes) { [string]$appt.notes } else { '' }
             if ($snap) {
                 $snapDate = if ($snap.fecha -is [DateTime]) { $snap.fecha.ToString('yyyy-MM-dd') } else { '' }
                 $snapTime = if ($snap.horaInicio -is [DateTime]) { $snap.horaInicio.ToString('HH:mm') } else { '' }
@@ -258,9 +261,17 @@ try {
                     $snap.empleado -ne $empleadoCode -or $snap.servicio -ne $servicioCode) {
                     $accessChanged = $true
                 }
+                # El Motivo es editable por el usuario en Access y debe sincronizarse con el TPV.
+                # Se considera cambiado si Access difiere TANTO del motivo que el TPV generaria
+                # como de las notas que el TPV ya conoce (las citas creadas en Access guardan su
+                # texto libre en Motivo/notes, asi que esa igualdad es el estado "en paz").
+                $snapMotivo = if ($snap.motivo) { [string]$snap.motivo } else { '' }
+                if ($snapMotivo -ne $motivo -and $snapMotivo -ne $jsonNotes) {
+                    $motivoChanged = $true
+                }
             }
 
-            if ($accessChanged) {
+            if ($accessChanged -or $motivoChanged) {
                 # Prioridad por origen: si el JSON se modifico (TPV) DESPUES de la ultima reconciliacion con Access -> gana el TPV
                 $effAccessMod = if ($null -ne $appt._modifiedAccess) { [int64]$appt._modifiedAccess } else { [int64]0 }
                 $tpvWins = ([int64]$appt._modified -gt $effAccessMod)
@@ -289,7 +300,7 @@ try {
                     if (Get-ValidEndTime $snapEndTime $snapTime) {
                         Set-ApptField $appt 'endTime' $snapEndTime
                     }
-                    Set-ApptField $appt 'notes' $snap.motivo
+                    Set-ApptField $appt 'notes' $snapMotivo
                     Set-ApptField $appt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
                     Set-AccessSynced $appt
                     $matchedNumCitas[$existingNumCita] = $true
@@ -302,13 +313,20 @@ try {
                 }
             } else {
                 # Push JSON to Access
+                # Sin conflicto de prioridad: el TPV empuja sus datos. Pero si Access es el origen
+                # del texto (su Motivo == las notas que el TPV ya conoce), se preserva ese texto
+                # en vez de sobrescribirlo con el motivo generado automaticamente.
+                $motivoToWrite = $motivo
+                if ($snapMotivo -ne $motivo -and $snapMotivo -eq $jsonNotes) {
+                    $motivoToWrite = $snapMotivo
+                }
                 $cmdUpdate.Parameters[0].Value = $clienteCode
                 $cmdUpdate.Parameters[1].Value = $empleadoCode
                 $cmdUpdate.Parameters[2].Value = $servicioCode
                 $cmdUpdate.Parameters[3].Value = $fecha
                 $cmdUpdate.Parameters[4].Value = $horaInicio
                 $cmdUpdate.Parameters[5].Value = $horaFinal
-                $cmdUpdate.Parameters[6].Value = $motivo
+                $cmdUpdate.Parameters[6].Value = $motivoToWrite
                 $cmdUpdate.Parameters[7].Value = $uid
                 $cmdUpdate.Parameters[8].Value = $existingNumCita
                 $cmdUpdate.ExecuteNonQuery() | Out-Null
