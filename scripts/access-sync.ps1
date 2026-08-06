@@ -37,6 +37,20 @@ function Get-ValidEndTime($endStr, $startStr) {
     return [DateTime]::Parse("1899-12-30 ${eh}:${em}:00")
 }
 
+# Access guarda "sin hora de fin" como 1899-12-30 00:00:00 (fecha cero valida).
+# Un NULL Hora_Final rompe la app de Access, asi que nunca escribimos NULL;
+# al leer, la fecha cero se trata como fin vacio para no generar conflictos.
+function Get-EndTimeStr($dt) {
+    if ($dt -isnot [DateTime]) { return '' }
+    if ($dt.Hour -eq 0 -and $dt.Minute -eq 0 -and $dt.Second -eq 0) { return '' }
+    return $dt.ToString('HH:mm')
+}
+
+function Get-HoraFinalParam($validEnd) {
+    if ($validEnd) { return $validEnd }
+    return [DateTime]::Parse("1899-12-30 00:00:00")
+}
+
 function Add-Param($cmd, $value) {
     $p = $cmd.CreateParameter()
     $p.Value = $value
@@ -217,7 +231,7 @@ try {
         $horaInicio = Parse-Time $appt.time
         $validEnd = Get-ValidEndTime $appt.endTime $appt.time
         $horaFinal = if ($validEnd) { $validEnd } else { $null }
-        $horaFinalParam = if ($horaFinal) { $horaFinal } else { [DBNull]::Value }
+        $horaFinalParam = Get-HoraFinalParam $horaFinal
         $notes = if ($appt.notes) { $appt.notes } else { '' }
         $isOnline = ($appt.source -eq 'online') -or ($notes -match 'Reserva online')
         $clientName = if ($appt.clientId -and $clientMap.ContainsKey($appt.clientId)) { $clientMap[$appt.clientId] } else { '' }
@@ -257,7 +271,7 @@ try {
             if ($snap) {
                 $snapDate = if ($snap.fecha -is [DateTime]) { $snap.fecha.ToString('yyyy-MM-dd') } else { '' }
                 $snapTime = if ($snap.horaInicio -is [DateTime]) { $snap.horaInicio.ToString('HH:mm') } else { '' }
-                $snapEndTime = if ($snap.horaFinal -is [DateTime]) { $snap.horaFinal.ToString('HH:mm') } else { '' }
+                $snapEndTime = Get-EndTimeStr $snap.horaFinal
                 if ($snapDate -ne $appt.date -or $snapTime -ne $appt.time -or $snapEndTime -ne $appt.endTime -or
                     $snap.empleado -ne $empleadoCode -or $snap.servicio -ne $servicioCode) {
                     $accessChanged = $true
@@ -380,7 +394,7 @@ try {
             $cSvc = if ($cancelReader['Servicio']) { [int]$cancelReader['Servicio'] } else { 0 }
             $cDate = if ($cancelReader['Fecha'] -is [DateTime]) { $cancelReader['Fecha'].ToString('yyyy-MM-dd') } else { '' }
             $cTime = if ($cancelReader['Hora_Inicio'] -is [DateTime]) { $cancelReader['Hora_Inicio'].ToString('HH:mm') } else { '' }
-            $cEnd = if ($cancelReader['Hora_Final'] -is [DateTime]) { $cancelReader['Hora_Final'].ToString('HH:mm') } else { '' }
+            $cEnd = Get-EndTimeStr $cancelReader['Hora_Final']
             $jCli = Extract-Code $appt.clientId 'svcl_'
             $jEmp = Extract-Code $appt.employeeId 'svem_'
             $jSvc = Extract-Code $appt.serviceId 'svsv_'
@@ -433,7 +447,7 @@ try {
         $dateStr = if ($fechaVal -is [DateTime]) { $fechaVal.ToString('yyyy-MM-dd') } else { '' }
         if ($dateStr -and $dateStr -lt $todayStr) { continue }
         $timeStr = if ($hiVal -is [DateTime]) { $hiVal.ToString('HH:mm') } else { '' }
-        $endTimeStr = if ($hfVal -is [DateTime]) { $hfVal.ToString('HH:mm') } else { '' }
+        $endTimeStr = Get-EndTimeStr $hfVal
         $endTimeValid = Get-ValidEndTime $endTimeStr $timeStr
         $motivoText = if ($pullReader['Motivo']) { $pullReader['Motivo'].ToString() } else { '' }
         if (-not $jsonUidAll.ContainsKey($newUid)) {
