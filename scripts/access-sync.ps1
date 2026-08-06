@@ -217,6 +217,7 @@ try {
         $horaInicio = Parse-Time $appt.time
         $validEnd = Get-ValidEndTime $appt.endTime $appt.time
         $horaFinal = if ($validEnd) { $validEnd } else { $null }
+        $horaFinalParam = if ($horaFinal) { $horaFinal } else { [DBNull]::Value }
         $notes = if ($appt.notes) { $appt.notes } else { '' }
         $isOnline = ($appt.source -eq 'online') -or ($notes -match 'Reserva online')
         $clientName = if ($appt.clientId -and $clientMap.ContainsKey($appt.clientId)) { $clientMap[$appt.clientId] } else { '' }
@@ -282,7 +283,7 @@ try {
                     $cmdUpdate.Parameters[2].Value = $servicioCode
                     $cmdUpdate.Parameters[3].Value = $fecha
                     $cmdUpdate.Parameters[4].Value = $horaInicio
-                    $cmdUpdate.Parameters[5].Value = $horaFinal
+                    $cmdUpdate.Parameters[5].Value = $horaFinalParam
                     $cmdUpdate.Parameters[6].Value = $motivo
                     $cmdUpdate.Parameters[7].Value = $uid
                     $cmdUpdate.Parameters[8].Value = $existingNumCita
@@ -325,7 +326,7 @@ try {
                 $cmdUpdate.Parameters[2].Value = $servicioCode
                 $cmdUpdate.Parameters[3].Value = $fecha
                 $cmdUpdate.Parameters[4].Value = $horaInicio
-                $cmdUpdate.Parameters[5].Value = $horaFinal
+                $cmdUpdate.Parameters[5].Value = $horaFinalParam
                 $cmdUpdate.Parameters[6].Value = $motivoToWrite
                 $cmdUpdate.Parameters[7].Value = $uid
                 $cmdUpdate.Parameters[8].Value = $existingNumCita
@@ -346,7 +347,7 @@ try {
             $cmdInsert.Parameters[3].Value = $servicioCode
             $cmdInsert.Parameters[4].Value = $fecha
             $cmdInsert.Parameters[5].Value = $horaInicio
-            $cmdInsert.Parameters[6].Value = $horaFinal
+            $cmdInsert.Parameters[6].Value = $horaFinalParam
             $cmdInsert.Parameters[7].Value = $motivo
             $cmdInsert.Parameters[8].Value = ([int]0)
             $cmdInsert.Parameters[9].Value = $uid
