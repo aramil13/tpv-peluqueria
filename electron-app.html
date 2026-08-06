@@ -82,6 +82,10 @@ tr:hover td { background: #f8f9fa; }
 .modal-close { background: none; border: none; font-size: 24px; cursor: pointer; color: var(--text-light); padding: 0 5px; }
 .modal-close:hover { color: var(--danger); }
 .modal-footer { display: flex; flex-direction: column; gap: 6px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--border); }
+.appt-color-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--border); cursor: pointer; padding: 0; transition: transform .1s; }
+.appt-color-swatch:hover { transform: scale(1.15); }
+.appt-color-swatch.active { box-shadow: 0 0 0 2px var(--primary); transform: scale(1.1); }
+.appt-color-auto { background: conic-gradient(#8E44AD,#2E86C1,#27AE60,#F39C12,#E74C3C,#8E44AD); }
 .search-bar { display: flex; gap: 10px; margin-bottom: 15px; }
 .search-bar input { flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; }
 .search-bar input:focus { outline: none; border-color: var(--primary); }
@@ -635,6 +639,10 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group"><label>Empleado</label><select id="apptEmployee"></select></div>
       <div class="form-group"><label>Notas</label><textarea id="apptNotes" placeholder="Notas..."></textarea></div>
     </div>
+    <div class="form-group" style="margin-top:6px;">
+      <label>Color de la cita</label>
+      <div id="apptColorPalette" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;"></div>
+    </div>
     <div class="modal-footer"><button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button><button class="btn btn-success" id="waReminderBtn" onclick="sendWAReminderFromModal()" style="display:none;background:#25D366;">📱 Recordatorio WhatsApp</button><button class="btn btn-secondary" onclick="closeModal('appointmentModal')">Cerrar</button><button class="btn btn-primary" onclick="saveAppointment()">Guardar</button></div>
     <input type="hidden" id="apptEditId">
   </div>
@@ -938,6 +946,7 @@ if (oldBackups && Array.isArray(oldBackups) && oldBackups.length) {
 
 // ============ COLORS ============
 const COLORS = ['#6C3483','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#1ABC9C','#16A085','#2980B9','#8E44AD','#D35400','#C0392B','#2C3E50'];
+const APPT_COLORS = ['#8E44AD','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#16A085','#2980B9','#D35400','#C0392B','#2C3E50'];
 let colorIdx = 0;
 function randomColor() {
   const c = COLORS[colorIdx % COLORS.length];
@@ -2896,7 +2905,8 @@ function renderAgenda() {
         const employee = data.employees.find(e => e.id === a.employeeId);
         const mins = a.time ? parseInt(a.time.split(':')[1]) : 0;
         const irregular = mins % 15 !== 0;
-        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?fullName(client):'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(fullName(employee))})</span>`:''}</div>`;
+        const apptStyle = a.color ? 'background:'+a.color+';color:#fff;border-color:'+a.color+' !important;' + (irregular ? 'border-left:3px solid #e74c3c !important;' : '') : (irregular ? 'border-left:3px solid #e74c3c !important;' : '');
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${apptStyle?' style="'+apptStyle+'"':''}>${esc(a.time||'')} ${esc(client?fullName(client):'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(fullName(employee))})</span>`:''}</div>`;
       }).join('')}
       ${appts.length>3?`<div style="font-size:9px;color:var(--primary);">+${appts.length-3} más</div>`:''}
     </div>`;
@@ -2914,7 +2924,8 @@ function renderAgenda() {
         const employee = data.employees.find(e => e.id === a.employeeId);
         const mins = a.time ? parseInt(a.time.split(':')[1]) : 0;
         const irregular = mins % 15 !== 0;
-        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?fullName(client):'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(fullName(employee))})</span>`:''}</div>`;
+        const apptStyle = a.color ? 'background:'+a.color+';color:#fff;border-color:'+a.color+' !important;' + (irregular ? 'border-left:3px solid #e74c3c !important;' : '') : (irregular ? 'border-left:3px solid #e74c3c !important;' : '');
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${apptStyle?' style="'+apptStyle+'"':''}>${esc(a.time||'')} ${esc(client?fullName(client):'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(fullName(employee))})</span>`:''}</div>`;
       }).join('')}
       ${appts.length>3?`<div style="font-size:9px;color:var(--primary);">+${appts.length-3} más</div>`:''}
     </div>`;
@@ -2936,7 +2947,8 @@ function renderAgenda() {
         const employee = data.employees.find(e => e.id === a.employeeId);
         const mins = a.time ? parseInt(a.time.split(':')[1]) : 0;
         const irregular = mins % 15 !== 0;
-        return `<div class="appt${a.source==='online'?' appt-online':''}"${irregular?' title="Hora irregular" style="border-left:3px solid #e74c3c !important;"':''}>${esc(a.time||'')} ${esc(client?fullName(client):'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(fullName(employee))})</span>`:''}</div>`;
+        const apptStyle = a.color ? 'background:'+a.color+';color:#fff;border-color:'+a.color+' !important;' + (irregular ? 'border-left:3px solid #e74c3c !important;' : '') : (irregular ? 'border-left:3px solid #e74c3c !important;' : '');
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${apptStyle?' style="'+apptStyle+'"':''}>${esc(a.time||'')} ${esc(client?fullName(client):'?')}${employee?` <span style="font-size:8px;opacity:.7">(${esc(fullName(employee))})</span>`:''}</div>`;
       }).join('')}
       ${appts.length>3?`<div style="font-size:9px;color:var(--primary);">+${appts.length-3} más</div>`:''}
     </div>`;
@@ -2968,8 +2980,11 @@ function showDayAppts(dateStr) {
   const employees = data.employees.filter(e => !e._deleted).sort((a,b) => a.name.localeCompare(b.name));
 
   // Colores para cada cita
-  const APPT_COLORS = ['#8E44AD','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#16A085','#2980B9','#D35400','#C0392B','#2C3E50'];
   const colorMap = {};
+  appts.forEach((a) => {
+    const colorKey = a.blockGroupId || a.id;
+    if (a.color) colorMap[colorKey] = a.color;
+  });
   appts.forEach((a, i) => {
     const colorKey = a.blockGroupId || a.id;
     if (!colorMap[colorKey]) colorMap[colorKey] = APPT_COLORS[i % APPT_COLORS.length];
@@ -3327,6 +3342,8 @@ function editAppt(id) {
   if (!a) return;
   if (a.clientModified) { acceptClientMod(id); return; }
   editingBlockNum = null;
+  apptSelectedColor = a.color || '';
+  renderApptColorPalette();
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = id;
   document.getElementById('apptDate').value = a.date;
@@ -3369,6 +3386,9 @@ function editApptBlock(id, blockNum) {
       if (svc && !allBlockSvcs.find(s => s.id === sid)) allBlockSvcs.push(svc);
     });
   });
+  editingBlockNum = blockNum;
+  apptSelectedColor = (bloque1Appt.color || blockAppts.find(ba => ba.color)?.color) || '';
+  renderApptColorPalette();
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = bloque1Appt.id;
   document.getElementById('apptDate').value = bloque1Appt.date;
@@ -3445,6 +3465,7 @@ function saveAppointment() {
         serviceIds: bloque1Svcs.map(s => s.id),
         _modified: Date.now(), _deleted: false,
         blockGroupId, blockNum: '1',
+        color: apptSelectedColor || '',
         salonModified: isOnline ? true : block1Appt.salonModified
       });
     } else {
@@ -3466,6 +3487,7 @@ function saveAppointment() {
           serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
           serviceIds: bloque2Svcs.map(s => s.id),
           _modified: Date.now(), _deleted: false,
+          color: apptSelectedColor || '',
           salonModified: isOnline ? true : block2Appt.salonModified
         });
       } else {
@@ -3477,6 +3499,7 @@ function saveAppointment() {
           serviceIds: bloque2Svcs.map(s => s.id),
           _modified: Date.now(), _deleted: false,
           blockGroupId, blockNum: '2',
+          color: apptSelectedColor || '',
           salonModified: isOnline ? true : false
         });
       }
@@ -3485,6 +3508,7 @@ function saveAppointment() {
       block2Appt._deleted = true;
     }
 
+    applyApptColor(blockGroupId);
     editingBlockNum = null;
     saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
     return;
@@ -3588,6 +3612,7 @@ function saveAppointment() {
         });
       }
     }
+    applyApptColor(blockGroupId);
     saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
     return;
   }
@@ -3599,6 +3624,7 @@ function saveAppointment() {
     employeeId,
     date, time, endTime, notes: notes,
     status: 'pending',
+    color: apptSelectedColor || '',
     _modified: Date.now(),
     _deleted: false
   };
@@ -3616,9 +3642,32 @@ function saveAppointment() {
 }
 
 let editingBlockNum = null;
+let apptSelectedColor = '';
+
+function renderApptColorPalette() {
+  const c = document.getElementById('apptColorPalette');
+  if (!c) return;
+  let html = `<button type="button" class="appt-color-swatch appt-color-auto${!apptSelectedColor ? ' active' : ''}" onclick="setApptColor('')" title="Color automático"></button>`;
+  APPT_COLORS.forEach(col => {
+    html += `<button type="button" class="appt-color-swatch${apptSelectedColor === col ? ' active' : ''}" style="background:${col};" onclick="setApptColor('${col}')" title="${col}"></button>`;
+  });
+  c.innerHTML = html;
+}
+
+function setApptColor(col) {
+  apptSelectedColor = col;
+  renderApptColorPalette();
+}
+
+function applyApptColor(blockGroupId) {
+  if (!blockGroupId) return;
+  data.appointments.filter(x => x.blockGroupId === blockGroupId && !x._deleted).forEach(t => { t.color = apptSelectedColor || ''; });
+}
 
 function quickAppt(dateStr, time, employeeId) {
   editingBlockNum = null;
+  apptSelectedColor = '';
+  renderApptColorPalette();
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
   document.getElementById('apptDate').value = dateStr || madridDateStr();
