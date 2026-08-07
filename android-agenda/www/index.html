@@ -567,6 +567,10 @@ function showDayAppts(dateStr) {
 
   const APPT_COLORS = ['#8E44AD','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#16A085','#2980B9','#D35400','#C0392B','#2C3E50'];
   const colorMap = {};
+  appts.forEach((a) => {
+    const colorKey = a.blockGroupId || a.id;
+    if (a.color) colorMap[colorKey] = a.color;
+  });
   appts.forEach((a, i) => {
     const colorKey = a.blockGroupId || a.id;
     if (!colorMap[colorKey]) colorMap[colorKey] = APPT_COLORS[i % APPT_COLORS.length];
