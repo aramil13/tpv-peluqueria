@@ -1168,9 +1168,7 @@ function saveAppointment() {
   const endTime = document.getElementById('apptEndTime').value || '';
   const employeeId = document.getElementById('apptEmployee').value||'';
   const hasBlocks = apptSelectedServices.some(s => s.bloque === 'bloque1' || s.bloque === 'bloque2');
-  if (!clientId || !date) { alert('Cliente y fecha son obligatorios'); return; }
-  if (!document.getElementById('apptSection').value) { alert('Selecciona una sección'); return; }
-  if (!apptSelectedServices.length) { alert('Añade al menos un servicio'); return; }
+  if (!date) { alert('La fecha es obligatoria'); return; }
   const overlap = checkApptOverlap(date, time, endTime, employeeId, id_);
   let msg = '';
   if (overlap) {

@@ -513,24 +513,29 @@ try {
     $pullReader.Close()
 
     # Phase 3: Cancel unmatched, reactivate matched - BATCH OPERATIONS
+    # NOTE: nunca cancelar citas pasadas (Fecha < hoy): el JSON solo contiene hoy/futuro
+    # (purgePastAppointments), asi que sin este filtro la Fase 3 anularia el historial
+    # reactivado en Access en cada sync. Solo se gestionan citas de hoy o futuras.
     if ($matchedNumCitas.Count -gt 0) {
         # Build list of matched num_cita values
         $matchedNcs = @($matchedNumCitas.Keys)
         $placeholders = ($matchedNcs | ForEach-Object { '?' }) -join ','
 
-        # Cancel all active NOT in matched set
+        # Cancel all active NOT in matched set (only today/future)
         $cancelAll = $conn.CreateCommand()
         $cancelAll.Transaction = $tx
-        $cancelAll.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL) AND num_cita NOT IN ($placeholders)"
+        $cancelAll.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL) AND (Fecha IS NULL OR Fecha >= ?) AND num_cita NOT IN ($placeholders)"
+        Add-Param $cancelAll (Get-Date).Date
         foreach ($nc in $matchedNcs) {
             Add-Param $cancelAll $nc
         }
         $cancelAll.ExecuteNonQuery() | Out-Null
     } else {
-        # No matches at all - cancel everything
+        # No matches at all - cancel everything (only today/future)
         $cancelAll = $conn.CreateCommand()
         $cancelAll.Transaction = $tx
-        $cancelAll.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL)"
+        $cancelAll.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL) AND (Fecha IS NULL OR Fecha >= ?)"
+        Add-Param $cancelAll (Get-Date).Date
         $cancelAll.ExecuteNonQuery() | Out-Null
     }
 
