@@ -389,8 +389,10 @@ let data = {
 // Auto-clean: repair non-online cancelledBy='salon' only (NO auto-delete past)
 const todayC = new Date().toISOString().split('T')[0];
 let cleanedC = 0;
+const salonCancelledIds = new Set();
 (data.appointments||[]).forEach(a => {
   if (a.cancelledBy === 'salon' && a.source !== 'online') {
+    salonCancelledIds.add(a.id);
     a._deleted = true; delete a.cancelledBy; a._modified = Date.now(); cleanedC++;
   }
 });
@@ -405,10 +407,10 @@ let removedBad = 0;
 });
 if (removedBad) { DB.set('appointments', data.appointments); }
 
-// Migration: restore appointments incorrectly deleted by previous !clientId check
+// Migration: restore appointments incorrectly deleted by previous !clientId check (but never resurrect salon-cancelled ones)
 let restored = 0;
 (data.appointments||[]).forEach(a => {
-  if (a._deleted && a.clientId === '' && a.date && a.date >= new Date().toISOString().split('T')[0]) {
+  if (a._deleted && a.clientId === '' && !a.cancelledBy && !salonCancelledIds.has(a.id) && a.date && a.date >= new Date().toISOString().split('T')[0]) {
     a._deleted = false; a._modified = Date.now(); restored++;
   }
 });
@@ -1840,6 +1842,11 @@ function mergeRemote(type, remote) {
 
     const existing = localMap.get(item.id);
     if (!existing) { data[type].push(item); changed = true; }
+    else if (type === 'appointments' && (item._deleted || item.cancelledBy) && !(existing._deleted || existing.cancelledBy)) {
+      Object.assign(existing, item);
+      existing._deleted = true;
+      changed = true;
+    }
     else if ((item._modified||0) > (existing._modified||0)) { 
       Object.assign(existing, item); 
       changed = true; 
