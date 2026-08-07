@@ -507,7 +507,8 @@ function renderAgenda() {
       ${appts.slice(0,2).map(a => {
         const client = data.clients.find(c => c.id === a.clientId);
         const employee = data.employees.find(e => e.id === a.employeeId);
-        return `<div class="appt${a.source==='online'?' appt-online':''}">${esc(a.time||'')}${a.endTime ? '-'+esc(a.endTime) : ''} ${esc(client?fullName(client):'?')}${employee ? ' 👤'+esc(fullName(employee)).slice(0,3) : ''}</div>`;
+        const apptStyle = a.color ? 'background:'+a.color+';color:#fff;' : '';
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${apptStyle?' style="'+apptStyle+'"':''}>${esc(a.time||'')}${a.endTime ? '-'+esc(a.endTime) : ''} ${esc(client?fullName(client):'?')}${employee ? ' 👤'+esc(fullName(employee)).slice(0,3) : ''}</div>`;
       }).join('')}
       ${appts.length>2?`<div style="font-size:7px;color:var(--primary);">+${appts.length-2}</div>`:''}
     </div>`;
@@ -525,7 +526,8 @@ function renderAgenda() {
       ${appts.slice(0,2).map(a => {
         const client = data.clients.find(c => c.id === a.clientId);
         const employee = data.employees.find(e => e.id === a.employeeId);
-        return `<div class="appt${a.source==='online'?' appt-online':''}">${esc(a.time||'')}${a.endTime ? '-'+esc(a.endTime) : ''} ${esc(client?fullName(client):'?')}${employee ? ' 👤'+esc(fullName(employee)).slice(0,3) : ''}</div>`;
+        const apptStyle = a.color ? 'background:'+a.color+';color:#fff;' : '';
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${apptStyle?' style="'+apptStyle+'"':''}>${esc(a.time||'')}${a.endTime ? '-'+esc(a.endTime) : ''} ${esc(client?fullName(client):'?')}${employee ? ' 👤'+esc(fullName(employee)).slice(0,3) : ''}</div>`;
       }).join('')}
       ${appts.length>2?`<div style="font-size:7px;color:var(--primary);">+${appts.length-2}</div>`:''}
     </div>`;
@@ -543,7 +545,8 @@ function renderAgenda() {
       ${appts.slice(0,2).map(a => {
         const client = data.clients.find(c => c.id === a.clientId);
         const employee = data.employees.find(e => e.id === a.employeeId);
-        return `<div class="appt${a.source==='online'?' appt-online':''}">${esc(a.time||'')}${a.endTime ? '-'+esc(a.endTime) : ''} ${esc(client?fullName(client):'?')}${employee ? ' 👤'+esc(fullName(employee)).slice(0,3) : ''}</div>`;
+        const apptStyle = a.color ? 'background:'+a.color+';color:#fff;' : '';
+        return `<div class="appt${a.source==='online'?' appt-online':''}"${apptStyle?' style="'+apptStyle+'"':''}>${esc(a.time||'')}${a.endTime ? '-'+esc(a.endTime) : ''} ${esc(client?fullName(client):'?')}${employee ? ' 👤'+esc(fullName(employee)).slice(0,3) : ''}</div>`;
       }).join('')}
       ${appts.length>2?`<div style="font-size:7px;color:var(--primary);">+${appts.length-2}</div>`:''}
     </div>`;
