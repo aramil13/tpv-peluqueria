@@ -460,6 +460,7 @@ function id() { return Date.now().toString(36)+Math.random().toString(36).substr
 function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML }
 function escAttr(s) { return s.replace(/"/g,'&quot;'); }
 function fullName(p) { const n=(p&&p.name||'').trim(); const a=(p&&p.apellidos||'').trim(); return a ? (n?n+' '+a:a) : n; }
+function empOrderKey(e) { const m = /^svem_(\d+)$/.exec((e&&e.id)||''); return m ? parseInt(m[1],10) : 999999; }
 function addMinutes(time, mins) { const [h,m]=time.split(':').map(Number); return String(h+Math.floor((m+mins)/60)).padStart(2,'0')+':'+String((m+mins)%60).padStart(2,'0'); }
 function timeToMinutes(time) { const [h,m]=time.split(':').map(Number); return h*60+m; }
 function cur(n) { return parseFloat(n||0).toFixed(2)+'€' }
@@ -568,7 +569,7 @@ function showDayAppts(dateStr) {
   const d = new Date(dateStr + 'T12:00:00');
   const title = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
   document.getElementById('dayTitle').textContent = title;
-  const employees = data.employees.filter(e => !e._deleted).sort((a,b) => fullName(a).localeCompare(fullName(b)));
+  const employees = data.employees.filter(e => !e._deleted).sort((a,b) => empOrderKey(a) - empOrderKey(b));
 
   const APPT_COLORS = ['#8E44AD','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#16A085','#2980B9','#D35400','#C0392B','#2C3E50'];
   const colorMap = {};

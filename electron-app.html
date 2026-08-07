@@ -1219,6 +1219,7 @@ function importData(key) {
 // ============ CURRENCY ============
 function cur(n) { return parseFloat(n||0).toFixed(2)+'€' }
 function fullName(p) { const n=(p&&p.name||'').trim(); const a=(p&&p.apellidos||'').trim(); return a ? (n?n+' '+a:a) : n; }
+function empOrderKey(e) { const m = /^svem_(\d+)$/.exec((e&&e.id)||''); return m ? parseInt(m[1],10) : 999999; }
 
 
 
@@ -2977,7 +2978,7 @@ function showDayAppts(dateStr) {
   const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted && a.cancelledBy !== 'salon').sort((a,b) => (a.time||'').localeCompare(b.time||''));
   const d = new Date(dateStr);
   const title = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  const employees = data.employees.filter(e => !e._deleted).sort((a,b) => a.name.localeCompare(b.name));
+  const employees = data.employees.filter(e => !e._deleted).sort((a,b) => empOrderKey(a) - empOrderKey(b));
 
   // Colores para cada cita
   const colorMap = {};
