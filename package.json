@@ -26,7 +26,6 @@
       "preload.js",
       "sync-helper.js",
       "package.json",
-      "node_modules/**",
       "booking/**",
       "lib/**",
       "scripts/**",
@@ -37,6 +36,9 @@
       "target": "portable",
       "icon": "icon.ico"
     },
+    "asarUnpack": [
+      "scripts/**"
+    ],
     "directories": {
       "output": "dist"
     }

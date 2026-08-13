@@ -22,8 +22,14 @@ function createWindow() {
 }
 
 function ensureSyncEnv() {
-  // Use the fixed sync directory (same file used by iniciar-sync-helper.bat and PowerShell scripts)
-  const syncDir = path.join(__dirname, 'sync');
+  let syncDir;
+  if (app.isPackaged) {
+    // Empaquetado: usar userData (escribible). Dentro de app.asar no se puede escribir.
+    syncDir = path.join(app.getPath('userData'), 'sync');
+  } else {
+    // Desarrollo: carpeta sync del proyecto (compartida con el sync-helper independiente).
+    syncDir = path.join(__dirname, 'sync');
+  }
   if (!process.env.SYNC_FILE) process.env.SYNC_FILE = path.join(syncDir, 'appointments.json');
   if (!process.env.DATA_DIR) process.env.DATA_DIR = syncDir;
 }
