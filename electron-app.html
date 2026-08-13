@@ -1561,17 +1561,20 @@ function saveOnlineBookingToggle() {
   if (!data.settings) data.settings = {};
   if (!data.settings.onlineOpening) data.settings.onlineOpening = {};
   const checked = document.getElementById('onlineBookingEnabled').checked;
-  if (agendaSelectedDate) {
-    data.settings.onlineOpening[agendaSelectedDate] = data.settings.onlineOpening[agendaSelectedDate] || {};
-    data.settings.onlineOpening[agendaSelectedDate].enabled = checked;
-    const d = new Date(agendaSelectedDate + 'T12:00:00').getDay();
-    if (!data.settings.openingHours) data.settings.openingHours = {};
-    if (!data.settings.openingHours[d]) data.settings.openingHours[d] = { open: '09:00', close: '19:00', closed: false };
-    if (data.settings.openingHours[d].closed) {
-      data.settings.openingHours[d].closed = false;
-    }
-  } else {
-    data.settings.onlineBookingEnabled = checked;
+  const today = madridDateStr();
+  const target = agendaSelectedDate || today;
+  data.settings.onlineOpening[target] = data.settings.onlineOpening[target] || {};
+  data.settings.onlineOpening[target].enabled = checked;
+  // Al desmarcar, la web de HOY se cierra en vivo aunque se esté viendo otro día
+  if (!checked && target !== today) {
+    data.settings.onlineOpening[today] = data.settings.onlineOpening[today] || {};
+    data.settings.onlineOpening[today].enabled = false;
+  }
+  const d = new Date(target + 'T12:00:00').getDay();
+  if (!data.settings.openingHours) data.settings.openingHours = {};
+  if (!data.settings.openingHours[d]) data.settings.openingHours[d] = { open: '09:00', close: '19:00', closed: false };
+  if (data.settings.openingHours[d].closed) {
+    data.settings.openingHours[d].closed = false;
   }
   saveKey('settings');
   syncPush();
@@ -5467,6 +5470,14 @@ function init() {
   const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth()-1);
   document.getElementById('reportFrom').value = madridDateStr(monthAgo);
   
+  // La web de reservas online SIEMPRE arranca cerrada
+  if (!data.settings.onlineOpening) data.settings.onlineOpening = {};
+  if (!data.settings.onlineOpening[today]) data.settings.onlineOpening[today] = {};
+  data.settings.onlineOpening[today].enabled = false;
+  const webCb = document.getElementById('onlineBookingEnabled');
+  if (webCb) webCb.checked = false;
+  saveKey('settings');
+
   cleanOldAppointments();
   cleanDupAppointments();
   renderDashboard();

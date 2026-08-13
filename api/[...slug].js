@@ -386,6 +386,17 @@ module.exports = async (req, res) => {
     try {
       const b = await getBody(req);
       const data = await readData();
+      const webToday = new Date().toISOString().split('T')[0];
+      const webCfg = ((data.settings||{}).onlineOpening||{})[webToday] || {};
+      if (webCfg.enabled !== true) {
+        res.status(409).json({ error: 'Las reservas online están cerradas en este momento.' });
+        return;
+      }
+      const dayCfg = ((data.settings||{}).onlineOpening||{})[b.date] || {};
+      if (dayCfg.enabled === false) {
+        res.status(409).json({ error: 'Las reservas online están cerradas para ese día.' });
+        return;
+      }
       const serviceIds = b.serviceIds || (b.serviceId ? [b.serviceId] : []);
       if (!serviceIds.length || !b.date || !b.time || !b.clientName || !b.clientPhone) {
         res.status(400).json({ error: 'Faltan campos obligatorios' });

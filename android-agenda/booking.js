@@ -105,15 +105,16 @@ function startOnlineStatusPoller() {
     try {
       const r = await fetch(API + '/api/online-status');
       const d = await r.json();
+      const overlay = document.getElementById('openingCountdown');
+      const isClosedView = overlay && overlay.style.display === 'flex';
       if (!d.enabled) {
-        const today = new Date().toISOString().split('T')[0];
-        const oh = getOpeningHoursForDay(today, d.settings || {});
-        if (!oh.closed) return; else { location.reload(); return; }
+        if (!isClosedView) location.reload();
+        return;
       }
       const now = new Date();
       const [h, m] = (d.openingTime || '18:00').split(':').map(Number);
       const opening = new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0);
-      if (now >= opening) location.reload();
+      if (isClosedView && now >= opening) location.reload();
     } catch(e) {}
   }, 15000);
 }
@@ -631,3 +632,4 @@ function logout() {
 }
 
 loadData();
+startOnlineStatusPoller();

@@ -475,6 +475,14 @@ export async function onRequest(context) {
       try {
         const b = await getBody();
         const data = await readData();
+        const webCfg = ((data.settings||{}).onlineOpening||{})[todayMadrid()] || {};
+        if (webCfg.enabled !== true) {
+          return json({ error: 'Las reservas online están cerradas en este momento.' }, 409);
+        }
+        const dayCfg = ((data.settings||{}).onlineOpening||{})[b.date] || {};
+        if (dayCfg.enabled === false) {
+          return json({ error: 'Las reservas online están cerradas para ese día.' }, 409);
+        }
         const serviceIds = b.serviceIds || (b.serviceId ? [b.serviceId] : []);
         if (!serviceIds.length || !b.date || !b.time || !b.clientName || !b.clientPhone) {
           return json({ error: 'Faltan campos obligatorios' }, 400);

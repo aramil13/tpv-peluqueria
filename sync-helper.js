@@ -628,6 +628,18 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       try {
         const b = JSON.parse(body);
             const data = readData();
+        const webCfg = ((data.settings||{}).onlineOpening||{})[todayMadrid()] || {};
+        if (webCfg.enabled !== true) {
+          res.writeHead(409, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Las reservas online están cerradas en este momento.' }));
+          return;
+        }
+        const dayCfg = ((data.settings||{}).onlineOpening||{})[b.date] || {};
+        if (dayCfg.enabled === false) {
+          res.writeHead(409, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Las reservas online están cerradas para ese día.' }));
+          return;
+        }
         if (!b.serviceId || !b.date || !b.time || !b.clientName || !b.clientPhone) {
           res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ error: 'Faltan campos obligatorios' }));
