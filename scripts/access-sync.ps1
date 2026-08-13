@@ -158,9 +158,9 @@ try {
         }
         $accessSnapshot[$nc] = @{
             uid = if ($uid) { $uid.ToString().Trim() } else { '' }
-            cliente = if ($r2['Cliente']) { [int]$r2['Cliente'] } else { 0 }
-            empleado = if ($r2['Empleado']) { [int]$r2['Empleado'] } else { 0 }
-            servicio = if ($r2['Servicio']) { [int]$r2['Servicio'] } else { 0 }
+            cliente = if ($r2['Cliente'] -and $r2['Cliente'] -ne [System.DBNull]::Value) { [int]$r2['Cliente'] } else { 0 }
+            empleado = if ($r2['Empleado'] -and $r2['Empleado'] -ne [System.DBNull]::Value) { [int]$r2['Empleado'] } else { 0 }
+            servicio = if ($r2['Servicio'] -and $r2['Servicio'] -ne [System.DBNull]::Value) { [int]$r2['Servicio'] } else { 0 }
             fecha = $f
             horaInicio = $fi
             horaFinal = $r2['Hora_Final']
@@ -292,6 +292,15 @@ try {
                 $tpvWins = ([int64]$appt._modified -gt $effAccessMod)
                 if ($tpvWins) {
                     # TPV gana -> empujar JSON a Access
+                    # La hora final se preserva siempre: si el JSON no trae una hora final valida
+                    # (p.ej. cita de Access sin servicios) se conserva la Hora_Final real que ya tiene
+                    # Access y se incorpora al JSON, en vez de escribir la fecha cero que la destruiria.
+                    if (-not (Get-ValidEndTime $appt.endTime $appt.time) -and $snapEndTime) {
+                        Set-ApptField $appt 'endTime' $snapEndTime
+                        Set-ApptField $appt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
+                        $horaFinal = $snap.horaFinal
+                        $horaFinalParam = Get-HoraFinalParam $horaFinal
+                    }
                     $cmdUpdate.Parameters[0].Value = $clienteCode
                     $cmdUpdate.Parameters[1].Value = $empleadoCode
                     $cmdUpdate.Parameters[2].Value = $servicioCode
@@ -389,9 +398,9 @@ try {
             # respecto a lo que Access tiene, el TPV gana. Si coinciden, la cancelacion de Access manda.
             # (NO usar timestamps: _modifiedAccess queda congelado desde el insert, y confirmar una reserva
             #  online sube _modified sin reflejarse en Access -> pareceria que el TPV gano sin haberlo hecho.)
-            $cCli = if ($cancelReader['Cliente']) { [int]$cancelReader['Cliente'] } else { 0 }
-            $cEmp = if ($cancelReader['Empleado']) { [int]$cancelReader['Empleado'] } else { 0 }
-            $cSvc = if ($cancelReader['Servicio']) { [int]$cancelReader['Servicio'] } else { 0 }
+            $cCli = if ($cancelReader['Cliente'] -and $cancelReader['Cliente'] -ne [System.DBNull]::Value) { [int]$cancelReader['Cliente'] } else { 0 }
+            $cEmp = if ($cancelReader['Empleado'] -and $cancelReader['Empleado'] -ne [System.DBNull]::Value) { [int]$cancelReader['Empleado'] } else { 0 }
+            $cSvc = if ($cancelReader['Servicio'] -and $cancelReader['Servicio'] -ne [System.DBNull]::Value) { [int]$cancelReader['Servicio'] } else { 0 }
             $cDate = if ($cancelReader['Fecha'] -is [DateTime]) { $cancelReader['Fecha'].ToString('yyyy-MM-dd') } else { '' }
             $cTime = if ($cancelReader['Hora_Inicio'] -is [DateTime]) { $cancelReader['Hora_Inicio'].ToString('HH:mm') } else { '' }
             $cEnd = Get-EndTimeStr $cancelReader['Hora_Final']
@@ -438,9 +447,9 @@ try {
         if ($existingUid -and $jsonUidActive.ContainsKey($existingUid)) { continue }
         # If Access record has a client_uid that matches only a DELETED JSON appointment, reactivate it later — don't skip
         $newUid = if ($existingUid) { $existingUid } else { "svap_$nc" }
-        $cliCode = if ($pullReader['Cliente']) { [int]$pullReader['Cliente'] } else { 0 }
-        $empCode = if ($pullReader['Empleado']) { [int]$pullReader['Empleado'] } else { 0 }
-        $svcCode = if ($pullReader['Servicio']) { [int]$pullReader['Servicio'] } else { 0 }
+        $cliCode = if ($pullReader['Cliente'] -and $pullReader['Cliente'] -ne [System.DBNull]::Value) { [int]$pullReader['Cliente'] } else { 0 }
+        $empCode = if ($pullReader['Empleado'] -and $pullReader['Empleado'] -ne [System.DBNull]::Value) { [int]$pullReader['Empleado'] } else { 0 }
+        $svcCode = if ($pullReader['Servicio'] -and $pullReader['Servicio'] -ne [System.DBNull]::Value) { [int]$pullReader['Servicio'] } else { 0 }
         $fechaVal = $pullReader['Fecha']
         $hiVal = $pullReader['Hora_Inicio']
         $hfVal = $pullReader['Hora_Final']

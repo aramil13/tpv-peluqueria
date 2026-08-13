@@ -40,6 +40,74 @@ function ExecuteNonQuery($sql) {
     return $r
 }
 
+$script:pkCache = @{}
+$script:colTypeCache = @{}
+
+function GetPrimaryKey([string]$tableName) {
+    if ($script:pkCache.ContainsKey($tableName)) { return $script:pkCache[$tableName] }
+    $conn = New-Object System.Data.OleDb.OleDbConnection($connStr)
+    $conn.Open()
+    $pkCols = @()
+    $colsSchema = $conn.GetOleDbSchemaTable([System.Data.OleDb.OleDbSchemaGuid]::Columns, @($null, $null, $tableName, $null))
+    try {
+        $pkSchema = $conn.GetOleDbSchemaTable([System.Data.OleDb.OleDbSchemaGuid]::PrimaryKeys, @($null, $null, $tableName, $null))
+        if ($pkSchema) {
+            foreach ($row in $pkSchema.Rows) { $pkCols += [string]$row["COLUMN_NAME"] }
+        }
+    } catch { }
+    $conn.Close()
+    if ($pkCols.Count -eq 0 -and $colsSchema) {
+        foreach ($candidate in @("Codigo","num_cita","ID","Indice","id")) {
+            foreach ($c in $colsSchema.Rows) {
+                if ([string]$c["COLUMN_NAME"] -eq $candidate) { $pkCols += $candidate; break }
+            }
+            if ($pkCols.Count -gt 0) { break }
+        }
+    }
+    $script:pkCache[$tableName] = $pkCols
+    return $pkCols
+}
+
+function GetColumnTypes([string]$tableName) {
+    if ($script:colTypeCache.ContainsKey($tableName)) { return $script:colTypeCache[$tableName] }
+    $conn = New-Object System.Data.OleDb.OleDbConnection($connStr)
+    $conn.Open()
+    $colsSchema = $conn.GetOleDbSchemaTable([System.Data.OleDb.OleDbSchemaGuid]::Columns, @($null, $null, $tableName, $null))
+    $conn.Close()
+    $map = @{}
+    foreach ($c in $colsSchema.Rows) {
+        $map[[string]$c["COLUMN_NAME"]] = [int]$c["DATA_TYPE"]
+    }
+    $script:colTypeCache[$tableName] = $map
+    return $map
+}
+
+function FormatSqlValue($val, $dataType) {
+    if ($val -eq $null -or $val -eq [System.DBNull]::Value) { return "NULL" }
+    if ($val -is [DateTime]) { return "#$($val.ToString('yyyy-MM-dd HH:mm:ss'))#" }
+    if ($val -is [bool]) { return $(if ($val) { "-1" } else { "0" }) }
+    $textTypes = @(129,130,200,201,202,203)
+    if ($val -is [string] -or ($textTypes -contains [int]$dataType)) {
+        $escaped = ([string]$val) -replace "'", "''"
+        return "'$escaped'"
+    }
+    return [string]$val
+}
+
+function BuildRowWhere($dRow, $colTypes) {
+    $where = @()
+    foreach ($col in $dRow.Table.Columns) {
+        $name = $col.ColumnName
+        $val = $dRow[$name, [System.Data.DataRowVersion]::Original]
+        if ($val -eq $null -or $val -eq [System.DBNull]::Value) {
+            $where += "[$name] IS NULL"
+        } else {
+            $where += "[$name] = $(FormatSqlValue $val $colTypes[$name])"
+        }
+    }
+    return $where
+}
+
 $script:form = New-Object System.Windows.Forms.Form
 $script:form.Text = "Gestor DB - TPV Peluqueria"
 $script:form.Size = New-Object System.Drawing.Size(1400, 850)
@@ -187,43 +255,51 @@ $script:grid.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font
 $script:grid.RowHeadersWidth = 50
 
 $script:grid.Add_CellEndEdit({
+    param($sender, $e)
     if (-not $script:chkEditMode.Checked) { return }
     if ($e.RowIndex -lt 0 -or $e.RowIndex -ge $script:grid.Rows.Count) { return }
-    $row = $script:grid.Rows[$e.RowIndex]
+    if (-not $script:currentTable) { return }
+    $gridRow = $script:grid.Rows[$e.RowIndex]
     $colName = $script:grid.Columns[$e.ColumnIndex].Name
-    $newVal = $row.Cells[$colName].Value
+    $newVal = $gridRow.Cells[$colName].Value
 
-    $pkCol = $null
-    $pkVal = $null
-    foreach ($col in $script:grid.Columns) {
-        if ($col.Name -eq "Codigo" -or $col.Name -eq "num_cita") {
-            $pkCol = $col.Name
-            $pkVal = $row.Cells[$pkCol].Value
-            break
+    $boundItem = $gridRow.DataBoundItem
+    $isNewRow = $false
+    if ($boundItem -eq $null -or $boundItem.Row.RowState -eq [System.Data.DataRowState]::Added) { $isNewRow = $true }
+
+    $colTypes = GetColumnTypes($script:currentTable)
+    if ($isNewRow) {
+        $colNames = @(); $colVals = @()
+        foreach ($col in $script:grid.Columns) {
+            $v = $gridRow.Cells[$col.Name].Value
+            if ($v -eq $null -or $v -eq [System.DBNull]::Value) { continue }
+            $colNames += "[$($col.Name)]"
+            $colVals += FormatSqlValue $v $colTypes[$col.Name]
         }
-    }
-    if (-not $pkCol -or $pkVal -eq $null) {
-        $script:lblStatus.Text = "No se puede editar: sin clave primaria"
-        return
-    }
-
-    if ($newVal -eq $null -or $newVal -eq [System.DBNull]::Value) {
-        $newValSql = "NULL"
-    } elseif ($newVal -is [DateTime]) {
-        $newValSql = "#$($newVal.ToString('yyyy-MM-dd HH:mm:ss'))#"
-    } elseif ($newVal -is [string]) {
-        $escaped = $newVal -replace "'", "''"
-        $newValSql = "'$escaped'"
+        if ($colNames.Count -eq 0) { return }
+        $sql = "INSERT INTO [$script:currentTable] ($($colNames -join ', ')) VALUES ($($colVals -join ', '))"
+        try {
+            ExecuteNonQuery($sql)
+            $script:lblStatus.Text = "Fila insertada en $script:currentTable"
+            LoadTable($script:currentTable)
+        } catch {
+            [System.Windows.Forms.MessageBox]::Show("Error al insertar: $_", "Error", "OK", "Error")
+        }
     } else {
-        $newValSql = "$newVal"
-    }
-
-    $sql = "UPDATE [$script:currentTable] SET [$colName] = $newValSql WHERE [$pkCol] = $pkVal"
-    try {
-        ExecuteNonQuery($sql)
-        $script:lblStatus.Text = "Guardado: $colName en $script:currentTable #$pkVal"
-    } catch {
-        [System.Windows.Forms.MessageBox]::Show("Error al guardar: $_", "Error", "OK", "Error")
+        $set = "[$colName] = $(FormatSqlValue $newVal $colTypes[$colName])"
+        $where = BuildRowWhere $boundItem.Row $colTypes
+        $sql = "UPDATE [$script:currentTable] SET $set WHERE $($where -join ' AND ')"
+        try {
+            $affected = ExecuteNonQuery($sql)
+            if ($affected -gt 0) {
+                $script:lblStatus.Text = "Guardado: $colName en $script:currentTable ($affected fila(s))"
+            } else {
+                $script:lblStatus.Text = "Sin coincidencias (fila modificada en la BD). Recargando..."
+            }
+            LoadTable($script:currentTable)
+        } catch {
+            [System.Windows.Forms.MessageBox]::Show("Error al guardar: $_", "Error", "OK", "Error")
+        }
     }
 })
 
@@ -246,10 +322,15 @@ $btnAddRow.Add_Click({
         return
     }
     $newRow = $script:currentDt.NewRow()
-    if ($script:currentDt.Columns.Contains("Codigo")) {
-        $maxSql = "SELECT NZ(MAX(Codigo),0)+1 FROM [$script:currentTable]"
-        $nextId = QueryScalar($maxSql)
-        if ($nextId -ne $null) { $newRow["Codigo"] = [int]$nextId }
+    $pkCols = GetPrimaryKey($script:currentTable)
+    $colTypes = GetColumnTypes($script:currentTable)
+    foreach ($pk in $pkCols) {
+        $dt = $colTypes[$pk]
+        if ($dt -ne $null -and ($dt -eq 2 -or $dt -eq 3 -or $dt -eq 4 -or $dt -eq 5 -or $dt -eq 6 -or $dt -eq 14 -or $dt -eq 16 -or $dt -eq 20)) {
+            $maxSql = "SELECT NZ(MAX([$pk]),0)+1 FROM [$script:currentTable]"
+            $nextId = QueryScalar($maxSql)
+            if ($nextId -ne $null) { $newRow[$pk] = [long]$nextId }
+        }
     }
     $script:currentDt.Rows.Add($newRow)
     $script:lblStatus.Text = "Fila anadida. Rellena campos y pulsa Enter para guardar."
@@ -266,18 +347,16 @@ $btnDeleteRow.Add_Click({
         return
     }
     $row = $script:grid.SelectedRows[0]
-    $pkCol = $null; $pkVal = $null
-    foreach ($col in $script:grid.Columns) {
-        if ($col.Name -eq "Codigo" -or $col.Name -eq "num_cita") {
-            $pkCol = $col.Name; $pkVal = $row.Cells[$pkCol].Value; break
-        }
-    }
-    if (-not $pkCol -or $pkVal -eq $null) {
-        [System.Windows.Forms.MessageBox]::Show("No se puede eliminar: sin clave primaria", "Error", "OK", "Warning")
+    $tableName = $script:currentTable
+    $boundItem = $row.DataBoundItem
+    if ($boundItem -eq $null -or $boundItem.Row.RowState -eq [System.Data.DataRowState]::Added) {
+        [System.Windows.Forms.MessageBox]::Show("Fila nueva sin guardar. Recargando tabla.", "Info", "OK", "Information")
+        LoadTable($tableName)
         return
     }
-    $tableName = $script:currentTable
-    $confirm = [System.Windows.Forms.MessageBox]::Show("Eliminar registro $pkCol=$pkVal de $tableName ?", "Confirmar", "YesNo", "Warning")
+    $colTypes = GetColumnTypes($tableName)
+    $where = BuildRowWhere $boundItem.Row $colTypes
+    $confirm = [System.Windows.Forms.MessageBox]::Show("Eliminar este registro de $tableName ?", "Confirmar", "YesNo", "Warning")
     if ($confirm -eq "Yes") {
         $conn = New-Object System.Data.OleDb.OleDbConnection($connStr)
         $conn.Open()
@@ -285,10 +364,10 @@ $btnDeleteRow.Add_Click({
         $conn.Close()
         $hasBorrar = $false
         foreach ($c in $cols.Rows) { if ($c["COLUMN_NAME"] -eq "Borrar") { $hasBorrar = $true; break } }
-        $sql = if ($hasBorrar) { "UPDATE [$tableName] SET Borrar = 1 WHERE [$pkCol] = $pkVal" } else { "DELETE FROM [$tableName] WHERE [$pkCol] = $pkVal" }
+        $sql = if ($hasBorrar) { "UPDATE [$tableName] SET Borrar = 1 WHERE $($where -join ' AND ')" } else { "DELETE FROM [$tableName] WHERE $($where -join ' AND ')" }
         try {
             ExecuteNonQuery($sql)
-            $script:lblStatus.Text = "Registro #$pkVal eliminado de $tableName"
+            $script:lblStatus.Text = "Registro eliminado de $tableName"
             LoadTable($script:currentTable)
         } catch {
             [System.Windows.Forms.MessageBox]::Show("Error: $_", "Error", "OK", "Error")
@@ -392,7 +471,8 @@ function ShowSqlConsole {
     })
 
     $txtSql.Add_KeyDown({
-        if ($_.KeyCode -eq "F5") { $btnRun.PerformClick() }
+        param($sender, $e)
+        if ($e.KeyCode -eq "F5") { $btnRun.PerformClick() }
     })
 
     $bottomPnl.Controls.AddRange(@($btnRun, $lblResult))

@@ -440,10 +440,15 @@ const server = http.createServer((req, res) => {
         a._modified = Date.now();
       }
       if (a && !a.cancelledBy && !a._deleted && wasCancelledOrDeleted.has(a.id)) {
-        if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
-        if (orig._deleted) a._deleted = true;
-        if (orig._dismissedByClient) a._dismissedByClient = true;
-        if (orig.cancelledBy || orig._deleted || orig._dismissedByClient) a._modified = Date.now();
+        // Solo restaurar la cancelacion/borrado si la version entrante NO es una
+        // reactivacion mas reciente (con _modified mayor): una cita reactivada en
+        // Access/TPV no debe volver a borrarse por una copia desactualizada.
+        if ((a._modified || 0) <= (orig._modified || 0)) {
+          if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
+          if (orig._deleted) a._deleted = true;
+          if (orig._dismissedByClient) a._dismissedByClient = true;
+          if (orig.cancelledBy || orig._deleted || orig._dismissedByClient) a._modified = Date.now();
+        }
       }
     });
     writeData(merged);
@@ -1418,7 +1423,10 @@ function pullFromSync() {
           remote.appointments.forEach(a => { if (a.id) remoteMap[a.id] = a; });
           (current.appointments||[]).forEach(a => {
             const r = remoteMap[a.id];
-            if (r && r._deleted) { a._deleted = true; changed = true; }
+            // La nube solo fuerza el borrado local si su version no es mas antigua que la local:
+            // asi, una cita reactivada (p.ej. en Access) con _modified mas nuevo no se vuelve
+            // a borrar por una copia desactualizada de la nube.
+            if (r && r._deleted && (r._modified || 0) >= (a._modified || 0)) { a._deleted = true; changed = true; }
           });
         }
         if (remote.settings && typeof remote.settings === 'object') {

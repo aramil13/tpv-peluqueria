@@ -13,25 +13,33 @@
     "electron": "^31.0.0",
     "electron-builder": "^24.13.3"
   },
-  "appId": "com.peluqueria.tpv",
-  "files": [
-    "electron-app.html",
-    "main.js",
-    "preload.js",
-    "sync-helper.js",
-    "package.json",
-    "booking/**",
-    "lib/**",
-    "scripts/**",
-    "website/**",
-    ".env*"
-  ],
-  "win": {
-    "target": "portable",
-    "icon": "icon.png"
-  },
   "dependencies": {
     "dotenv": "^16.4.0",
     "nodemailer": "^6.9.0"
+  },
+  "build": {
+    "appId": "com.peluqueria.tpv",
+    "productName": "TPV Peluquería",
+    "files": [
+      "electron-app.html",
+      "main.js",
+      "preload.js",
+      "sync-helper.js",
+      "package.json",
+      "node_modules/**",
+      "booking/**",
+      "lib/**",
+      "scripts/**",
+      "website/**",
+      ".env*"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "icon.ico"
+    },
+    "directories": {
+      "output": "dist"
+    }
   }
 }
+

@@ -216,9 +216,14 @@ module.exports = async (req, res) => {
           if (a && !a.cancelledBy && !a._deleted && wasCancelledOrDeleted.has(a.id)) {
             const orig = (current.appointments||[]).find(x => x && x.id === a.id);
             if (orig) {
-              if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
-              if (orig._deleted) a._deleted = true;
-              if (orig.cancelledBy || orig._deleted) a._modified = Date.now();
+              // Solo restaurar la cancelacion/borrado si la version entrante NO es una
+              // reactivacion mas reciente (con _modified mayor): una cita reactivada en
+              // Access/TPV no debe volver a borrarse por una copia desactualizada.
+              if ((a._modified || 0) <= (orig._modified || 0)) {
+                if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
+                if (orig._deleted) a._deleted = true;
+                if (orig.cancelledBy || orig._deleted) a._modified = Date.now();
+              }
             }
           }
         });

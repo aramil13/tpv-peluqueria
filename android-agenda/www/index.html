@@ -421,10 +421,10 @@ let dedupRemoved = 0;
 {
   const seen = new Map();
   const isCancelled = (a) => !!(a && (a._deleted || a.cancelledBy));
-  const rank = (a) => (isCancelled(a) ? 2 : 1) * 10000000000000 + (a._modified || 0);
+  const rank = (a) => (isCancelled(a) ? 1 : 2) * 10000000000000 + (a._modified || 0);
   (data.appointments||[]).forEach(a => {
     if (!a || typeof a !== 'object') return;
-    const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'') + '|' + String(a.blockNum||'');
+    const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.endTime||'') + '|' + String(a.employeeId||'') + '|' + String(a.serviceId||'') + '|' + String(a.blockGroupId||'') + '|' + String(a.blockNum||'');
     const existing = seen.get(key);
     if (!existing) { seen.set(key, a); return; }
     dedupRemoved++;
@@ -990,7 +990,7 @@ function calcAppointmentDuration(services) {
 function updateApptEndFromServices() {
   const startTime = document.getElementById('apptTime').value;
   if (!startTime) return;
-  if (!apptSelectedServices.length) { document.getElementById('apptEndTime').value = ''; return; }
+  if (!apptSelectedServices.length) return;
   const totalMin = calcAppointmentDuration(apptSelectedServices);
   const [h, m] = startTime.split(':').map(Number);
   const endM = m + totalMin;

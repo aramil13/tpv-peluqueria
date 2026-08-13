@@ -1725,7 +1725,7 @@ function applyRemoteData(remote, source) {
     Object.values(localAppts).forEach(a => mergedAppts.push(a));
     const dedupMap = new Map();
     mergedAppts.forEach(a => {
-      const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'') + '|' + String(a.blockNum||'');
+      const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.endTime||'') + '|' + String(a.employeeId||'') + '|' + String(a.serviceId||'') + '|' + String(a.blockGroupId||'') + '|' + String(a.blockNum||'');
       const existing = dedupMap.get(key);
       if (!existing) { dedupMap.set(key, a); return; }
       const existingBad = existing._deleted || existing.cancelledBy === 'client' || existing.cancelledBy === 'salon';
@@ -3786,7 +3786,7 @@ function removeApptService(id) {
 function updateApptEndFromServices() {
   const startTime = document.getElementById('apptTime').value;
   if (!startTime) return;
-  if (!apptSelectedServices.length) { document.getElementById('apptEndTime').value = ''; return; }
+  if (!apptSelectedServices.length) return;
   const totalDur = calcAppointmentDuration(apptSelectedServices);
   const [h, m] = startTime.split(':').map(Number);
   const endM = m + totalDur;
@@ -5372,16 +5372,18 @@ document.addEventListener('keydown', function(e) {
 }, true);
 
 function cleanDupAppointments() {
-  const seen = new Set();
-  const keep = [];
+  const seen = new Map();
+  const isCancelled = (a) => !!(a && (a._deleted || a.cancelledBy === 'client' || a.cancelledBy === 'salon'));
+  const rank = (a) => (isCancelled(a) ? 1 : 2) * 10000000000000 + (a._modified || 0);
   let removed = 0;
   (data.appointments || []).forEach(a => {
-    const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.employeeId||'') + '|' + String(a.blockGroupId||'') + '|' + String(a.blockNum||'');
-    if (seen.has(key)) { removed++; return; }
-    seen.add(key);
-    keep.push(a);
+    const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.endTime||'') + '|' + String(a.employeeId||'') + '|' + String(a.serviceId||'') + '|' + String(a.blockGroupId||'') + '|' + String(a.blockNum||'');
+    const existing = seen.get(key);
+    if (!existing) { seen.set(key, a); return; }
+    removed++;
+    if (rank(a) > rank(existing)) seen.set(key, a);
   });
-  if (removed > 0) { data.appointments = keep; saveKey('appointments'); }
+  if (removed > 0) { data.appointments = Array.from(seen.values()); saveKey('appointments'); }
 }
 
 function init() {

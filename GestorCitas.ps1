@@ -1,4 +1,4 @@
-Add-Type -AssemblyName System.Windows.Forms
+﻿Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $dbPath = "C:\TPVGratuito\peluqueria\TpvPeluqueria.accdb"
@@ -88,9 +88,25 @@ $btnRefresh.Location = New-Object System.Drawing.Point(580, 4)
 $btnRefresh.Size = New-Object System.Drawing.Size(90, 26)
 $btnRefresh.Add_Click({ LoadCitas })
 
+$btnEditar = New-Object System.Windows.Forms.Button
+$btnEditar.Text = "Editar"
+$btnEditar.Location = New-Object System.Drawing.Point(680, 4)
+$btnEditar.Size = New-Object System.Drawing.Size(80, 26)
+$btnEditar.BackColor = [System.Drawing.Color]::FromArgb(52, 152, 219)
+$btnEditar.ForeColor = [System.Drawing.Color]::White
+$btnEditar.Add_Click({
+    if ($script:grid.SelectedRows.Count -eq 0) {
+        [System.Windows.Forms.MessageBox]::Show("Selecciona una cita primero.", "Editar", "OK", "Info")
+        return
+    }
+    $row = $script:grid.SelectedRows[0]
+    $id = $row.Cells["num_cita"].Value
+    if ($id) { EditarCita $id }
+})
+
 $btnAnular = New-Object System.Windows.Forms.Button
 $btnAnular.Text = "Anular"
-$btnAnular.Location = New-Object System.Drawing.Point(680, 4)
+$btnAnular.Location = New-Object System.Drawing.Point(770, 4)
 $btnAnular.Size = New-Object System.Drawing.Size(80, 26)
 $btnAnular.BackColor = [System.Drawing.Color]::FromArgb(231, 76, 60)
 $btnAnular.ForeColor = [System.Drawing.Color]::White
@@ -111,7 +127,7 @@ $btnAnular.Add_Click({
 
 $btnReactivar = New-Object System.Windows.Forms.Button
 $btnReactivar.Text = "Reactivar"
-$btnReactivar.Location = New-Object System.Drawing.Point(770, 4)
+$btnReactivar.Location = New-Object System.Drawing.Point(860, 4)
 $btnReactivar.Size = New-Object System.Drawing.Size(90, 26)
 $btnReactivar.BackColor = [System.Drawing.Color]::FromArgb(39, 174, 96)
 $btnReactivar.ForeColor = [System.Drawing.Color]::White
@@ -130,7 +146,7 @@ $btnReactivar.Add_Click({
     }
 })
 
-$filterPanel.Controls.AddRange(@($lblFecha, $script:dtpFecha, $lblEmp, $script:cmbEmpleado, $script:chkAnuladas, $btnRefresh, $btnAnular, $btnReactivar))
+$filterPanel.Controls.AddRange(@($lblFecha, $script:dtpFecha, $lblEmp, $script:cmbEmpleado, $script:chkAnuladas, $btnRefresh, $btnEditar, $btnAnular, $btnReactivar))
 
 $script:grid = New-Object System.Windows.Forms.DataGridView
 $script:grid.Dock = "Fill"
@@ -145,14 +161,16 @@ $script:grid.DefaultCellStyle.Font = New-Object System.Drawing.Font("Segoe UI", 
 $script:grid.ColumnHeadersDefaultCellStyle.Font = New-Object System.Drawing.Font("Segoe UI", 9, [System.Drawing.FontStyle]::Bold)
 $script:grid.AlternatingRowsDefaultCellStyle.BackColor = [System.Drawing.Color]::FromArgb(245, 245, 245)
 
-$script:editableColumns = @("Hora_Inicio", "Hora_Final", "Motivo", "Observaciones", "Empleado", "Servicio")
+$script:editableColumns = @("Hora_Inicio", "Hora_Final", "Motivo", "Observaciones")
 $script:grid.Add_CellBeginEdit({
+    param($sender, $e)
     $colName = $script:grid.Columns[$e.ColumnIndex].Name
     if ($colName -notin $script:editableColumns) {
         $e.Cancel = $true
     }
 })
 $script:grid.Add_CellEndEdit({
+    param($sender, $e)
     if ($e.RowIndex -lt 0 -or $e.RowIndex -ge $script:grid.Rows.Count) { return }
     $row = $script:grid.Rows[$e.RowIndex]
     $colName = $script:grid.Columns[$e.ColumnIndex].Name
@@ -162,11 +180,13 @@ $script:grid.Add_CellEndEdit({
 
     if ($newVal -eq $null -or $newVal -eq [System.DBNull]::Value) {
         $newValSql = "NULL"
+    } elseif ($newVal -is [DateTime]) {
+        $newValSql = "#$($newVal.ToString('yyyy-MM-dd HH:mm:ss'))#"
     } elseif ($newVal -is [string]) {
         $escaped = $newVal -replace "'", "''"
         $newValSql = "'$escaped'"
     } else {
-        $newValSql = "'$newVal'"
+        $newValSql = "$newVal"
     }
 
     $sql = "UPDATE Agenda SET [$colName] = $newValSql WHERE num_cita = $id"
@@ -217,6 +237,244 @@ function LoadEmpleados {
     } catch {
         $script:lblStatus.Text = "Error cargando empleados: $_"
     }
+}
+
+function EditarCita($id) {
+    try {
+        QueryInto("SELECT * FROM Agenda WHERE num_cita = $id")
+    } catch {
+        [System.Windows.Forms.MessageBox]::Show("Error al cargar la cita: $_", "Error", "OK", "Error")
+        return
+    }
+    if ($script:currentDt.Rows.Count -eq 0) {
+        [System.Windows.Forms.MessageBox]::Show("No se encontro la cita #$id", "Editar", "OK", "Warning")
+        return
+    }
+    $row = $script:currentDt.Rows[0]
+
+    $dlg = New-Object System.Windows.Forms.Form
+    $dlg.Text = "Editar cita #$id"
+    $dlg.Size = New-Object System.Drawing.Size(460, 520)
+    $dlg.StartPosition = "CenterParent"
+    $dlg.Font = New-Object System.Drawing.Font("Segoe UI", 9)
+
+    $pnl = New-Object System.Windows.Forms.Panel
+    $pnl.Dock = "Fill"
+    $pnl.Padding = New-Object System.Windows.Forms.Padding(12)
+
+    $y = 10
+
+    $lblCliente = New-Object System.Windows.Forms.Label
+    $lblCliente.Text = "Cliente:"
+    $lblCliente.Location = New-Object System.Drawing.Point(12, ($y + 3))
+    $lblCliente.AutoSize = $true
+
+    $txtCliente = New-Object System.Windows.Forms.TextBox
+    $txtCliente.Location = New-Object System.Drawing.Point(150, $y)
+    $txtCliente.Size = New-Object System.Drawing.Size(270, 23)
+    $pnl.Controls.AddRange(@($lblCliente, $txtCliente))
+    $y += 30
+
+    $lblEmp = New-Object System.Windows.Forms.Label
+    $lblEmp.Text = "Empleado:"
+    $lblEmp.Location = New-Object System.Drawing.Point(12, ($y + 3))
+    $lblEmp.AutoSize = $true
+
+    $txtEmpleado = New-Object System.Windows.Forms.TextBox
+    $txtEmpleado.Location = New-Object System.Drawing.Point(150, $y)
+    $txtEmpleado.Size = New-Object System.Drawing.Size(270, 23)
+    $pnl.Controls.AddRange(@($lblEmp, $txtEmpleado))
+    $y += 30
+
+    $lblServ = New-Object System.Windows.Forms.Label
+    $lblServ.Text = "Servicio:"
+    $lblServ.Location = New-Object System.Drawing.Point(12, ($y + 3))
+    $lblServ.AutoSize = $true
+
+    $txtServicio = New-Object System.Windows.Forms.TextBox
+    $txtServicio.Location = New-Object System.Drawing.Point(150, $y)
+    $txtServicio.Size = New-Object System.Drawing.Size(270, 23)
+    $pnl.Controls.AddRange(@($lblServ, $txtServicio))
+    $y += 30
+
+    $lblFecha = New-Object System.Windows.Forms.Label
+    $lblFecha.Text = "Fecha:"
+    $lblFecha.Location = New-Object System.Drawing.Point(12, ($y + 3))
+    $lblFecha.AutoSize = $true
+
+    $dtpFecha = New-Object System.Windows.Forms.DateTimePicker
+    $dtpFecha.Location = New-Object System.Drawing.Point(150, $y)
+    $dtpFecha.Size = New-Object System.Drawing.Size(150, 23)
+    $dtpFecha.Format = "Short"
+    $pnl.Controls.AddRange(@($lblFecha, $dtpFecha))
+    $y += 30
+
+    $lblHora = New-Object System.Windows.Forms.Label
+    $lblHora.Text = "Hora Inicio:"
+    $lblHora.Location = New-Object System.Drawing.Point(12, ($y + 3))
+    $lblHora.AutoSize = $true
+
+    $dtpHoraIni = New-Object System.Windows.Forms.DateTimePicker
+    $dtpHoraIni.Location = New-Object System.Drawing.Point(150, $y)
+    $dtpHoraIni.Size = New-Object System.Drawing.Size(100, 23)
+    $dtpHoraIni.Format = "Time"
+    $dtpHoraIni.ShowUpDown = $true
+
+    $lblHoraFin = New-Object System.Windows.Forms.Label
+    $lblHoraFin.Text = "Hora Fin:"
+    $lblHoraFin.Location = New-Object System.Drawing.Point(260, ($y + 3))
+    $lblHoraFin.AutoSize = $true
+
+    $dtpHoraFin = New-Object System.Windows.Forms.DateTimePicker
+    $dtpHoraFin.Location = New-Object System.Drawing.Point(330, $y)
+    $dtpHoraFin.Size = New-Object System.Drawing.Size(90, 23)
+    $dtpHoraFin.Format = "Time"
+    $dtpHoraFin.ShowUpDown = $true
+    $pnl.Controls.AddRange(@($lblHora, $dtpHoraIni, $lblHoraFin, $dtpHoraFin))
+    $y += 30
+
+    $lblMotivo = New-Object System.Windows.Forms.Label
+    $lblMotivo.Text = "Motivo:"
+    $lblMotivo.Location = New-Object System.Drawing.Point(12, ($y + 3))
+    $lblMotivo.AutoSize = $true
+
+    $txtMotivo = New-Object System.Windows.Forms.TextBox
+    $txtMotivo.Location = New-Object System.Drawing.Point(150, $y)
+    $txtMotivo.Size = New-Object System.Drawing.Size(270, 23)
+    $pnl.Controls.AddRange(@($lblMotivo, $txtMotivo))
+    $y += 30
+
+    $lblObs = New-Object System.Windows.Forms.Label
+    $lblObs.Text = "Observaciones:"
+    $lblObs.Location = New-Object System.Drawing.Point(12, ($y + 3))
+    $lblObs.AutoSize = $true
+
+    $txtObs = New-Object System.Windows.Forms.TextBox
+    $txtObs.Location = New-Object System.Drawing.Point(150, $y)
+    $txtObs.Size = New-Object System.Drawing.Size(270, 23)
+    $pnl.Controls.AddRange(@($lblObs, $txtObs))
+    $y += 30
+
+    $chkAnulado = New-Object System.Windows.Forms.CheckBox
+    $chkAnulado.Text = "Anulada"
+    $chkAnulado.Location = New-Object System.Drawing.Point(150, $y)
+    $chkAnulado.AutoSize = $true
+    $pnl.Controls.Add($chkAnulado)
+    $y += 35
+
+    $lblMsg = New-Object System.Windows.Forms.Label
+    $lblMsg.Text = ""
+    $lblMsg.Location = New-Object System.Drawing.Point(12, $y)
+    $lblMsg.Size = New-Object System.Drawing.Size(420, 20)
+    $lblMsg.ForeColor = "DarkGreen"
+    $pnl.Controls.Add($lblMsg)
+
+    $btnSave = New-Object System.Windows.Forms.Button
+    $btnSave.Text = "Guardar"
+    $btnSave.Location = New-Object System.Drawing.Point(150, ($y + 25))
+    $btnSave.Size = New-Object System.Drawing.Size(90, 28)
+    $btnSave.BackColor = [System.Drawing.Color]::FromArgb(39, 174, 96)
+    $btnSave.ForeColor = [System.Drawing.Color]::White
+
+    $btnCancel = New-Object System.Windows.Forms.Button
+    $btnCancel.Text = "Cancelar"
+    $btnCancel.Location = New-Object System.Drawing.Point(250, ($y + 25))
+    $btnCancel.Size = New-Object System.Drawing.Size(90, 28)
+    $pnl.Controls.AddRange(@($btnSave, $btnCancel))
+
+    $dlg.Controls.Add($pnl)
+
+    $script:mapCli = @{}
+    QueryInto("SELECT Codigo, Nombre FROM Clientes ORDER BY Nombre")
+    $acCli = New-Object System.Windows.Forms.AutoCompleteStringCollection
+    foreach ($r in $script:currentDt.Rows) {
+        if ($r["Codigo"] -eq [System.DBNull]::Value) { continue }
+        $script:mapCli[[string]$r["Nombre"]] = [int]$r["Codigo"]
+        [void]$acCli.Add([string]$r["Nombre"])
+    }
+    $txtCliente.AutoCompleteMode = "SuggestAppend"
+    $txtCliente.AutoCompleteSource = "CustomSource"
+    $txtCliente.AutoCompleteCustomSource = $acCli
+
+    $script:mapEmp = @{}
+    QueryInto("SELECT Codigo, Nombre FROM Empleados ORDER BY Nombre")
+    $acEmp = New-Object System.Windows.Forms.AutoCompleteStringCollection
+    foreach ($r in $script:currentDt.Rows) {
+        if ($r["Codigo"] -eq [System.DBNull]::Value) { continue }
+        $script:mapEmp[[string]$r["Nombre"]] = [int]$r["Codigo"]
+        [void]$acEmp.Add([string]$r["Nombre"])
+    }
+    $txtEmpleado.AutoCompleteMode = "SuggestAppend"
+    $txtEmpleado.AutoCompleteSource = "CustomSource"
+    $txtEmpleado.AutoCompleteCustomSource = $acEmp
+
+    $script:mapSvc = @{}
+    QueryInto("SELECT Codigo, Nombre FROM Servicios ORDER BY Nombre")
+    $acSvc = New-Object System.Windows.Forms.AutoCompleteStringCollection
+    foreach ($r in $script:currentDt.Rows) {
+        if ($r["Codigo"] -eq [System.DBNull]::Value) { continue }
+        $script:mapSvc[[string]$r["Nombre"]] = [int]$r["Codigo"]
+        [void]$acSvc.Add([string]$r["Nombre"])
+    }
+    $txtServicio.AutoCompleteMode = "SuggestAppend"
+    $txtServicio.AutoCompleteSource = "CustomSource"
+    $txtServicio.AutoCompleteCustomSource = $acSvc
+
+    $curCli = if ($row["Cliente"] -ne [System.DBNull]::Value) { [int]$row["Cliente"] } else { 0 }
+    $curEmp = if ($row["Empleado"] -ne [System.DBNull]::Value) { [int]$row["Empleado"] } else { 0 }
+    $curSvc = if ($row["Servicio"] -ne [System.DBNull]::Value) { [int]$row["Servicio"] } else { 0 }
+    $txtCliente.Text = if ($curCli -gt 0) { (($script:mapCli.GetEnumerator() | Where-Object { $_.Value -eq $curCli } | Select-Object -First 1).Key) } else { "" }
+    $txtEmpleado.Text = if ($curEmp -gt 0) { (($script:mapEmp.GetEnumerator() | Where-Object { $_.Value -eq $curEmp } | Select-Object -First 1).Key) } else { "" }
+    $txtServicio.Text = if ($curSvc -gt 0) { (($script:mapSvc.GetEnumerator() | Where-Object { $_.Value -eq $curSvc } | Select-Object -First 1).Key) } else { "" }
+
+    if ($row["Fecha"] -is [DateTime]) { $dtpFecha.Value = $row["Fecha"] }
+    if ($row["Hora_Inicio"] -is [DateTime]) { $dtpHoraIni.Value = $row["Hora_Inicio"] }
+    if ($row["Hora_Final"] -is [DateTime] -and $row["Hora_Final"].Year -gt 1900) {
+        $dtpHoraFin.Value = $row["Hora_Final"]
+    } else {
+        $dtpHoraFin.Value = $dtpHoraIni.Value.AddMinutes(45)
+    }
+    if ($row["Motivo"] -ne [System.DBNull]::Value) { $txtMotivo.Text = [string]$row["Motivo"] }
+    if ($row["Observaciones"] -ne [System.DBNull]::Value) { $txtObs.Text = [string]$row["Observaciones"] }
+    $chkAnulado.Checked = ($row["Anulado"] -and $row["Anulado"] -ne [System.DBNull]::Value -and [bool]$row["Anulado"])
+
+    $btnSave.Add_Click({
+        try {
+            $cliSql = "NULL"
+            if (-not [string]::IsNullOrWhiteSpace($txtCliente.Text)) {
+                $nameCli = $txtCliente.Text.Trim()
+                if ($script:mapCli.ContainsKey($nameCli)) { $cliSql = [string]$script:mapCli[$nameCli] }
+                else { $lblMsg.Text = "Cliente no encontrado: $nameCli"; return }
+            }
+            $empSql = "NULL"
+            if (-not [string]::IsNullOrWhiteSpace($txtEmpleado.Text)) {
+                $nameEmp = $txtEmpleado.Text.Trim()
+                if ($script:mapEmp.ContainsKey($nameEmp)) { $empSql = [string]$script:mapEmp[$nameEmp] }
+                else { $lblMsg.Text = "Empleado no encontrado: $nameEmp"; return }
+            }
+            $svcSql = "NULL"
+            if (-not [string]::IsNullOrWhiteSpace($txtServicio.Text)) {
+                $nameSvc = $txtServicio.Text.Trim()
+                if ($script:mapSvc.ContainsKey($nameSvc)) { $svcSql = [string]$script:mapSvc[$nameSvc] }
+                else { $lblMsg.Text = "Servicio no encontrado: $nameSvc"; return }
+            }
+            $fechaSql = $dtpFecha.Value.ToString("MM/dd/yyyy")
+            $horaIniSql = $dtpHoraIni.Value.ToString("HH:mm:ss")
+            $horaFinSql = $dtpHoraFin.Value.ToString("HH:mm:ss")
+            $motivoSql = ($txtMotivo.Text -replace "'", "''")
+            $obsSql = ($txtObs.Text -replace "'", "''")
+            $anu = if ($chkAnulado.Checked) { 1 } else { 0 }
+            $sql = "UPDATE Agenda SET Cliente=$cliSql, Empleado=$empSql, Servicio=$svcSql, Fecha=#$fechaSql#, Hora_Inicio=#$horaIniSql#, Hora_Final=#$horaFinSql#, Motivo='$motivoSql', Observaciones='$obsSql', Anulado=$anu WHERE num_cita=$id"
+            ExecuteNonQuery($sql) | Out-Null
+            $lblMsg.Text = "Cita #$id guardada correctamente."
+            LoadCitas
+        } catch {
+            [System.Windows.Forms.MessageBox]::Show("Error al guardar: $_", "Error", "OK", "Error")
+        }
+    })
+    $btnCancel.Add_Click({ $dlg.Close() })
+
+    [void]$dlg.ShowDialog()
 }
 
 $script:chkAnuladas.Add_CheckedChanged({ LoadCitas })

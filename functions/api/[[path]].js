@@ -324,10 +324,15 @@ export async function onRequest(context) {
               a._modified = Date.now();
             }
             if (a && !a.cancelledBy && !a._deleted && wasCancelledOrDeleted.has(a.id)) {
-              if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
-              if (orig._deleted) a._deleted = true;
-              if (orig._dismissedByClient) a._dismissedByClient = true;
-              if (orig.cancelledBy || orig._deleted || orig._dismissedByClient) a._modified = Date.now();
+              // Solo restaurar la cancelacion/borrado si la version entrante NO es una
+              // reactivacion mas reciente (con _modified mayor): una cita reactivada en
+              // Access/TPV no debe volver a borrarse por una copia desactualizada.
+              if ((a._modified || 0) <= (orig._modified || 0)) {
+                if (orig.cancelledBy) a.cancelledBy = orig.cancelledBy;
+                if (orig._deleted) a._deleted = true;
+                if (orig._dismissedByClient) a._dismissedByClient = true;
+                if (orig.cancelledBy || orig._deleted || orig._dismissedByClient) a._modified = Date.now();
+              }
             }
           });
           await writeData(merged);
