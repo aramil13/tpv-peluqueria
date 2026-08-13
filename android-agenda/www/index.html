@@ -407,14 +407,9 @@ let removedBad = 0;
 });
 if (removedBad) { DB.set('appointments', data.appointments); }
 
-// Migration: restore appointments incorrectly deleted by previous !clientId check (but never resurrect salon-cancelled ones)
-let restored = 0;
-(data.appointments||[]).forEach(a => {
-  if (a._deleted && a.clientId === '' && !a.cancelledBy && !salonCancelledIds.has(a.id) && a.date && a.date >= new Date().toISOString().split('T')[0]) {
-    a._deleted = false; a._modified = Date.now(); restored++;
-  }
-});
-if (restored) { DB.set('appointments', data.appointments); }
+// REGLA DE PRIORIDAD (absoluta): los borrados son definitivos y nunca se restauran.
+// (Antes habia aqui una "migracion" que reactivaba citas borradas con clientId vacio
+// en cada arranque; se elimino porque resucitaba citas que el usuario habia cancelado.)
 
 // Dedup: colapsa citas duplicadas (misma cliente+fecha+hora+empleado+bloque, p.ej. UUID + svap_ de Access) - el contador del calendario debe cuadrar con los stacks
 let dedupRemoved = 0;
@@ -1840,11 +1835,17 @@ function mergeRemote(type, remote) {
     }
 
     const existing = localMap.get(item.id);
+    const localGone = !!(existing && (existing._deleted || existing.cancelledBy));
+    const remoteGone = !!(item._deleted || item.cancelledBy);
     if (!existing) { data[type].push(item); changed = true; }
-    else if (type === 'appointments' && (item._deleted || item.cancelledBy) && !(existing._deleted || existing.cancelledBy)) {
+    else if (type === 'appointments' && remoteGone && !localGone) {
       Object.assign(existing, item);
       existing._deleted = true;
       changed = true;
+    }
+    else if (type === 'appointments' && localGone && !remoteGone) {
+      // REGLA DE PRIORIDAD (absoluta): el borrado local manda. Una copia activa del
+      // servidor, aunque tenga _modified mas nuevo, NO resucita una cita cancelada.
     }
     else if ((item._modified||0) > (existing._modified||0)) { 
       Object.assign(existing, item); 

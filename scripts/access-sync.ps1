@@ -270,6 +270,10 @@ try {
         }
 
         if ($existingNumCita -ne $null) {
+            # Si la fila de Access esta CANCELADA (no activa), no empujar nada: la cancelacion
+            # de Access manda y la Fase 1.5 propagara el borrado al JSON. Escribir aqui no
+            # reactiva pero si toma locks innecesarios sobre la fila.
+            if (-not $allAccessActive.ContainsKey($existingNumCita)) { continue }
             # Detect if Access was modified externally
             $snap = $accessSnapshot[$existingNumCita]
             $accessChanged = $false
@@ -403,50 +407,26 @@ try {
 
     # Phase 1.5: Detect Access cancellations and propagate to JSON
     # USE HASHTABLE LOOKUP instead of O(n) Where-Object
+    # REGLA DE PRIORIDAD (absoluta): si la cita esta cancelada en Access, la cancelacion
+    # manda y queda cancelada en TODOS los programas. No se reactiva nunca, ni aunque el
+    # TPV/online tenga datos distintos: los borrados son definitivos.
     $accessCancelled = 0
     $cancelDetect = $conn.CreateCommand()
-    $cancelDetect.CommandText = "SELECT num_cita, client_uid, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final FROM Agenda WHERE Anulado=True AND client_uid IS NOT NULL AND client_uid <> ''"
+    $cancelDetect.CommandText = "SELECT num_cita, client_uid FROM Agenda WHERE Anulado=True AND client_uid IS NOT NULL AND client_uid <> ''"
     $cancelReader = $cancelDetect.ExecuteReader()
     while ($cancelReader.Read()) {
         $cuid = $cancelReader['client_uid'].ToString().Trim()
         $cnc = $cancelReader['num_cita']
         if ($jsonUidActive.ContainsKey($cuid)) {
             $appt = $jsonUidActive[$cuid]
-            # Comparar datos reales: si el TPV modifico los datos de la cita (cliente/empleado/servicio/fecha/hora)
-            # respecto a lo que Access tiene, el TPV gana. Si coinciden, la cancelacion de Access manda.
-            # (NO usar timestamps: _modifiedAccess queda congelado desde el insert, y confirmar una reserva
-            #  online sube _modified sin reflejarse en Access -> pareceria que el TPV gano sin haberlo hecho.)
-            $cCli = if ($cancelReader['Cliente'] -and $cancelReader['Cliente'] -ne [System.DBNull]::Value) { [int]$cancelReader['Cliente'] } else { 0 }
-            $cEmp = if ($cancelReader['Empleado'] -and $cancelReader['Empleado'] -ne [System.DBNull]::Value) { [int]$cancelReader['Empleado'] } else { 0 }
-            $cSvc = if ($cancelReader['Servicio'] -and $cancelReader['Servicio'] -ne [System.DBNull]::Value) { [int]$cancelReader['Servicio'] } else { 0 }
-            $cDate = if ($cancelReader['Fecha'] -is [DateTime]) { $cancelReader['Fecha'].ToString('yyyy-MM-dd') } else { '' }
-            $cTime = if ($cancelReader['Hora_Inicio'] -is [DateTime]) { $cancelReader['Hora_Inicio'].ToString('HH:mm') } else { '' }
-            $cEnd = Get-EndTimeStr $cancelReader['Hora_Final']
-            $jCli = Extract-Code $appt.clientId 'svcl_'
-            $jEmp = Extract-Code $appt.employeeId 'svem_'
-            $jSvc = Extract-Code $appt.serviceId 'svsv_'
-            $jDate = [string]$appt.date
-            $jTime = [string]$appt.time
-            $jEnd = if ($appt.endTime) { [string]$appt.endTime } else { '' }
-            $sameData = ($cCli -eq $jCli) -and ($cEmp -eq $jEmp) -and ($cSvc -eq $jSvc) -and
-                        ($cDate -eq $jDate) -and ($cTime -eq $jTime) -and ($cEnd -eq $jEnd)
-            if ($sameData) {
-                # Access no fue modificado en sus datos -> la cancelacion de Access manda
-                Set-ApptField $appt '_deleted' $true
-                Set-ApptField $appt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
-                Set-ApptField $appt 'cancelledBy' 'salon'
-                Set-AccessSynced $appt
-                # Remove from active map so it doesn't match again
-                $jsonUidActive.Remove($cuid)
-                if ($matchedNumCitas.ContainsKey($cnc)) { $matchedNumCitas.Remove($cnc) }
-                $accessCancelled++
-            } else {
-                # El TPV modifico los datos de la cita -> gana TPV, reactivar Access
-                $pReactNc.Value = $cnc
-                $null = Invoke-SafeWrite $cmdReactivate 'reactivate'
-                $matchedNumCitas[$cnc] = $true
-                $reactivated++
-            }
+            Set-ApptField $appt '_deleted' $true
+            Set-ApptField $appt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
+            Set-ApptField $appt 'cancelledBy' 'salon'
+            Set-AccessSynced $appt
+            # Remove from active map so it doesn't match again
+            $jsonUidActive.Remove($cuid)
+            if ($matchedNumCitas.ContainsKey($cnc)) { $matchedNumCitas.Remove($cnc) }
+            $accessCancelled++
         }
     }
     $cancelReader.Close()
@@ -513,25 +493,15 @@ try {
             $matchedNumCitas[$nc] = $true
             $pulledFromAccess++
         } else {
-            # Re-activate deleted JSON entry if Access record is still active
+            # REGLA DE PRIORIDAD (absoluta): si la cita esta borrada en el TPV/online
+            # (JSON _deleted) pero Access sigue con la fila activa, el borrado manda:
+            # NO se reactiva el JSON. La fila de Access queda SIN emparejar y la Fase 3
+            # la cancelara (Anulado=1). Los borrados son definitivos en todos los programas.
             $existingAppt = $jsonUidAll[$newUid]
             if ($existingAppt) {
                 $isDeleted = $existingAppt._deleted -eq $true -or ($existingAppt.cancelledBy -ne '' -and $existingAppt.cancelledBy -ne $null)
                 if ($isDeleted) {
-                    $effAccessMod = if ($null -ne $existingAppt._modifiedAccess) { [int64]$existingAppt._modifiedAccess } else { [int64]0 }
-                    $tpvWins = ([int64]$existingAppt._modified -gt $effAccessMod)
-                    if ($tpvWins) {
-                        # TPV lo borro despues -> no reactivar; Phase 3 cancelara la cita en Access
-                    } else {
-                        Set-ApptField $existingAppt '_deleted' $false
-                        Set-ApptField $existingAppt 'cancelledBy' ''
-                        Set-ApptField $existingAppt 'notes' $motivoText
-                        Set-ApptField $existingAppt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
-                        Set-AccessSynced $existingAppt
-                        $jsonUidActive[$newUid] = $existingAppt
-                        $matchedNumCitas[$nc] = $true
-                        $pulledFromAccess++
-                    }
+                    # no-op: dejar borrado; Fase 3 cancela la cita en Access
                 }
             }
         }
