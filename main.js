@@ -1,5 +1,6 @@
 const { app, BrowserWindow } = require('electron');
 const path = require('path');
+const fs = require('fs');
 const { fork, execFile } = require('child_process');
 
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
@@ -34,8 +35,25 @@ function ensureSyncEnv() {
   if (!process.env.DATA_DIR) process.env.DATA_DIR = syncDir;
 }
 
+function resolveScript(name) {
+  if (app.isPackaged) {
+    // Empaquetado: los scripts se extraen (asarUnpack) a resources\app.asar.unpacked\scripts.
+    // PowerShell NO puede leer dentro de app.asar, asi que hay que apuntar a la copia real en disco.
+    const unpacked = path.join(path.dirname(process.execPath), 'resources', 'app.asar.unpacked', 'scripts', name);
+    if (fs.existsSync(unpacked)) return unpacked;
+    const destDir = path.join(app.getPath('userData'), 'scripts');
+    const dest = path.join(destDir, name);
+    if (!fs.existsSync(dest)) {
+      fs.mkdirSync(destDir, { recursive: true });
+      fs.copyFileSync(path.join(__dirname, 'scripts', name), dest);
+    }
+    return dest;
+  }
+  return path.join(__dirname, 'scripts', name);
+}
+
 function reactivatePastAppointments() {
-  const scriptPath = path.join(__dirname, 'scripts', 'reactivate-past-appointments.ps1');
+  const scriptPath = resolveScript('reactivate-past-appointments.ps1');
   execFile('powershell', [
     '-ExecutionPolicy', 'Bypass',
     '-NoProfile',
@@ -54,7 +72,13 @@ function startSyncHelper() {
   if (process.env.NO_LOCAL_SYNC === 'true' || process.env.NO_LOCAL_SYNC === '1') return;
   const spawnHelper = () => {
     syncHelperProcess = fork(path.join(__dirname, 'sync-helper.js'), [], {
-      env: { ...process.env, SYNC_FILE: process.env.SYNC_FILE, DATA_DIR: process.env.DATA_DIR, NO_LOCAL_SYNC: undefined }
+      env: {
+        ...process.env,
+        SYNC_FILE: process.env.SYNC_FILE,
+        DATA_DIR: process.env.DATA_DIR,
+        NO_LOCAL_SYNC: undefined,
+        ACCESS_SYNC_SCRIPT: resolveScript('access-sync.ps1')
+      }
     });
     syncHelperProcess.on('error', e => console.error('sync-helper error:', e));
     syncHelperProcess.on('exit', (code, signal) => {
