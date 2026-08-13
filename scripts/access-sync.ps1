@@ -57,6 +57,22 @@ function Add-Param($cmd, $value) {
     $cmd.Parameters.Add($p) | Out-Null
 }
 
+# Ejecuta una escritura tolerando filas bloqueadas por otra sesion de Access
+# (el usuario editando en Access UI). Si la fila esta bloqueada se salta SIN
+# abortar el ciclo completo; la siguiente ejecucion reintentara.
+function Invoke-SafeWrite($cmd, $what) {
+    try {
+        $null = $cmd.ExecuteNonQuery()
+        return $true
+    } catch {
+        if ($_.Exception.Message -match 'bloqueado|locked|no se pudo actualizar|exclusiv|shared') {
+            Write-Host "SKIP ($what): $($_.Exception.Message)"
+            return $false
+        }
+        throw
+    }
+}
+
 function Reset-Params($cmd) {
     $cmd.Parameters.Clear() | Out-Null
 }
@@ -131,7 +147,6 @@ try {
 
     $conn = New-Object System.Data.OleDb.OleDbConnection($connStr)
     $conn.Open()
-    $tx = $conn.BeginTransaction()
 
     # Build uidMap: active records FIRST, then cancelled (active wins over cancelled)
     $uidMap = @{}       # client_uid -> num_cita (active preferred)
@@ -141,7 +156,6 @@ try {
 
     # First pass: active records (wins for uidMap)
     $cmd2 = $conn.CreateCommand()
-    $cmd2.Transaction = $tx
     $cmd2.CommandText = "SELECT num_cita, client_uid, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
     $r2 = $cmd2.ExecuteReader()
     while ($r2.Read()) {
@@ -171,7 +185,6 @@ try {
 
     # Second pass: cancelled records (only fill gaps, never overwrite active)
     $cmd = $conn.CreateCommand()
-    $cmd.Transaction = $tx
     $cmd.CommandText = "SELECT num_cita, client_uid FROM Agenda WHERE (Anulado = True AND client_uid IS NOT NULL AND client_uid <> '')"
     $r = $cmd.ExecuteReader()
     while ($r.Read()) {
@@ -183,7 +196,6 @@ try {
 
     # Get max num_cita for new inserts
     $maxCmd = $conn.CreateCommand()
-    $maxCmd.Transaction = $tx
     $maxCmd.CommandText = "SELECT MAX(num_cita) FROM Agenda"
     $maxResult = $maxCmd.ExecuteScalar()
     $nextNumCita = if ($maxResult -is [int]) { $maxResult + 1 } else { 10001 }
@@ -197,7 +209,6 @@ try {
 
     # === REUSABLE COMMAND OBJECTS ===
     $cmdFixUid = $conn.CreateCommand()
-    $cmdFixUid.Transaction = $tx
     $cmdFixUid.CommandText = "UPDATE Agenda SET client_uid=? WHERE num_cita=?"
     $pUid = $cmdFixUid.CreateParameter()
     $cmdFixUid.Parameters.Add($pUid) | Out-Null
@@ -205,17 +216,14 @@ try {
     $cmdFixUid.Parameters.Add($pNc) | Out-Null
 
     $cmdUpdate = $conn.CreateCommand()
-    $cmdUpdate.Transaction = $tx
     $cmdUpdate.CommandText = "UPDATE Agenda SET Cliente=?, Empleado=?, Servicio=?, Fecha=?, Hora_Inicio=?, Hora_Final=?, Motivo=?, client_uid=? WHERE num_cita=?"
     for ($i = 0; $i -lt 9; $i++) { $cmdUpdate.Parameters.Add($cmdUpdate.CreateParameter()) | Out-Null }
 
     $cmdInsert = $conn.CreateCommand()
-    $cmdInsert.Transaction = $tx
     $cmdInsert.CommandText = "INSERT INTO Agenda (num_cita, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo, Anulado, client_uid) VALUES (?,?,?,?,?,?,?,?,?,?)"
     for ($i = 0; $i -lt 10; $i++) { $cmdInsert.Parameters.Add($cmdInsert.CreateParameter()) | Out-Null }
 
     $cmdReactivate = $conn.CreateCommand()
-    $cmdReactivate.Transaction = $tx
     $cmdReactivate.CommandText = "UPDATE Agenda SET Anulado=0 WHERE num_cita=?"
     $pReactNc = $cmdReactivate.CreateParameter()
     $cmdReactivate.Parameters.Add($pReactNc) | Out-Null
@@ -254,10 +262,10 @@ try {
             # Fallback: match by date+time+employee (active records only)
             $key = "$($appt.date)|$($appt.time)|$empleadoCode"
             if ($keyMap.ContainsKey($key)) {
-                $existingNumCita = $keyMap[$key]
-                $pUid.Value = $uid
-                $pNc.Value = $existingNumCita
-                $cmdFixUid.ExecuteNonQuery() | Out-Null
+            $existingNumCita = $keyMap[$key]
+            $pUid.Value = $uid
+            $pNc.Value = $existingNumCita
+            $null = Invoke-SafeWrite $cmdFixUid 'fix uid (keyMap)'
             }
         }
 
@@ -310,7 +318,7 @@ try {
                     $cmdUpdate.Parameters[6].Value = $motivo
                     $cmdUpdate.Parameters[7].Value = $uid
                     $cmdUpdate.Parameters[8].Value = $existingNumCita
-                    $cmdUpdate.ExecuteNonQuery() | Out-Null
+                    $null = Invoke-SafeWrite $cmdUpdate 'update (tpv wins)'
                     $matchedNumCitas[$existingNumCita] = $true
                     if ($allAccessActive.ContainsKey($existingNumCita)) { $updated++ } else { $reactivated++ }
                     Set-AccessSynced $appt
@@ -332,7 +340,7 @@ try {
                     if (-not $snap.uid -or $snap.uid -eq '') {
                         $pUid.Value = $uid
                         $pNc.Value = $existingNumCita
-                        $cmdFixUid.ExecuteNonQuery() | Out-Null
+                        $null = Invoke-SafeWrite $cmdFixUid 'fix uid (access wins)'
                     }
                 }
             } else {
@@ -344,16 +352,27 @@ try {
                 if ($snapMotivo -ne $motivo -and $snapMotivo -eq $jsonNotes) {
                     $motivoToWrite = $snapMotivo
                 }
-                $cmdUpdate.Parameters[0].Value = $clienteCode
-                $cmdUpdate.Parameters[1].Value = $empleadoCode
-                $cmdUpdate.Parameters[2].Value = $servicioCode
-                $cmdUpdate.Parameters[3].Value = $fecha
-                $cmdUpdate.Parameters[4].Value = $horaInicio
-                $cmdUpdate.Parameters[5].Value = $horaFinalParam
-                $cmdUpdate.Parameters[6].Value = $motivoToWrite
-                $cmdUpdate.Parameters[7].Value = $uid
-                $cmdUpdate.Parameters[8].Value = $existingNumCita
-                $cmdUpdate.ExecuteNonQuery() | Out-Null
+                # NO escribir si Access ya tiene exactamente los mismos valores: evita tomar locks
+                # sobre filas que el usuario podria estar editando en Access cada ciclo de 30s.
+                $snapCli = if ($snap.cliente -gt 0) { "svcl_$($snap.cliente)" } else { '' }
+                $snapEmp = if ($snap.empleado -gt 0) { "svem_$($snap.empleado)" } else { '' }
+                $snapSvc = if ($snap.servicio -gt 0) { "svsv_$($snap.servicio)" } else { '' }
+                $sameValues = ($snapCli -eq $clienteCode) -and ($snapEmp -eq $empleadoCode) -and
+                              ($snapSvc -eq $servicioCode) -and ($snapDate -eq $appt.date) -and
+                              ($snapTime -eq $appt.time) -and ($snapEndTime -eq $appt.endTime) -and
+                              ($snapMotivo -eq $motivoToWrite)
+                if (-not $sameValues) {
+                    $cmdUpdate.Parameters[0].Value = $clienteCode
+                    $cmdUpdate.Parameters[1].Value = $empleadoCode
+                    $cmdUpdate.Parameters[2].Value = $servicioCode
+                    $cmdUpdate.Parameters[3].Value = $fecha
+                    $cmdUpdate.Parameters[4].Value = $horaInicio
+                    $cmdUpdate.Parameters[5].Value = $horaFinalParam
+                    $cmdUpdate.Parameters[6].Value = $motivoToWrite
+                    $cmdUpdate.Parameters[7].Value = $uid
+                    $cmdUpdate.Parameters[8].Value = $existingNumCita
+                    $null = Invoke-SafeWrite $cmdUpdate 'update (push)'
+                }
                 $matchedNumCitas[$existingNumCita] = $true
                 if ($allAccessActive.ContainsKey($existingNumCita)) { $updated++ } else { $reactivated++ }
                 # El TPV pudo "tocar" la cita (ej. confirmar reserva online) sin cambiar sus datos.
@@ -374,7 +393,7 @@ try {
             $cmdInsert.Parameters[7].Value = $motivo
             $cmdInsert.Parameters[8].Value = ([int]0)
             $cmdInsert.Parameters[9].Value = $uid
-            $cmdInsert.ExecuteNonQuery() | Out-Null
+            $null = Invoke-SafeWrite $cmdInsert 'insert new'
             $matchedNumCitas[$nextNumCita] = $true
             $nextNumCita++
             $inserted++
@@ -386,7 +405,6 @@ try {
     # USE HASHTABLE LOOKUP instead of O(n) Where-Object
     $accessCancelled = 0
     $cancelDetect = $conn.CreateCommand()
-    $cancelDetect.Transaction = $tx
     $cancelDetect.CommandText = "SELECT num_cita, client_uid, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final FROM Agenda WHERE Anulado=True AND client_uid IS NOT NULL AND client_uid <> ''"
     $cancelReader = $cancelDetect.ExecuteReader()
     while ($cancelReader.Read()) {
@@ -425,7 +443,7 @@ try {
             } else {
                 # El TPV modifico los datos de la cita -> gana TPV, reactivar Access
                 $pReactNc.Value = $cnc
-                $cmdReactivate.ExecuteNonQuery() | Out-Null
+                $null = Invoke-SafeWrite $cmdReactivate 'reactivate'
                 $matchedNumCitas[$cnc] = $true
                 $reactivated++
             }
@@ -436,7 +454,6 @@ try {
     # Phase 2: Access -> JSON (pull new Access appointments into JSON)
     # USE HASHTABLE LOOKUP instead of O(n) Where-Object
     $cmdPull = $conn.CreateCommand()
-    $cmdPull.Transaction = $tx
     $cmdPull.CommandText = "SELECT num_cita, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo, client_uid FROM Agenda WHERE (Anulado = False OR Anulado IS NULL)"
     $pullReader = $cmdPull.ExecuteReader()
     while ($pullReader.Read()) {
@@ -491,7 +508,7 @@ try {
             if (-not $existingUid) {
                 $pUid.Value = $newUid
                 $pNc.Value = $nc
-                $cmdFixUid.ExecuteNonQuery() | Out-Null
+                $null = Invoke-SafeWrite $cmdFixUid 'fix uid (pull)'
             }
             $matchedNumCitas[$nc] = $true
             $pulledFromAccess++
@@ -525,32 +542,36 @@ try {
     # NOTE: nunca cancelar citas pasadas (Fecha < hoy): el JSON solo contiene hoy/futuro
     # (purgePastAppointments), asi que sin este filtro la Fase 3 anularia el historial
     # reactivado en Access en cada sync. Solo se gestionan citas de hoy o futuras.
-    if ($matchedNumCitas.Count -gt 0) {
-        # Build list of matched num_cita values
-        $matchedNcs = @($matchedNumCitas.Keys)
-        $placeholders = ($matchedNcs | ForEach-Object { '?' }) -join ','
+    # Solo se ejecuta la cancelacion si HAY citas activas de hoy/futuro sin emparejar:
+    # en estado normal no hay, asi que no se toca la tabla y no se bloquean filas del usuario.
+    $toCancelNcs = @($allAccessActive.Keys | Where-Object {
+        -not $matchedNumCitas.ContainsKey($_) -and
+        $accessSnapshot[$_] -and $accessSnapshot[$_].fecha -is [DateTime] -and
+        $accessSnapshot[$_].fecha -ge (Get-Date).Date
+    })
+    if ($toCancelNcs.Count -gt 0) {
+        if ($matchedNumCitas.Count -gt 0) {
+            # Build list of matched num_cita values
+            $matchedNcs = @($matchedNumCitas.Keys)
+            $placeholders = ($matchedNcs | ForEach-Object { '?' }) -join ','
 
-        # Cancel all active NOT in matched set (only today/future)
-        $cancelAll = $conn.CreateCommand()
-        $cancelAll.Transaction = $tx
-        $cancelAll.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL) AND (Fecha IS NULL OR Fecha >= ?) AND num_cita NOT IN ($placeholders)"
-        Add-Param $cancelAll (Get-Date).Date
-        foreach ($nc in $matchedNcs) {
-            Add-Param $cancelAll $nc
+            $cancelAll = $conn.CreateCommand()
+            $cancelAll.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL) AND (Fecha IS NULL OR Fecha >= ?) AND num_cita NOT IN ($placeholders)"
+            Add-Param $cancelAll (Get-Date).Date
+            foreach ($nc in $matchedNcs) {
+                Add-Param $cancelAll $nc
+            }
+            $null = Invoke-SafeWrite $cancelAll 'cancel unmatched'
+        } else {
+            $cancelAll = $conn.CreateCommand()
+            $cancelAll.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL) AND (Fecha IS NULL OR Fecha >= ?)"
+            Add-Param $cancelAll (Get-Date).Date
+            $null = Invoke-SafeWrite $cancelAll 'cancel unmatched'
         }
-        $cancelAll.ExecuteNonQuery() | Out-Null
-    } else {
-        # No matches at all - cancel everything (only today/future)
-        $cancelAll = $conn.CreateCommand()
-        $cancelAll.Transaction = $tx
-        $cancelAll.CommandText = "UPDATE Agenda SET Anulado=1 WHERE (Anulado = False OR Anulado IS NULL) AND (Fecha IS NULL OR Fecha >= ?)"
-        Add-Param $cancelAll (Get-Date).Date
-        $cancelAll.ExecuteNonQuery() | Out-Null
     }
 
     # Clean up duplicate cancelled records: batch DELETE
     $findDupes = $conn.CreateCommand()
-    $findDupes.Transaction = $tx
     $findDupes.CommandText = "SELECT DISTINCT client_uid FROM Agenda WHERE client_uid IS NOT NULL AND client_uid <> '' AND Anulado=0"
     $activeUids = @()
     $rd = $findDupes.ExecuteReader()
@@ -560,13 +581,22 @@ try {
     $cleaned = 0
     if ($activeUids.Count -gt 0) {
         $uidPlaceholders = ($activeUids | ForEach-Object { '?' }) -join ','
-        $delDup = $conn.CreateCommand()
-        $delDup.Transaction = $tx
-        $delDup.CommandText = "DELETE FROM Agenda WHERE client_uid IN ($uidPlaceholders) AND Anulado=True"
+        # Solo borrar si hay filas canceladas con esos uids (evitar el DELETE masivo que
+        # toma locks de tabla cada ciclo aunque no haya nada que limpiar).
+        $dupCheck = $conn.CreateCommand()
+        $dupCheck.CommandText = "SELECT TOP 1 num_cita FROM Agenda WHERE client_uid IN ($uidPlaceholders) AND Anulado=True"
         foreach ($u in $activeUids) {
-            Add-Param $delDup $u
+            Add-Param $dupCheck $u
         }
-        $cleaned = $delDup.ExecuteNonQuery()
+        $dupFound = $dupCheck.ExecuteScalar()
+        if ($null -ne $dupFound) {
+            $delDup = $conn.CreateCommand()
+            $delDup.CommandText = "DELETE FROM Agenda WHERE client_uid IN ($uidPlaceholders) AND Anulado=True"
+            foreach ($u in $activeUids) {
+                Add-Param $delDup $u
+            }
+            if (Invoke-SafeWrite $delDup 'delete dupes') { $cleaned = 1 }
+        }
     }
 
     # Phase 3.5: Pull client surnames (Apellidos) from Access Clientes into JSON clients
@@ -575,7 +605,6 @@ try {
         $jsonClientMap = @{}
         foreach ($jc in @($json.clients)) { if ($jc.id) { $jsonClientMap[$jc.id] = $jc } }
         $cmdSurname = $conn.CreateCommand()
-        $cmdSurname.Transaction = $tx
         $cmdSurname.CommandText = "SELECT Codigo, Apellidos FROM Clientes"
         $sr = $cmdSurname.ExecuteReader()
         while ($sr.Read()) {
@@ -601,18 +630,16 @@ try {
     $shouldWrite = ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0 -or $surnamesPulled -gt 0 -or $accessSynced -gt 0)
 
     # Detect concurrent edits: if the JSON file changed while we were reading Access,
-    # roll back everything so a stale snapshot never overwrites the TPV's latest changes.
-    # The next queued run re-syncs from scratch.
+    # skip the JSON write so a stale snapshot never overwrites the TPV's latest changes.
+    # (Sin transaccion no hay rollback: los writes ya hechos a Access se autocorrigen en
+    # la siguiente ejecucion del ciclo.)
     $currentStamp = (Get-Item -LiteralPath $JsonFile).LastWriteTimeUtc
     if ($shouldWrite -and $currentStamp -ne $jsonFileStamp) {
-        $tx.Rollback()
         $conn.Close()
         Write-Host "ABORTED: JSON changed during processing ($($currentStamp.ToString('HH:mm:ss.fff')) != $($jsonFileStamp.ToString('HH:mm:ss.fff'))). Next run will re-sync."
         exit 0
     }
 
-    # Commit transaction
-    $tx.Commit()
     $conn.Close()
 
     if ($shouldWrite) {
@@ -625,7 +652,6 @@ try {
     $cancelled = $wasAccess - $updated
     Write-Host "OK (${($sw.Elapsed.TotalSeconds.ToString('0.00'))}s): $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled, $accessCancelled access-cancelled, $cancelled cancelled, $cleaned dupes, $surnamesPulled surnames (JSON: $($activeAppts.Count), Access: $wasAccess)"
 } catch {
-    if ($tx) { try { $tx.Rollback() } catch {} }
     if ($conn -and $conn.State -ne 'Closed') { try { $conn.Close() } catch {} }
     Write-Host "ERROR: $($_.Exception.Message)"
     Write-Host $_.ScriptStackTrace
