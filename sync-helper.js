@@ -816,14 +816,14 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       const oh = getOpeningHoursForDay(today, s);
       res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        enabled: !oh.closed,
+        enabled: false,
         openingTime: oh.open < 10 ? '0'+Math.floor(oh.open)+':00' : Math.floor(oh.open)+':00',
         settings: s
       }));
     } else {
       res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
       res.end(JSON.stringify({
-        enabled: dayCfg.enabled !== false,
+        enabled: dayCfg.enabled === true,
         openingTime: dayCfg.time || '18:00',
         settings: s
       }));

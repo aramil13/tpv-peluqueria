@@ -84,14 +84,7 @@ async function loadData() {
     const today = madridDateStr();
     const dayCfg = (settings.onlineOpening || {})[today] || {};
     const openingTime = dayCfg.time || '18:00';
-    const enabled = dayCfg.enabled !== false;
-    if (dayCfg.time === undefined && dayCfg.enabled === undefined) {
-      const oh = getOpeningHoursForDay(today, settings);
-      if (oh.closed) { showClosedTemporarily(); return; }
-      checkOpeningTime(openingTime, true);
-    } else {
-      checkOpeningTime(openingTime, enabled);
-    }
+    checkOpeningTime(openingTime, dayCfg.enabled === true);
   } catch(e) { alert('Error al cargar datos: '+e.message); }
   showLoading(false);
 }

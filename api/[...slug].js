@@ -1075,13 +1075,13 @@ module.exports = async (req, res) => {
     if (dayCfg.time === undefined && dayCfg.enabled === undefined) {
       const oh = getOpeningHoursForDay(today, s);
       res.json({
-        enabled: !oh.closed,
+        enabled: false,
         openingTime: oh.open < 10 ? '0'+Math.floor(oh.open)+':00' : Math.floor(oh.open)+':00',
         settings: s
       });
     } else {
       res.json({
-        enabled: dayCfg.enabled !== false,
+        enabled: dayCfg.enabled === true,
         openingTime: dayCfg.time || '18:00',
         settings: s
       });

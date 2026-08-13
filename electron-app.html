@@ -405,7 +405,7 @@ tr:hover td { background: #f8f9fa; }
             <button class="btn btn-sm btn-secondary" onclick="saveOnlineOpeningTime()" style="font-size:11px;padding:4px 10px;">Guardar</button>
             <span id="onlineOpeningSaved" style="font-size:11px;color:#27ae60;display:none;">✓ Guardado</span>
             <label style="display:flex;align-items:center;gap:4px;margin-left:8px;cursor:pointer;font-size:12px;white-space:nowrap;">
-              <input type="checkbox" id="onlineBookingEnabled" checked onchange="saveOnlineBookingToggle()" style="width:16px;height:16px;cursor:pointer;">
+              <input type="checkbox" id="onlineBookingEnabled" onchange="saveOnlineBookingToggle()" style="width:16px;height:16px;cursor:pointer;">
               Web de reservas abiertas
             </label>
           </div>
@@ -1584,7 +1584,7 @@ function loadOnlineOpeningForDay(dateStr) {
   if (!el || !cb || !data.settings) return;
   const day = (data.settings.onlineOpening || {})[dateStr] || {};
   el.value = day.time || '18:00';
-  cb.checked = day.enabled !== false;
+  cb.checked = day.enabled === true;
 }
 
 // ============ SYNC ============
@@ -3033,7 +3033,17 @@ function showDayAppts(dateStr) {
     });
   });
 
-  let html = `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;"><span style="font-weight:500;">${title} — ${appts.length} cita(s)</span><button class="btn btn-primary btn-sm" onclick="quickAppt('${dateStr}')">+ Agendar</button></div>`;
+  let html = `<div class="day-nav-bar" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;user-select:none;touch-action:pan-y;cursor:grab;" title="Arrastra con el ratón o desliza el dedo para cambiar de día">
+  <span style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+    <button class="btn btn-secondary btn-sm" onclick="shiftDay(-1)" title="Día anterior">◀</button>
+    <span style="font-weight:500;">${title} — ${appts.length} cita(s)</span>
+    <button class="btn btn-secondary btn-sm" onclick="shiftDay(1)" title="Día siguiente">▶</button>
+  </span>
+  <span style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+    <button class="btn btn-secondary btn-sm" onclick="goToday()">Hoy</button>
+    <button class="btn btn-primary btn-sm" onclick="quickAppt('${dateStr}')">+ Agendar</button>
+  </span>
+</div>`;
   html += `<div style="overflow-x:auto;margin-bottom:8px;"><table class="appt-grid">`;
   html += '<thead><tr><th class="appt-grid-hdr">Hora</th>';
   cols.forEach(e => { html += `<th class="appt-grid-hdr">${esc(e ? fullName(e) : 'Sin asignar')}</th>`; });
@@ -3129,6 +3139,75 @@ function showDayAppts(dateStr) {
   });
   html += '</tbody></table></div>';
   div.innerHTML = html;
+  enableDaySwipe();
+}
+
+let swipeSuppressClick = false;
+let swipeClickGuardBound = false;
+
+function bindSwipeClickGuard() {
+  if (swipeClickGuardBound) return;
+  swipeClickGuardBound = true;
+  document.addEventListener('click', e => {
+    if (!swipeSuppressClick) return;
+    swipeSuppressClick = false;
+    e.stopImmediatePropagation();
+    e.preventDefault();
+  }, true);
+}
+
+function shiftDay(delta) {
+  const parts = (agendaSelectedDate || madridDateStr()).split('-').map(Number);
+  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  d.setDate(d.getDate() + delta);
+  agendaSelectedDate = madridDateStr(d);
+  const curMonth = new Date(agendaDate.getFullYear(), agendaDate.getMonth(), 1);
+  const targetMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+  if (targetMonth.getTime() !== curMonth.getTime()) {
+    agendaDate = d;
+    renderAgenda();
+    return;
+  }
+  showDayAppts(agendaSelectedDate);
+}
+
+function enableDaySwipe() {
+  const bar = document.querySelector('.day-nav-bar');
+  if (!bar) return;
+  bindSwipeClickGuard();
+  let startX = 0, startY = 0, active = false, moved = false;
+  const THRESHOLD = 45;
+  bar.addEventListener('pointerdown', e => {
+    if (e.button !== undefined && e.button !== 0) return;
+    active = true; moved = false;
+    startX = e.clientX; startY = e.clientY;
+    bar.style.cursor = 'grabbing';
+  });
+  bar.addEventListener('pointermove', e => {
+    if (!active) return;
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (!moved && Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    moved = true;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      bar.style.transform = 'translateX(' + Math.min(80, Math.max(-80, dx)) + 'px)';
+    }
+  });
+  const end = e => {
+    if (!active) return;
+    active = false;
+    bar.style.cursor = 'grab';
+    bar.style.transform = '';
+    const dx = e.clientX - startX;
+    const dy = e.clientY - startY;
+    if (moved && Math.abs(dx) > THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+      swipeSuppressClick = true;
+      setTimeout(() => { swipeSuppressClick = false; }, 150);
+      shiftDay(dx < 0 ? 1 : -1);
+    }
+  };
+  bar.addEventListener('pointerup', end);
+  bar.addEventListener('pointercancel', end);
 }
 
 function acceptClientMod(id) {
