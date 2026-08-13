@@ -169,8 +169,8 @@ tr:hover td { background: #f8f9fa; }
 .appt-grid-sq:hover { transform: scale(1.15); box-shadow: 0 2px 8px rgba(0,0,0,.2); border-color: #fff; }
 .appt-grid-free { background: #fff; border: 2px dashed #ccc; }
 .appt-grid-free:hover { background: #e8f5e9; border-color: #27ae60; }
-.appt-grid-break { background: #f0f0f0; border: 2px dashed #d0d0d0; cursor: default; }
-.appt-grid-break:hover { transform: none; box-shadow: none; border-color: #d0d0d0; }
+.appt-grid-break { background: #f0f0f0; border: 2px dashed #d0d0d0; cursor: pointer; }
+.appt-grid-break:hover { transform: none; box-shadow: none; border-color: #999; background: #e8e8e8; }
 .appt-online-grid::after { content: '🌐'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 28px; opacity: .2; pointer-events: none; }
 .appt-pending-mod { opacity: .6; }
 .appt-pending-whatsapp { position: relative; opacity: .7; background: #95a5a1 !important; }
@@ -2992,19 +2992,14 @@ function showDayAppts(dateStr) {
     colorMap[a.id] = colorMap[colorKey];
   });
 
-  // Todos los slots del horario laboral (mañana + tarde), los de descanso se marcan aparte
+  // Hoja cuadriculada: rango fijo util de 08:30 a 21:30. Los huecos fuera del
+  // horario laboral (configurado en Ajustes) se marcan aparte como descanso.
   const dayHours = getOpeningHoursForDay(dateStr, data.settings);
   const allWindows = dayHours.closed ? [] : [
     ...(dayHours.morning ? [dayHours.morning] : []),
     ...(dayHours.afternoon ? [dayHours.afternoon] : [])
   ];
-  let firstSlot = 540, lastSlot = 1230;
-  if (allWindows.length) {
-    const [fh, fm] = allWindows[0].open.split(':').map(Number);
-    firstSlot = fh * 60 + fm;
-    const [lh, lm] = allWindows[allWindows.length - 1].close.split(':').map(Number);
-    lastSlot = lh * 60 + lm;
-  }
+  const firstSlot = 510, lastSlot = 1290; // 08:30 -> 21:30
   const slots = [];
   const breakSlots = new Set();
   for (let m = firstSlot; m < lastSlot; m += 15) {
@@ -3066,7 +3061,7 @@ function showDayAppts(dateStr) {
             if (slotStartMin >= block1EndMin && slotEndMin <= block2StartMin) {
               const empId = e ? e.id : '';
               if (breakSlots.has(t)) {
-                html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-break" title="Descanso"></div></td>`;
+                html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-break" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Descanso (click para agendar)"></div></td>`;
               } else {
                 html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
               }
@@ -3124,7 +3119,7 @@ function showDayAppts(dateStr) {
       if (!appt) {
         const empId = e ? e.id : '';
         if (breakSlots.has(t)) {
-          html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-break" title="Descanso"></div></td>`;
+          html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-break" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Descanso (click para agendar)"></div></td>`;
         } else {
           html += `<td class="appt-grid-cell"><div class="appt-grid-sq appt-grid-free" onclick="quickAppt('${dateStr}','${t}','${empId}')" title="Agendar cita"></div></td>`;
         }
