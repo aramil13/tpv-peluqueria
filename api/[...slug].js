@@ -13,6 +13,17 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
+function todayMadrid() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+}
+
+function madridHour() {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Madrid', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date());
+  const h = parseInt(parts.find(p => p.type === 'hour').value);
+  const m = parseInt(parts.find(p => p.type === 'minute').value);
+  return { h, m };
+}
+
 function normPhone(p) {
   const d = (p||'').replace(/[^0-9]/g, '');
   return d.length > 9 ? d.slice(-9) : d;
@@ -97,7 +108,7 @@ async function handleClientLogin(phone, res) {
     res.status(404).json({ error: 'Cliente no encontrado. ¿El teléfono está registrado?' });
     return;
   }
-  const today = new Date().toISOString().split('T')[0];
+  const today = todayMadrid();
   const appointments = (d.appointments||[]).filter(a => a.clientId === client.id && a.date >= today && (!a._deleted || a.cancelledBy === 'client' || a.cancelledBy === 'salon')).sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
   const empMap = {}; (d.employees||[]).forEach(e => empMap[e.id] = e);
@@ -228,7 +239,7 @@ module.exports = async (req, res) => {
           }
         });
         // Auto-clean: keep only today+future appointments in cloud (past stored in local sync-helper only)
-        const today = new Date().toISOString().split('T')[0];
+        const today = todayMadrid();
         (merged.appointments||[]).forEach(a => {
           if (a.cancelledBy === 'salon' && (a.date < today || a.source !== 'online')) {
             a._deleted = true; delete a.cancelledBy; a._modified = Date.now();
@@ -386,7 +397,7 @@ module.exports = async (req, res) => {
     try {
       const b = await getBody(req);
       const data = await readData();
-      const webToday = new Date().toISOString().split('T')[0];
+      const webToday = todayMadrid();
       const webCfg = ((data.settings||{}).onlineOpening||{})[webToday] || {};
       if (webCfg.enabled !== true) {
         res.status(409).json({ error: 'Las reservas online están cerradas en este momento.' });
@@ -846,7 +857,7 @@ module.exports = async (req, res) => {
         res.status(403).json({ error: 'Solo puedes cancelar citas creadas online' });
         return;
       }
-      if (appt.date < new Date().toISOString().split('T')[0]) {
+      if (appt.date < todayMadrid()) {
         res.status(400).json({ error: 'No puedes cancelar una cita pasada' });
         return;
       }
@@ -1081,7 +1092,7 @@ module.exports = async (req, res) => {
   if (url === '/api/online-status' && req.method === 'GET') {
     const d = await readData();
     const s = d.settings || {};
-    const today = new Date().toISOString().split('T')[0];
+    const today = todayMadrid();
     const dayCfg = (s.onlineOpening || {})[today] || {};
     if (dayCfg.time === undefined && dayCfg.enabled === undefined) {
       const oh = getOpeningHoursForDay(today, s);
@@ -1091,8 +1102,14 @@ module.exports = async (req, res) => {
         settings: s
       });
     } else {
+      let enabled = dayCfg.enabled === true;
+      if (enabled && dayCfg.time) {
+        const [th, tm] = dayCfg.time.split(':').map(Number);
+        const { h, m } = madridHour();
+        if (h < th || (h === th && m < tm)) enabled = false;
+      }
       res.json({
-        enabled: dayCfg.enabled === true,
+        enabled,
         openingTime: dayCfg.time || '18:00',
         settings: s
       });

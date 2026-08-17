@@ -5470,12 +5470,19 @@ function init() {
   const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth()-1);
   document.getElementById('reportFrom').value = madridDateStr(monthAgo);
   
-  // La web de reservas online SIEMPRE arranca cerrada
+  // La web de reservas: respetar hora configurada; si ya pasó → abierta
   if (!data.settings.onlineOpening) data.settings.onlineOpening = {};
   if (!data.settings.onlineOpening[today]) data.settings.onlineOpening[today] = {};
-  data.settings.onlineOpening[today].enabled = false;
+  const todayCfg = data.settings.onlineOpening[today];
+  if (todayCfg.time) {
+    const [h, m] = todayCfg.time.split(':').map(Number);
+    const nowM = new Date(new Date().toLocaleString('en-US', { timeZone: 'Europe/Madrid' }));
+    todayCfg.enabled = (nowM.getHours() > h || (nowM.getHours() === h && nowM.getMinutes() >= m));
+  } else if (todayCfg.enabled === undefined) {
+    todayCfg.enabled = false;
+  }
   const webCb = document.getElementById('onlineBookingEnabled');
-  if (webCb) webCb.checked = false;
+  if (webCb) webCb.checked = todayCfg.enabled === true;
   saveKey('settings');
 
   cleanOldAppointments();

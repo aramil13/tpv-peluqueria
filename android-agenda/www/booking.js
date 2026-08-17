@@ -8,6 +8,11 @@ let onlineStatusPoller = null;
 
 function showLoading(v) { document.getElementById('loadingOverlay').style.display = v ? 'flex' : 'none'; }
 
+function madridDateStr(d) {
+  const dt = d || new Date();
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(dt);
+}
+
 function getOpeningHoursForDay(dateStr, settings) {
   const DEFAULT_HOURS = {
     0: { open: '09:00', close: '14:00', closed: true },
@@ -77,7 +82,7 @@ async function loadData() {
     const settings = d.settings || {};
     document.getElementById('footerInfo').textContent = settings.businessName || 'Nymara Estilistas';
     renderServices();
-    const today = new Date().toISOString().split('T')[0];
+    const today = madridDateStr();
     const dayCfg = (settings.onlineOpening || {})[today] || {};
     const openingTime = dayCfg.time || '18:00';
     checkOpeningTime(openingTime, dayCfg.enabled === true);
@@ -204,7 +209,7 @@ function renderMyAppts() {
     return;
   }
   noMsg.style.display = 'none';
-  const today = new Date().toISOString().split('T')[0];
+  const today = madridDateStr();
   div.innerHTML = currentAppointments.map(a => {
     const isPast = a.date < today;
     const cancelledByClient = a._deleted && a.cancelledBy === 'client';

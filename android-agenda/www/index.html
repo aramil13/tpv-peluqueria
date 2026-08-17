@@ -13,8 +13,8 @@
   --danger: #e74c3c; --shadow: 0 2px 10px rgba(0,0,0,.1);
   --warning: #e67e22;
 }
-body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); padding-bottom: 70px; }
-.header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: #fff; padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
+body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: var(--bg); color: var(--text); padding-bottom: calc(70px + env(safe-area-inset-bottom, 0px)); }
+.header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); color: #fff; padding: 14px 16px; padding-top: calc(14px + env(safe-area-inset-top, 0px)); display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; box-shadow: var(--shadow); }
 .header h1 { font-size: 17px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
 .header h1 span { color: var(--secondary); }
 .sync-indicator { width: 8px; height: 8px; border-radius: 50%; background: #95a5a6; display: inline-block; flex-shrink:0; }
@@ -76,7 +76,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .form-group textarea { resize: vertical; min-height: 50px; }
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
-.bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); display: flex; box-shadow: 0 -2px 10px rgba(0,0,0,.1); z-index: 100; }
+.bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); display: flex; box-shadow: 0 -2px 10px rgba(0,0,0,.1); z-index: 100; padding-bottom: env(safe-area-inset-bottom, 0px); }
 .bottom-nav .tab { flex: 1; text-align: center; padding: 7px 0; cursor: pointer; font-size: 10px; color: var(--text-light); border-top: 2px solid transparent; transition: all .2s; -webkit-tap-highlight-color: transparent; }
 .bottom-nav .tab.active { color: var(--primary); border-top-color: var(--primary); font-weight: 600; }
 .bottom-nav .tab .icon { font-size: 18px; display: block; margin-bottom: 1px; }
@@ -92,9 +92,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 
 
 .appt-grid { border-collapse: collapse; width: 100%; font-size: 11px; }
-.appt-grid th { background: var(--primary); color: #fff; padding: 6px 4px; font-weight: 600; text-align: center; white-space: nowrap; font-size: 11px; }
+.appt-grid th { position: sticky; top: 0; background: var(--primary); color: #fff; padding: 6px 4px; font-weight: 600; text-align: center; white-space: nowrap; font-size: 11px; z-index: 2; }
+.appt-grid th:first-child { background: var(--primary-dark); z-index: 3; left: 0; }
 .appt-grid td { padding: 0; text-align: center; border: 1px solid var(--border); height: 30px; vertical-align: top; }
-.appt-grid .appt-grid-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; font-size: 10px; width: 42px; height: 30px; vertical-align: middle; }
+.appt-grid .appt-grid-time { background: var(--bg); font-weight: 600; color: var(--text); white-space: nowrap; position: sticky; left: 0; z-index: 1; font-size: 10px; width: 42px; height: 30px; vertical-align: middle; }
 .appt-grid-cell { padding: 0 !important; min-width: 50px; }
 .appt-grid-occ { color: #fff; font-size: 9px; font-weight: 600; cursor: pointer; border-radius: 6px; line-height: 1.3; text-shadow: 0 1px 2px rgba(0,0,0,.3); position: relative; padding: 3px 4px !important; height: auto; box-sizing: border-box; }
 .appt-grid-del { position: absolute; top: 1px; right: 1px; width: 14px; height: 14px; background: rgba(0,0,0,.3); color: #fff; border-radius: 50%; font-size: 8px; line-height: 14px; text-align: center; cursor: pointer; text-shadow: none; }
@@ -104,7 +105,10 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .appt-grid-free { background: #fff; border: 2px dashed #ccc; }
 .appt-online-grid::after { content: '🌐'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); font-size: 24px; opacity: .2; pointer-events: none; }
 .appt-pending-mod { opacity: .6; }
-
+.appt-color-swatch { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px var(--border); cursor: pointer; padding: 0; transition: transform .1s; flex-shrink: 0; -webkit-tap-highlight-color: transparent; }
+.appt-color-swatch:active { transform: scale(1.15); }
+.appt-color-swatch.active { box-shadow: 0 0 0 2px var(--primary); transform: scale(1.1); }
+.appt-color-auto { background: conic-gradient(#8E44AD,#2E86C1,#27AE60,#F39C12,#E74C3C,#8E44AD); }
 
 .stock-low { color: var(--danger); font-weight:700; }
 .service-dd-item { padding:8px 10px; cursor:pointer; white-space:nowrap; font-size:13px; border-bottom:1px solid #eee; }
@@ -113,6 +117,25 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 @media (min-width: 600px) {
   .modal-content { border-radius: 16px; margin: auto; max-width: 500px; }
   .modal-overlay { align-items: center; }
+}
+@media (max-width: 480px) {
+  .agenda-nav h3 { min-width: 0; flex: 1; font-size: 14px; }
+  .agenda-grid { margin: 0 6px 8px; }
+  .agenda-day { min-height: 42px; padding: 1px 2px; }
+  .agenda-day .day-num { font-size: 10px; }
+  .agenda-day .appt { font-size: 6px; padding: 0 1px; }
+  .agenda-day .day-hours { font-size: 6px; }
+  .card { margin: 8px 8px 0; }
+  .card-header { padding: 10px; }
+  .card-header h3 { font-size: 13px; }
+  .bottom-nav .tab { font-size: 9px; padding: 6px 0; }
+  .bottom-nav .tab .icon { font-size: 16px; }
+  .appt-grid .appt-grid-time { width: 36px; font-size: 9px; }
+  .appt-grid-cell { min-width: 44px; }
+  .appt-grid-occ { font-size: 8px; }
+}
+@media (min-width: 900px) {
+  .card, .agenda-grid { max-width: 900px; margin-left: auto; margin-right: auto; }
 }
 </style>
 </head>
@@ -143,7 +166,12 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
   </div>
   <div class="agenda-grid" id="agendaGrid"></div>
   <div class="card">
-    <div class="card-header"><h3 id="dayTitle">Citas del Día</h3></div>
+    <div class="card-header" style="gap:6px;">
+      <button class="btn btn-sm btn-secondary" onclick="shiftDay(-1)" title="Día anterior" style="flex-shrink:0;">◀</button>
+      <h3 id="dayTitle" style="flex:1;text-align:center;font-size:13px;line-height:1.35;">Citas del Día</h3>
+      <button class="btn btn-sm btn-secondary" onclick="shiftDay(1)" title="Día siguiente" style="flex-shrink:0;">▶</button>
+      <button class="btn btn-sm btn-primary" onclick="goToday()" title="Hoy" style="flex-shrink:0;">Hoy</button>
+    </div>
     <div id="dayAppointments"></div>
   </div>
 </div>
@@ -254,6 +282,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
       <div class="form-group"><label>Empleado</label><select id="apptEmployee"></select></div>
     </div>
     <div class="form-group"><label>Notas</label><textarea id="apptNotes" placeholder="Notas..."></textarea></div>
+    <div class="form-group"><label>Editar color</label><div id="apptColorPalette" style="display:flex;flex-wrap:wrap;gap:8px;align-items:center;"></div></div>
     <div class="modal-footer">
       <button class="btn btn-danger" id="cancelApptBtn" onclick="deleteApptFromModal()" style="display:none;">🗑 Cancelar Cita</button>
       <button class="btn btn-success" id="waReminderBtn" onclick="sendWAReminderFromModal()" style="display:none;background:#25D366;">📱 Recordatorio WhatsApp</button>
@@ -480,6 +509,8 @@ document.querySelectorAll('.bottom-nav .tab').forEach(tab => {
 // ============ AGENDA ============
 let agendaDate = new Date();
 let selectedDateStr = null;
+let apptSelectedColor = '';
+const APPT_COLORS = ['#8E44AD','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#16A085','#2980B9','#D35400','#C0392B','#2C3E50'];
 
 function renderAgenda() {
   const grid = document.getElementById('agendaGrid');
@@ -557,6 +588,46 @@ function renderAgenda() {
 function changeMonth(delta) { agendaDate.setMonth(agendaDate.getMonth() + delta); renderAgenda(); }
 function goToday() { agendaDate = new Date(); selectedDateStr = null; renderAgenda(); }
 
+function shiftDay(delta) {
+  if (!selectedDateStr) selectedDateStr = new Date().toISOString().split('T')[0];
+  const parts = selectedDateStr.split('-').map(Number);
+  const d = new Date(parts[0], parts[1]-1, parts[2]);
+  d.setDate(d.getDate() + delta);
+  const newStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  selectedDateStr = newStr;
+  const curMonth = new Date(agendaDate.getFullYear(), agendaDate.getMonth(), 1);
+  const targetMonth = new Date(d.getFullYear(), d.getMonth(), 1);
+  if (targetMonth.getTime() !== curMonth.getTime()) {
+    agendaDate = d;
+    renderAgenda();
+    return;
+  }
+  showDayAppts(selectedDateStr);
+}
+
+function renderApptColorPalette() {
+  const c = document.getElementById('apptColorPalette');
+  if (!c) return;
+  let html = `<button type="button" class="appt-color-swatch appt-color-auto${!apptSelectedColor ? ' active' : ''}" onclick="setApptColor('')" title="Color automático"></button>`;
+  APPT_COLORS.forEach(col => {
+    html += `<button type="button" class="appt-color-swatch${apptSelectedColor === col ? ' active' : ''}" style="background:${col};" onclick="setApptColor('${col}')" title="${col}"></button>`;
+  });
+  c.innerHTML = html;
+}
+
+function setApptColor(col) {
+  apptSelectedColor = col;
+  renderApptColorPalette();
+}
+
+function applyApptColor(blockGroupId) {
+  if (!blockGroupId) return;
+  data.appointments.filter(x => x.blockGroupId === blockGroupId && !x._deleted).forEach(t => {
+    t.color = apptSelectedColor || '';
+    t._modified = Date.now();
+  });
+}
+
 function showDayAppts(dateStr) {
   selectedDateStr = dateStr;
   const div = document.getElementById('dayAppointments');
@@ -566,7 +637,6 @@ function showDayAppts(dateStr) {
   document.getElementById('dayTitle').textContent = title;
   const employees = data.employees.filter(e => !e._deleted).sort((a,b) => empOrderKey(a) - empOrderKey(b));
 
-  const APPT_COLORS = ['#8E44AD','#2E86C1','#1ABC9C','#27AE60','#F39C12','#E67E22','#E74C3C','#3498DB','#9B59B6','#16A085','#2980B9','#D35400','#C0392B','#2C3E50'];
   const colorMap = {};
   appts.forEach((a) => {
     const colorKey = a.blockGroupId || a.id;
@@ -745,6 +815,8 @@ function editAppt(id) {
   document.getElementById('apptNotes').value = a.notes||'';
   document.getElementById('appointmentModalTitle').textContent = 'Editar Cita';
   document.getElementById('apptClient').value = a.clientId;
+  apptSelectedColor = a.color || '';
+  renderApptColorPalette();
   apptSelectedServices = ((a.serviceIds && a.serviceIds.length) ? a.serviceIds : (a.serviceId ? [a.serviceId] : [])).map(sid => data.services.find(s=>s.id===sid)).filter(Boolean);
   renderApptServices();
   const secSel = document.getElementById('apptSection');
@@ -824,6 +896,8 @@ function editApptBlock(id, blockNum) {
   document.getElementById('apptNotes').value = targetAppt.notes||'';
   document.getElementById('appointmentModalTitle').textContent = 'Editar Bloque ' + blockNum;
   document.getElementById('apptClient').value = targetAppt.clientId;
+  apptSelectedColor = targetAppt.color || '';
+  renderApptColorPalette();
   apptSelectedServices = ((targetAppt.serviceIds && targetAppt.serviceIds.length) ? targetAppt.serviceIds : (targetAppt.serviceId ? [targetAppt.serviceId] : [])).map(sid => data.services.find(s => s.id === sid)).filter(Boolean);
   renderApptServices();
   const secSel = document.getElementById('apptSection');
@@ -844,6 +918,7 @@ function editApptBlock(id, blockNum) {
 
 function quickAppt(dateStr, time, employeeId) {
   editingBlockNum = null;
+  apptSelectedColor = '';
   fillAppointmentSelects();
   document.getElementById('apptEditId').value = '';
   document.getElementById('apptDate').value = dateStr || new Date().toISOString().split('T')[0];
@@ -852,6 +927,7 @@ function quickAppt(dateStr, time, employeeId) {
   document.getElementById('apptEmployee').value = employeeId || '';
   document.getElementById('apptNotes').value = '';
   apptSelectedServices = [];
+  renderApptColorPalette();
   renderApptServices();
   const secSel = document.getElementById('apptSection');
   if (secSel) secSel.value = '';
@@ -1238,6 +1314,7 @@ function saveAppointment() {
       block2Appt._deleted = true;
     }
 
+    applyApptColor(blockGroupId);
     editingBlockNum = null;
     saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
     return;
@@ -1341,6 +1418,7 @@ function saveAppointment() {
         });
       }
     }
+    applyApptColor(blockGroupId);
     saveKey('appointments'); closeModal('appointmentModal'); renderAgenda(); syncPush();
     return;
   }
@@ -1351,6 +1429,7 @@ function saveAppointment() {
     clientId, serviceId, serviceIds,
     employeeId,
     date, time, endTime, notes: notes,
+    color: apptSelectedColor || '',
     _modified: Date.now(),
     _deleted: false
   };
