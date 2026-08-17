@@ -476,7 +476,17 @@ export async function onRequest(context) {
         const b = await getBody();
         const data = await readData();
         const webCfg = ((data.settings||{}).onlineOpening||{})[todayMadrid()] || {};
-        if (webCfg.enabled !== true) {
+        let webEnabled = webCfg.enabled === true;
+        if (webCfg.time) {
+          const [th, tm] = webCfg.time.split(':').map(Number);
+          const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Madrid', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date());
+          const h = parseInt(parts.find(p => p.type === 'hour').value);
+          const m = parseInt(parts.find(p => p.type === 'minute').value);
+          const pastTime = h > th || (h === th && m >= tm);
+          if (!webEnabled && pastTime) webEnabled = true;
+          if (webEnabled && !pastTime) webEnabled = false;
+        }
+        if (!webEnabled) {
           return json({ error: 'Las reservas online están cerradas en este momento.' }, 409);
         }
         const dayCfg = ((data.settings||{}).onlineOpening||{})[b.date] || {};
@@ -1151,8 +1161,18 @@ export async function onRequest(context) {
           settings: s
         });
       } else {
+        let enabled = dayCfg.enabled === true;
+        if (dayCfg.time) {
+          const [th, tm] = dayCfg.time.split(':').map(Number);
+          const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Madrid', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date());
+          const h = parseInt(parts.find(p => p.type === 'hour').value);
+          const m = parseInt(parts.find(p => p.type === 'minute').value);
+          const pastTime = h > th || (h === th && m >= tm);
+          if (!enabled && pastTime) enabled = true;
+          if (enabled && !pastTime) enabled = false;
+        }
         return json({
-          enabled: dayCfg.enabled === true,
+          enabled,
           openingTime: dayCfg.time || '18:00',
           settings: s
         });

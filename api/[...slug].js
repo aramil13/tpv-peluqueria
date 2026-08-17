@@ -399,7 +399,15 @@ module.exports = async (req, res) => {
       const data = await readData();
       const webToday = todayMadrid();
       const webCfg = ((data.settings||{}).onlineOpening||{})[webToday] || {};
-      if (webCfg.enabled !== true) {
+      let webEnabled = webCfg.enabled === true;
+      if (webCfg.time) {
+        const [th, tm] = webCfg.time.split(':').map(Number);
+        const { h, m } = madridHour();
+        const pastTime = h > th || (h === th && m >= tm);
+        if (!webEnabled && pastTime) webEnabled = true;
+        if (webEnabled && !pastTime) webEnabled = false;
+      }
+      if (!webEnabled) {
         res.status(409).json({ error: 'Las reservas online están cerradas en este momento.' });
         return;
       }
@@ -1103,10 +1111,12 @@ module.exports = async (req, res) => {
       });
     } else {
       let enabled = dayCfg.enabled === true;
-      if (enabled && dayCfg.time) {
+      if (dayCfg.time) {
         const [th, tm] = dayCfg.time.split(':').map(Number);
         const { h, m } = madridHour();
-        if (h < th || (h === th && m < tm)) enabled = false;
+        const pastTime = h > th || (h === th && m >= tm);
+        if (!enabled && pastTime) enabled = true;
+        if (enabled && !pastTime) enabled = false;
       }
       res.json({
         enabled,
