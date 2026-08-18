@@ -3708,7 +3708,9 @@ function saveAppointment() {
     const a = data.appointments.find(x => x.id === id_);
     if (a) {
       if (a.source === 'online' && !a.salonModified) {
-        obj.salonModified = true;
+        const onlyNotesChanged = a.clientId === clientId && a.employeeId === employeeId &&
+          a.date === date && a.time === time && JSON.stringify(a.serviceIds) === JSON.stringify(serviceIds);
+        if (!onlyNotesChanged) obj.salonModified = true;
       }
       Object.assign(a, obj);
     }
