@@ -1,6 +1,6 @@
 const API = window.location.origin;
 let services = [], sections = [], employees = [], allClients = [];
-let selectedService = null, selectedDate = '', selectedSlot = null;
+let selectedServices = [], selectedDate = '', selectedSlot = null;
 let currentClient = null, currentAppointments = [];
 let modifyingApptId = null;
 let countdownTimer = null;
@@ -73,7 +73,7 @@ function goStep(n) {
 async function loadData() {
   showLoading(true);
   try {
-    const r = await fetch(API + '/sync');
+    const r = await fetch(API + '/api/booking-info');
     const d = await r.json();
     services = (d.services||[]).filter(s => !s._deleted);
     sections = (d.sections||[]).filter(s => !s._deleted);
@@ -81,7 +81,6 @@ async function loadData() {
     allClients = (d.clients||[]).filter(c => !c._deleted);
     const settings = d.settings || {};
     document.getElementById('footerInfo').textContent = settings.businessName || 'Nymara Estilistas';
-    renderServices();
     const today = madridDateStr();
     const dayCfg = (settings.onlineOpening || {})[today] || {};
     const openingTime = dayCfg.time || '18:00';
@@ -161,14 +160,45 @@ function showCountdown(target) {
 }
 
 // === LOGIN / REGISTER ===
+function togglePW(inputId, el) {
+  const inp = document.getElementById(inputId);
+  if (!inp) return;
+  if (inp.type === 'password') { inp.type = 'text'; el.textContent = '🙈'; }
+  else { inp.type = 'password'; el.textContent = '👁'; }
+}
+
 async function loginClient() {
   const phone = document.getElementById('loginPhone').value.trim();
-  if (!phone) { alert('Introduce tu teléfono'); return; }
+  const pw = document.getElementById('loginPassword').value;
+  if (!phone || !pw) { alert('Teléfono y contraseña son obligatorios'); return; }
   showLoading(true);
   try {
-    const r = await fetch(API+'/api/client?phone='+encodeURIComponent(phone));
-    if (r.status === 404) { alert('No encontramos un cliente con ese teléfono. Regístrate abajo.'); showLoading(false); return; }
+    const r = await fetch(API+'/api/client/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, password: pw })
+    });
+    if (r.status === 404) { alert('Teléfono o contraseña incorrectos'); showLoading(false); return; }
     const d = await r.json();
+    if (!d.ok) { alert(d.error||'Error al iniciar sesión'); showLoading(false); return; }
+    if (d.needsProfileCompletion) {
+      currentClient = d.client;
+      showLoading(false);
+      const hint = document.getElementById('completeEmailHint');
+      if (d.client.email) {
+        document.getElementById('completeEmail').value = d.client.email;
+        hint.textContent = 'Tu email ya está registrado: '+d.client.email+'. Solo tienes que crear una contraseña.';
+        hint.style.display = 'block';
+      } else {
+        document.getElementById('completeEmail').value = '';
+        hint.style.display = 'none';
+      }
+      document.getElementById('completePassword').value = '';
+      document.getElementById('completePassword2').value = '';
+      document.getElementById('completeError').style.display = 'none';
+      document.getElementById('completeProfileModal').style.display = 'flex';
+      return;
+    }
     currentClient = d.client;
     currentAppointments = d.appointments;
     showLoading(false);
@@ -179,13 +209,16 @@ async function loginClient() {
 async function registerClient() {
   const name = document.getElementById('regName').value.trim();
   const phone = document.getElementById('regPhone').value.trim();
-  if (!name || !phone) { alert('Nombre y teléfono son obligatorios'); return; }
+  const email = document.getElementById('regEmail').value.trim();
+  const pw = document.getElementById('regPassword').value;
+  if (!name || !phone || !email || !pw) { alert('Todos los campos son obligatorios'); return; }
+  if (pw.length < 8) { alert('La contraseña debe tener al menos 8 caracteres'); return; }
   showLoading(true);
   try {
     const r = await fetch(API+'/api/client', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone })
+      body: JSON.stringify({ name, phone, email, password: pw })
     });
     const d = await r.json();
     if (!d.ok) { alert(d.error||'Error al registrarse'); showLoading(false); return; }
@@ -194,6 +227,170 @@ async function registerClient() {
     showLoading(false);
     renderMyAppts();
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
+}
+
+// === PASSWORD RECOVERY ===
+async function showRecovery() {
+  const phone = document.getElementById('loginPhone').value.trim();
+  const err = document.getElementById('recoveryError');
+  err.style.display = 'none';
+  if (!phone) {
+    // Sin teléfono: NO abrir el modal, pedir que lo introduzca primero
+    document.getElementById('loginPhone').focus();
+    document.getElementById('loginPhone').style.border = '2px solid #e74c3c';
+    setTimeout(() => { document.getElementById('loginPhone').style.border = ''; }, 3000);
+    alert('Introduce primero tu teléfono en el formulario de acceso para recuperar la contraseña');
+    return;
+  }
+  // Preparar modal antes de buscar
+  const emailInput = document.getElementById('recoveryEmail');
+  emailInput.value = '';
+  emailInput.readOnly = false;
+  emailInput.style.background = '';
+  document.getElementById('recoveryStep1').style.display = 'block';
+  document.getElementById('recoveryStep2').style.display = 'none';
+  document.getElementById('recoveryError').style.display = 'none';
+  document.getElementById('recoveryError2').style.display = 'none';
+  document.getElementById('recoverySuccess').style.display = 'none';
+  const sendBtn = document.getElementById('recoverySendBtn');
+  if (sendBtn) sendBtn.style.display = 'block';
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client?phone='+encodeURIComponent(phone));
+    showLoading(false);
+    if (r.status === 404) {
+      err.textContent = 'No existe ninguna cuenta con ese teléfono';
+      err.style.display = 'block';
+      if (sendBtn) sendBtn.style.display = 'none';
+      document.getElementById('recoveryModal').style.display = 'flex';
+      return;
+    }
+    const d = await r.json();
+    if (!d.ok) {
+      err.textContent = d.error||'Error';
+      err.style.display = 'block';
+      if (sendBtn) sendBtn.style.display = 'none';
+      document.getElementById('recoveryModal').style.display = 'flex';
+      return;
+    }
+    const email = (d.client && d.client.email) || '';
+    if (email) {
+      // Pre-rellenar el email del cliente
+      emailInput.value = email;
+      emailInput.readOnly = true;
+      emailInput.style.background = '#f0f0f0';
+      if (sendBtn) sendBtn.style.display = 'block';
+    } else {
+      // Sin email: mostrar mensaje y ocultar botón de envío
+      emailInput.value = '';
+      emailInput.readOnly = true;
+      emailInput.style.background = '#f0f0f0';
+      err.textContent = 'Tu cuenta no tiene email asociado. Contacta con la peluquería en el teléfono 624 14 36 58 para recuperar tu contraseña.';
+      err.style.display = 'block';
+      if (sendBtn) sendBtn.style.display = 'none';
+    }
+    document.getElementById('recoveryModal').style.display = 'flex';
+  } catch(e) {
+    showLoading(false);
+    err.textContent = 'Error de conexión';
+    err.style.display = 'block';
+    if (sendBtn) sendBtn.style.display = 'none';
+    document.getElementById('recoveryModal').style.display = 'flex';
+  }
+}
+function closeRecovery() {
+  document.getElementById('recoveryModal').style.display = 'none';
+  document.getElementById('recoveryStep1').style.display = 'block';
+  document.getElementById('recoveryStep2').style.display = 'none';
+  document.getElementById('recoveryError').style.display = 'none';
+  document.getElementById('recoveryError2').style.display = 'none';
+  document.getElementById('recoverySuccess').style.display = 'none';
+  const emailInput = document.getElementById('recoveryEmail');
+  emailInput.value = '';
+  emailInput.readOnly = false;
+  emailInput.style.background = '';
+  const sendBtn = document.getElementById('recoverySendBtn');
+  if (sendBtn) sendBtn.style.display = 'block';
+}
+
+async function sendRecoveryCode() {
+  const email = document.getElementById('recoveryEmail').value.trim();
+  if (!email) { alert('Introduce tu email'); return; }
+  const err = document.getElementById('recoveryError');
+  err.style.display = 'none';
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client/recover-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    });
+    const d = await r.json();
+    if (!d.ok) { err.textContent = d.error||'Error'; err.style.display = 'block'; showLoading(false); return; }
+    if (d.emailSent === false) { err.textContent = d.detail ? ('No se pudo enviar el email: '+d.detail) : 'No se pudo enviar el email. Inténtalo de nuevo en unos minutos.'; err.style.display = 'block'; showLoading(false); return; }
+    showLoading(false);
+    document.getElementById('recoveryStep1').style.display = 'none';
+    document.getElementById('recoveryStep2').style.display = 'block';
+  } catch(e) { err.textContent = 'Error de conexión'; err.style.display = 'block'; showLoading(false); }
+}
+
+async function resetPassword() {
+  const email = document.getElementById('recoveryEmail').value.trim();
+  const code = document.getElementById('recoveryCode').value.trim();
+  const newPw = document.getElementById('recoveryNewPW').value;
+  const err = document.getElementById('recoveryError2');
+  const success = document.getElementById('recoverySuccess');
+  err.style.display = 'none'; success.style.display = 'none';
+  if (!code || !newPw) { alert('Código y nueva contraseña son obligatorios'); return; }
+  if (newPw.length < 8) { alert('La contraseña debe tener al menos 8 caracteres'); return; }
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, code, newPassword: newPw })
+    });
+    const d = await r.json();
+    if (!d.ok) { err.textContent = d.error||'Error'; err.style.display = 'block'; showLoading(false); return; }
+    showLoading(false);
+    success.textContent = 'Contraseña cambiada correctamente. Ya puedes iniciar sesión.';
+    success.style.display = 'block';
+    document.getElementById('recoveryCode').value = '';
+    document.getElementById('recoveryNewPW').value = '';
+    setTimeout(() => { closeRecovery(); }, 2000);
+  } catch(e) { err.textContent = 'Error de conexión'; err.style.display = 'block'; showLoading(false); }
+}
+
+// === COMPLETE PROFILE (for legacy clients) ===
+function closeCompleteProfile() { document.getElementById('completeProfileModal').style.display = 'none'; }
+
+async function completeClientProfile() {
+  const phone = currentClient ? currentClient.phone : '';
+  const email = document.getElementById('completeEmail').value.trim();
+  const pw = document.getElementById('completePassword').value;
+  const pw2 = document.getElementById('completePassword2').value;
+  if (!pw || !pw2) { alert('La contraseña es obligatoria'); return; }
+  if (pw.length < 8) { alert('La contraseña debe tener al menos 8 caracteres'); return; }
+  if (pw !== pw2) { alert('Las contraseñas no coinciden'); return; }
+  if (!phone) { alert('Error: número de teléfono no disponible'); return; }
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/client/complete-profile', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone, email, password: pw })
+    });
+    const d = await r.json();
+    if (!d.ok) {
+      document.getElementById('completeError').textContent = d.error||'Error al guardar';
+      document.getElementById('completeError').style.display = 'block';
+      showLoading(false); return;
+    }
+    currentClient = d.client;
+    closeCompleteProfile();
+    showLoading(false);
+    alert('Perfil completado correctamente. Ya puedes usar email y contraseña para acceder.');
+  } catch(e) { document.getElementById('completeError').textContent = 'Error de conexión'; document.getElementById('completeError').style.display = 'block'; showLoading(false); }
 }
 
 // === MY APPOINTMENTS ===
@@ -224,32 +421,80 @@ function renderMyAppts() {
     if (modifiedBySalon) cardClass += ' appt-modified-by-salon';
     if (pendingSalonConfirm) cardClass += ' appt-pending-salon';
     const timeColor = modifiedBySalon ? 'color:#e74c3c;' : '';
-    return '<div class="'+cardClass+'">'+
-      '<div class="appt-card-date">'+
-        '<span class="appt-card-day" style="'+timeColor+'">'+esc(fmtDate(a.date))+'</span>'+
-        '<span class="appt-card-time" style="'+timeColor+'">'+esc(a.time)+(a.endTime ? ' - '+esc(a.endTime) : '')+'</span>'+
-        '<div class="appt-cal-tooltip">'+miniCalendar(a.date)+'</div>'+
-      '</div>'+
-      '<div class="appt-card-info">'+
-        '<div class="appt-card-service">'+esc(a.serviceName)+'</div>'+
-        (a.employeeName ? '<div class="appt-card-notes">👤 '+esc(a.employeeName)+'</div>' : '')+
-        (a.notes?'<div class="appt-card-notes">'+esc(a.notes)+'</div>':'')+
-        (cancelledByClient ? '<div style="color:#e74c3c;font-weight:600;margin-top:4px;">Cancelada por ti</div>' : '')+
-        (modifiedBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;">⚠️ Cita modificada por el salón</div>' : '')+
+    return '<div class="'+cardClass+'">'+ 
+      '<div class="appt-card-date">'+ 
+        '<span class="appt-card-day" style="'+timeColor+'">'+esc(fmtDate(a.date))+'</span>'+ 
+        '<span class="appt-card-time" style="'+timeColor+'">'+esc(a.time)+(a.endTime ? ' - '+esc(a.endTime) : '')+'</span>'+ 
+        '<div class="appt-cal-tooltip">'+miniCalendar(a.date)+'</div>'+ 
+      '</div>'+ 
+      '<div class="appt-card-info">'+ 
+        '<div class="appt-card-service">'+esc(a.serviceName)+'</div>'+ 
+        (a.employeeName ? '<div class="appt-card-notes">👤 '+esc(a.employeeName)+'</div>' : '')+ 
+        (a.notes ? '<div class="appt-card-notes">'+esc(a.notes)+'</div>' : '')+ 
+        (cancelledByClient ? '<div style="color:#e74c3c;font-weight:600;margin-top:4px;">Cancelada por ti</div>' : '')+ 
+        (modifiedBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;">⚠️ Cita modificada por el salón</div>' : '')+ 
         (pendingClientMod ? '<div style="color:#f39c12;font-weight:600;font-size:13px;margin-top:6px;">⏳ Pendiente de aprobación del salón</div>'+
           '<div style="color:#f39c12;font-size:12px;margin-top:3px;">'+esc(a.date)+' '+esc(a.time)+' → '+esc(a.pendingDate||a.date)+' '+esc(a.pendingTime||a.time)+'</div>'+
-          (a.pendingEmployeeId && a.employeeId !== a.pendingEmployeeId ? '<div style="color:#f39c12;font-size:12px;">👤 '+esc(a.employeeName||'?')+' → '+esc(a.pendingEmployeeName||'?')+'</div>' : '') : '')+
+          (a.pendingEmployeeId && a.employeeId !== a.pendingEmployeeId ? '<div style="color:#f39c12;font-size:12px;">👤 '+esc(a.employeeName||'?')+' → '+esc(a.pendingEmployeeName||'?')+'</div>' : '') : '')+ 
         (pendingSalonConfirm ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">⏳ Cita pendiente de confirmar por el Salon</div>' : '')+ 
         (cancelledBySalon ? '<div style="color:#e74c3c;font-weight:700;font-size:13px;margin-top:6px;padding:6px 8px;border:1px solid #e74c3c;border-radius:6px;background:#fef2f2;">🚫 Esta cita ha sido anulada por el salón.<br><span style="font-weight:400;font-size:12px;">Contacto: <strong>'+SALON_PHONE+'</strong></span></div>' : '')+ 
       '</div>'+ 
       ((cancelledByClient || cancelledBySalon || (!isPast && a.source==='online' && !pendingSalonConfirm)) ? '<div class="appt-card-actions">'+ 
-        (!cancelledBySalon && !cancelledByClient && !modifiedBySalon && !pendingClientMod ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+ 
+        (!cancelledBySalon && !cancelledByClient && !modifiedBySalon && !pendingClientMod && !isPast ? '<button class="btn btn-sm btn-secondary" onclick="modifyAppt(\''+a.id+'\')">Modificar</button>' : '')+ 
         (modifiedBySalon ? '<button class="btn btn-sm btn-success" onclick="acceptModification(\''+a.id+'\')">✔ Aceptar modificación</button>' : '')+
         ((cancelledByClient || cancelledBySalon) ? '<button class="btn btn-sm btn-success" onclick="dismissCancelledAppt(\''+a.id+'\')">VISTO</button>' :
-        '<button class="btn btn-sm btn-danger" onclick="cancelAppt(\''+a.id+'\')">Cancelar</button>')+ 
+        (!isPast && a.source==='online' ? '<button class="btn btn-sm btn-danger" onclick="cancelAppt(\''+a.id+'\')">Cancelar</button>' : ''))+
       '</div>' : '')+ 
     '</div>';
   }).join('');
+}
+
+async function cancelAppt(id) {
+  const appt = currentAppointments.find(a => a.id === id);
+  const isSalonCancelled = appt && appt.cancelledBy === 'salon';
+  if (isSalonCancelled) {
+    if (!confirm('¿Has leído el aviso?')) return;
+  } else {
+    if (!confirm('¿Estás seguro de cancelar esta cita?')) return;
+  }
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/cancel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointmentId: id, phone: currentClient.phone })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error||'Error al cancelar'); showLoading(false); return; }
+    showLoading(false);
+    if (isSalonCancelled || (appt && appt.blockGroupId)) {
+      const gid = appt ? appt.blockGroupId : null;
+      currentAppointments = currentAppointments.filter(a => a.id !== id && (!gid || a.blockGroupId !== gid));
+      renderMyAppts();
+    } else {
+      appt._deleted = true;
+      appt.cancelledBy = 'client';
+      renderMyAppts();
+    }
+  } catch(e) { alert('Error: '+e.message); showLoading(false); }
+}
+
+async function dismissCancelledAppt(id) {
+  const appt = currentAppointments.find(a => a.id === id);
+  if (!appt) return;
+  showLoading(true);
+  try {
+    const r = await fetch(API+'/api/dismiss', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointmentId: id, phone: currentClient.phone })
+    });
+    const d = await r.json();
+    if (!d.ok) { alert(d.error||'Error al marcar como visto'); showLoading(false); return; }
+    showLoading(false);
+    currentAppointments = currentAppointments.filter(a => a.id !== id);
+    renderMyAppts();
+  } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
 
 async function acceptModification(id) {
@@ -268,43 +513,6 @@ async function acceptModification(id) {
     showLoading(false);
     appt.salonModified = false;
     renderMyAppts();
-  } catch(e) { alert('Error: '+e.message); showLoading(false); }
-}
-
-async function cancelAppt(id) {
-  const appt = currentAppointments.find(a => a.id === id);
-  const isSalonCancelled = appt && appt.cancelledBy === 'salon';
-  if (!confirm(isSalonCancelled ? '¿Confirmas la anulación del salón? La cita se eliminará definitivamente.' : '¿Estás seguro de cancelar esta cita?')) return;
-  showLoading(true);
-  try {
-    const r = await fetch(API+'/api/cancel', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ appointmentId: id, phone: currentClient.phone })
-    });
-    const d = await r.json();
-    if (!d.ok) { alert(d.error||'Error al cancelar'); showLoading(false); return; }
-    showLoading(false);
-    alert(isSalonCancelled ? 'Cita eliminada definitivamente' : 'Cita cancelada correctamente');
-    refreshMyAppts();
-  } catch(e) { alert('Error: '+e.message); showLoading(false); }
-}
-
-async function dismissCancelledAppt(id) {
-  const appt = currentAppointments.find(a => a.id === id);
-  if (!appt) return;
-  showLoading(true);
-  try {
-    const r = await fetch(API+'/api/dismiss', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ appointmentId: id, phone: currentClient.phone })
-    });
-    const d = await r.json();
-    if (!d.ok) { alert(d.error||'Error al marcar como visto'); showLoading(false); return; }
-    showLoading(false);
-    alert('Cita marcada como vista');
-    refreshMyAppts();
   } catch(e) { alert('Error: '+e.message); showLoading(false); }
 }
 
@@ -390,7 +598,7 @@ async function modifyAppt(id) {
   const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+1);
   const dateInput = document.getElementById('modifyDate');
   dateInput.value = appt.date;
-  dateInput.min = tomorrow.toISOString().split('T')[0];
+  dateInput.min = madridDateStr(tomorrow);
   document.getElementById('modifyDateDisplay').textContent = '('+fmtDate(appt.date)+')';
   selectedModifySlot = null;
   document.getElementById('modifyBtn').disabled = true;
@@ -461,8 +669,7 @@ async function confirmModify() {
 
 // === NEW BOOKING FLOW ===
 function startNewBooking() {
-  selectedService = null; selectedSlot = null;
-  document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
+  selectedServices = []; selectedSlot = null;
   document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
   document.getElementById('clientName').value = currentClient.name;
   document.getElementById('clientPhone').value = currentClient.phone;
@@ -470,47 +677,174 @@ function startNewBooking() {
   document.getElementById('bookingNotes').value = '';
   document.getElementById('confirmBtn').disabled = false;
   document.getElementById('confirmBtn').textContent = 'Confirmar Reserva';
+  const secSel = document.getElementById('apptSection');
+  if (secSel) {
+    secSel.innerHTML = '<option value="">Todas las secciones</option>' + sections.map(s => '<option value="'+s.id+'">'+esc(s.name)+'</option>').join('');
+    secSel.value = '';
+  }
+  document.getElementById('searchService').value = '';
+  document.getElementById('serviceDropdown').style.display = 'none';
+  renderSelectedServices();
+  document.getElementById('continueToDateBtn').disabled = true;
   goStep(2);
 }
 
-function renderServices(q) {
-  const div = document.getElementById('servicesList');
+function getFilteredServices() {
   let list = services;
+  const secSel = document.getElementById('apptSection');
+  const secId = secSel ? secSel.value : '';
+  if (secId) list = list.filter(s => s.sectionId === secId);
+  const q = document.getElementById('searchService').value.toLowerCase();
   if (q) list = list.filter(s => s.name.toLowerCase().includes(q));
-  if (!list.length) { div.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-light);">No hay servicios disponibles</div>'; return; }
-  div.innerHTML = list.map(s => {
+  return list;
+}
+
+function onSectionChange() {
+  document.getElementById('searchService').value = '';
+  renderServiceDropdown('');
+}
+
+function renderServiceDropdown(q) {
+  const dd = document.getElementById('serviceDropdown');
+  let list = getFilteredServices();
+  if (q) list = list.filter(s => s.name.toLowerCase().includes(q.toLowerCase()));
+  list = list.filter(s => !selectedServices.find(x => x.id === s.id));
+  if (!list.length) { dd.style.display = 'none'; return; }
+  dd.innerHTML = list.map(s => {
     const sec = sections.find(x => x.id === s.sectionId);
     const sc = sec && sec.color ? sec.color : '#999';
-    const blockBadge = s.bloque === 'bloque1' ? '<span style="background:#27ae60;color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:4px;">B1</span>' : (s.bloque === 'bloque2' ? '<span style="background:#f39c12;color:#fff;padding:1px 6px;border-radius:8px;font-size:10px;margin-left:4px;">B2</span>' : '');
-    return '<div class="service-card" data-id="'+s.id+'" onclick="selectService(\''+s.id+'\')">'+
-      '<span class="s-color" style="background:'+sc+';"></span>'+
-      '<div class="s-info">'+
-        '<div class="s-name">'+esc(s.name)+blockBadge+'</div>'+
-        '<div class="s-meta">'+(sec ? esc(sec.name) : '')+(s.duration ? ' &middot; '+s.duration+' min' : '')+'</div>'+
-      '</div>'+
-      '<div class="s-price">'+cur(s.price)+'</div>'+
+    return '<div class="service-dropdown-item" data-id="'+s.id+'" onclick="addSelectedService(\''+s.id+'\')">'+
+      '<span class="s-color-dot" style="background:'+sc+';"></span>'+
+      '<span class="s-name">'+esc(s.name)+'</span>'+
+      '<span class="s-price">'+cur(s.price)+'</span>'+
     '</div>';
+  }).join('');
+  dd.style.display = 'block';
+}
+
+function onSearchServiceInput() {
+  renderServiceDropdown(document.getElementById('searchService').value);
+}
+
+function onSearchServiceFocus() {
+  renderServiceDropdown(document.getElementById('searchService').value);
+}
+
+function addSelectedService(id) {
+  if (!id) return;
+  const svc = services.find(s => s.id === id);
+  if (!svc) return;
+  if (selectedServices.find(s => s.id === id)) return;
+  selectedServices.push(svc);
+  document.getElementById('searchService').value = '';
+  document.getElementById('serviceDropdown').style.display = 'none';
+  renderSelectedServices();
+  renderBlock2Combo();
+  document.getElementById('continueToDateBtn').disabled = selectedServices.length === 0;
+}
+
+function removeService(idx) {
+  selectedServices.splice(idx, 1);
+  renderSelectedServices();
+  renderBlock2Combo();
+  document.getElementById('continueToDateBtn').disabled = selectedServices.length === 0;
+}
+
+function renderBlock2Combo() {
+  const sec = document.getElementById('block2Section');
+  const combo = document.getElementById('block2Combo');
+  const warn = document.getElementById('block2Warning');
+  const err = document.getElementById('block2Error');
+  const bloque1Svcs = selectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque);
+  const hasBloque1 = bloque1Svcs.length > 0;
+  if (!hasBloque1) { sec.style.display = 'none'; return; }
+
+  const alreadySelected = selectedServices.filter(s => s.bloque === 'bloque2').map(s => s.id);
+  const block2Available = services.filter(s => !s._deleted && s.bloque === 'bloque2' && !alreadySelected.includes(s.id));
+
+  if (!block2Available.length) { sec.style.display = 'none'; return; }
+
+  sec.style.display = 'block';
+  warn.innerHTML = '⚠️ Has seleccionado un servicio del Bloque 1. Debes completar con <strong>uno o más servicios del Bloque 2</strong> como mínimo, incluyendo un <strong>lavado</strong>.';
+  combo.innerHTML = '<option value="">Selecciona servicio(s) del Bloque 2...</option>' +
+    block2Available.map(s => '<option value="'+s.id+'">'+esc(s.name)+(s.price?' — '+cur(s.price):'')+'</option>').join('');
+  err.style.display = 'none';
+}
+
+function addBlock2FromCombo() {
+  const combo = document.getElementById('block2Combo');
+  const id = combo.value;
+  if (!id) return;
+  const svc = services.find(s => s.id === id);
+  if (!svc || selectedServices.find(s => s.id === id)) { combo.value = ''; return; }
+  selectedServices.push(svc);
+  combo.value = '';
+  renderSelectedServices();
+  renderBlock2Combo();
+}
+
+function renderSelectedServices() {
+  const div = document.getElementById('selectedServicesList');
+  if (!selectedServices.length) {
+    div.innerHTML = '<p style="font-size:13px;color:var(--text-light);">Ningún servicio seleccionado</p>';
+    return;
+  }
+  div.innerHTML = selectedServices.map((s, i) => {
+    const sec = sections.find(x => x.id === s.sectionId);
+    const sc = sec && sec.color ? sec.color : '#999';
+    return '<span class="svc-tag"><span class="svc-color" style="background:'+sc+';"></span>'+esc(s.name)+' <strong>'+cur(s.price)+'</strong><span class="svc-remove" onclick="removeService('+i+')">&times;</span></span>';
   }).join('');
 }
 
-function filterServices() {
-  const q = document.getElementById('searchService').value.toLowerCase();
-  renderServices(q);
+function goToDateStep() {
+  if (!selectedServices.length) return;
+  const bloque1Svcs = selectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque);
+  const bloque2Svcs = selectedServices.filter(s => s.bloque === 'bloque2');
+
+  if (bloque1Svcs.length > 0 && bloque2Svcs.length === 0) {
+    document.getElementById('block2Error').textContent = 'Debes seleccionar al menos un servicio del Bloque 2.';
+    document.getElementById('block2Error').style.display = 'block';
+    return;
+  }
+  if (bloque1Svcs.length > 0 && bloque2Svcs.length > 0) {
+    const hasLavado = bloque2Svcs.some(s => (s.name || '').toLowerCase().startsWith('lavado'));
+    if (!hasLavado) {
+      document.getElementById('block2Error').textContent = 'Debes incluir al menos un lavado (servicio que comience por "Lavado") en el Bloque 2.';
+      document.getElementById('block2Error').style.display = 'block';
+      return;
+    }
+  }
+
+  document.getElementById('block2Error').style.display = 'none';
+  selectedSlot = null; selectedDate = '';
+  let info = 'Servicios: '+selectedServices.map(s=>s.name+' ('+s.id+')').join(', ');
+  if (bloque1Svcs.length && bloque2Svcs.length) {
+    const gap = 45;
+    const b1Dur = bloque1Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
+    info = '<strong>Primera cita:</strong> '+bloque1Svcs.map(s=>s.name).join(', ')+' ('+b1Dur+' min)<br>'+
+      '<strong>Hueco entre servicios:</strong> '+gap+' min<br>'+
+      '<strong>Segunda cita:</strong> '+bloque2Svcs.map(s=>s.name).join(', ')+' ('+bloque2Svcs.reduce((sum,s)=>sum+(s.duration||30),0)+' min)';
+  }
+  document.getElementById('selectedService').innerHTML = info;
+  document.getElementById('selectedSlot').textContent = '';
+  document.getElementById('bookingDate').value = '';
+  document.getElementById('noSlots').style.display = 'none';
+  document.getElementById('slotsContainer').innerHTML = '';
+  goStep(3);
 }
 
-function selectService(id) {
-  document.querySelectorAll('.service-card').forEach(c => c.classList.remove('selected'));
-  const el = document.querySelector('.service-card[data-id="'+id+'"]');
-  if (el) el.classList.add('selected');
-  selectedService = services.find(s => s.id === id);
-  document.getElementById('selectedService').textContent = 'Servicio: '+(selectedService?selectedService.name:'')+' (ID: '+selectedService.id+') | '+cur(selectedService?selectedService.price:0)+(selectedService&&selectedService.duration?' &middot; '+selectedService.duration+' min':'');
-  goStep(3);
-  fetchSlots();
-}
+// Close dropdown on click outside
+document.addEventListener('click', function(e) {
+  const dd = document.getElementById('serviceDropdown');
+  const sb = document.getElementById('searchService');
+  if (dd && sb && !sb.contains(e.target) && !dd.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
 
 function onDateChange() {
   selectedDate = document.getElementById('bookingDate').value;
-  if (!selectedService) return;
+  if (!selectedServices.length) return;
   selectedSlot = null;
   document.getElementById('selectedSlot').textContent = '';
   document.querySelectorAll('.slot-btn').forEach(b => b.classList.remove('selected'));
@@ -518,10 +852,15 @@ function onDateChange() {
 }
 
 async function fetchSlots() {
-  if (!selectedService || !selectedDate) return;
+  if (!selectedServices.length || !selectedDate) return;
   showLoading(true);
   try {
-    const r = await fetch(API+'/api/slots?date='+selectedDate+'&serviceId='+selectedService.id);
+    const params = '?date='+encodeURIComponent(selectedDate)+'&serviceIds='+selectedServices.map(s=>encodeURIComponent(s.id)).join(',');
+    const r = await fetch(API+'/api/slots'+params);
+    if (!r.ok) {
+      const errData = await r.json().catch(() => ({}));
+      throw new Error(errData.error || 'HTTP ' + r.status);
+    }
     const d = await r.json();
     renderSlots(d.slots || []);
   } catch(e) { document.getElementById('slotsContainer').innerHTML = ''; document.getElementById('noSlots').style.display = 'block'; }
@@ -574,16 +913,17 @@ function selectSlotFromTable(el) {
 
 function updateSummary() {
   const div = document.getElementById('bookingSummary');
-  if (!selectedService || !selectedSlot) { div.innerHTML = ''; return; }
+  if (!selectedServices.length || !selectedSlot) { div.innerHTML = ''; return; }
+  const total = selectedServices.reduce((sum, s) => sum + parseFloat(s.price || 0), 0);
   div.innerHTML = '<strong>Resumen</strong><br>'+
-    'Servicio: '+esc(selectedService.name)+'<br>'+
+    'Servicios: '+selectedServices.map(s=>esc(s.name)).join(', ')+'<br>'+
     'Fecha: '+fmtDate(selectedDate)+'<br>'+
     'Horario: '+selectedSlot.time+(selectedSlot.employeeName?' con '+selectedSlot.employeeName:'')+'<br>'+
-    '<strong>Total: '+cur(selectedService.price)+'</strong>';
+    '<strong>Total: '+cur(total)+'</strong>';
 }
 
 async function confirmBooking() {
-  if (!selectedService || !selectedSlot) { alert('Selecciona servicio y horario'); return; }
+  if (!selectedServices.length || !selectedSlot) { alert('Selecciona servicio y horario'); return; }
 
   document.getElementById('confirmBtn').disabled = true;
   document.getElementById('confirmBtn').textContent = 'Reservando...';
@@ -593,7 +933,7 @@ async function confirmBooking() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        serviceId: selectedService.id,
+        serviceIds: selectedServices.map(s => s.id),
         date: selectedDate,
         time: selectedSlot.time,
         employeeId: selectedSlot.employeeId,
@@ -605,14 +945,30 @@ async function confirmBooking() {
     });
     const d = await r.json();
     if (d.ok) {
+      if (d.cleanedCount) {
+        currentAppointments = currentAppointments.filter(a => a.cancelledBy !== 'salon');
+      }
       goStep(5);
-      const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20confirmada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(selectedSlot.time) + '.';
+      const svcNames = selectedServices.map(s => s.name).join(', ');
+      const times = (d.apptTimes && d.apptTimes.length > 1) ? d.apptTimes.join(' y ') : selectedSlot.time;
+      const waMsg = 'Hola!%20Tu%20cita%20en%20Nymara%20Estilistas%20ha%20sido%20solicitada%20para%20el%20' + encodeURIComponent(selectedDate) + '%20a%20las%20' + encodeURIComponent(times) + '.%20Estamos%20revis%C3%A1ndola%20y%20te%20confirmaremos%20pronto.';
       const waPhone = (currentClient.phone||'').replace(/[^0-9]/g,'');
       const waLink = 'https://wa.me/34' + waPhone + '?text=' + waMsg;
       let extra = '';
       if (d.emailSent) extra = '✅ Te hemos enviado un email con los detalles.<br><br>';
       extra += '💬 <a href="' + waLink + '" target="_blank" style="color:#25D366;font-weight:600;">Recibir aviso por WhatsApp</a>';
-      document.getElementById('doneMsg').innerHTML = 'Tu cita ha sido enviada al salón y está <strong>pendiente de confirmación</strong>.<br><br>📅 <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+selectedSlot.time+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+extra;
+      let msg = 'Tu cita ha sido enviada al salón y está <strong>pendiente de confirmación</strong>.<br><br>📅 <strong>'+fmtDate(selectedDate)+'</strong> a las <strong>'+times+'</strong>'+(selectedSlot.employeeName?' con <strong>'+selectedSlot.employeeName+'</strong>':'')+'.<br><br>'+
+        '✂️ '+esc(svcNames)+'<br><br>'+extra;
+      if (d.apptTimes && d.apptTimes.length > 1) {
+        const bloque1Svcs = selectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque).map(s=>s.name).join(', ');
+        const bloque2Svcs = selectedServices.filter(s => s.bloque === 'bloque2').map(s=>s.name).join(', ');
+        msg = 'Tus citas han sido enviadas al salón y están <strong>pendientes de confirmación</strong>.<br><br>📅 <strong>'+fmtDate(selectedDate)+'</strong>:<br>'+
+          '• <strong>'+d.apptTimes[0]+'</strong> — '+esc(bloque1Svcs)+'<br>'+
+          '• <strong>'+d.apptTimes[1]+'</strong> — '+esc(bloque2Svcs)+'<br><br>'+
+          (selectedSlot.employeeName?'Con <strong>'+selectedSlot.employeeName+'</strong><br><br>':'')+
+          extra;
+      }
+      document.getElementById('doneMsg').innerHTML = msg;
     } else {
       alert('Error: '+(d.error||'No se pudo reservar'));
       document.getElementById('confirmBtn').disabled = false;
@@ -629,7 +985,7 @@ function goToMyAppts() {
 function logout() {
   currentClient = null;
   currentAppointments = [];
-  selectedService = null; selectedSlot = null;
+  selectedServices = []; selectedSlot = null;
   document.getElementById('loginPhone').value = '';
   document.getElementById('regName').value = '';
   document.getElementById('regPhone').value = '';

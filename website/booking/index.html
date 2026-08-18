@@ -119,6 +119,15 @@
         <div id="serviceDropdown" class="service-dropdown" style="display:none;"></div>
       </div>
       <div id="selectedServicesList" class="selected-services-list" style="margin-top:12px;"></div>
+      <div id="block2Section" style="display:none;margin-top:14px;padding:12px;background:#fff8e1;border:1px solid #f9a825;border-radius:8px;">
+        <p id="block2Warning" style="font-size:13px;color:#e65100;margin:0 0 8px 0;font-weight:600;"></p>
+        <div class="service-combo" style="position:relative;">
+          <select id="block2Combo" class="form-select" onchange="addBlock2FromCombo()" style="width:100%;padding:8px 12px;border:1px solid #ccc;border-radius:6px;font-size:13px;">
+            <option value="">Selecciona servicio(s) del Bloque 2...</option>
+          </select>
+        </div>
+        <p id="block2Error" style="display:none;font-size:12px;color:#d32f2f;margin:6px 0 0 0;"></p>
+      </div>
       <div class="btn-group" style="margin-top:15px;display:flex;gap:8px;">
         <button class="btn btn-secondary btn-block" onclick="goStep(1)" style="flex:1;">Volver a mis citas</button>
         <button class="btn btn-primary btn-block" id="continueToDateBtn" onclick="goToDateStep()" disabled style="flex:2;">Continuar</button>

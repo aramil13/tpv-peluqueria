@@ -739,13 +739,48 @@ function addSelectedService(id) {
   document.getElementById('searchService').value = '';
   document.getElementById('serviceDropdown').style.display = 'none';
   renderSelectedServices();
+  renderBlock2Combo();
   document.getElementById('continueToDateBtn').disabled = selectedServices.length === 0;
 }
 
 function removeService(idx) {
   selectedServices.splice(idx, 1);
   renderSelectedServices();
+  renderBlock2Combo();
   document.getElementById('continueToDateBtn').disabled = selectedServices.length === 0;
+}
+
+function renderBlock2Combo() {
+  const sec = document.getElementById('block2Section');
+  const combo = document.getElementById('block2Combo');
+  const warn = document.getElementById('block2Warning');
+  const err = document.getElementById('block2Error');
+  const bloque1Svcs = selectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque);
+  const hasBloque1 = bloque1Svcs.length > 0;
+  if (!hasBloque1) { sec.style.display = 'none'; return; }
+
+  const alreadySelected = selectedServices.filter(s => s.bloque === 'bloque2').map(s => s.id);
+  const block2Available = services.filter(s => !s._deleted && s.bloque === 'bloque2' && !alreadySelected.includes(s.id));
+
+  if (!block2Available.length) { sec.style.display = 'none'; return; }
+
+  sec.style.display = 'block';
+  warn.innerHTML = '⚠️ Has seleccionado un servicio del Bloque 1. Debes completar con <strong>uno o más servicios del Bloque 2</strong> como mínimo, incluyendo un <strong>lavado</strong>.';
+  combo.innerHTML = '<option value="">Selecciona servicio(s) del Bloque 2...</option>' +
+    block2Available.map(s => '<option value="'+s.id+'">'+esc(s.name)+(s.price?' — '+cur(s.price):'')+'</option>').join('');
+  err.style.display = 'none';
+}
+
+function addBlock2FromCombo() {
+  const combo = document.getElementById('block2Combo');
+  const id = combo.value;
+  if (!id) return;
+  const svc = services.find(s => s.id === id);
+  if (!svc || selectedServices.find(s => s.id === id)) { combo.value = ''; return; }
+  selectedServices.push(svc);
+  combo.value = '';
+  renderSelectedServices();
+  renderBlock2Combo();
 }
 
 function renderSelectedServices() {
@@ -763,9 +798,25 @@ function renderSelectedServices() {
 
 function goToDateStep() {
   if (!selectedServices.length) return;
-  selectedSlot = null; selectedDate = '';
   const bloque1Svcs = selectedServices.filter(s => s.bloque === 'bloque1' || !s.bloque);
   const bloque2Svcs = selectedServices.filter(s => s.bloque === 'bloque2');
+
+  if (bloque1Svcs.length > 0 && bloque2Svcs.length === 0) {
+    document.getElementById('block2Error').textContent = 'Debes seleccionar al menos un servicio del Bloque 2.';
+    document.getElementById('block2Error').style.display = 'block';
+    return;
+  }
+  if (bloque1Svcs.length > 0 && bloque2Svcs.length > 0) {
+    const hasLavado = bloque2Svcs.some(s => (s.name || '').toLowerCase().startsWith('lavado'));
+    if (!hasLavado) {
+      document.getElementById('block2Error').textContent = 'Debes incluir al menos un lavado (servicio que comience por "Lavado") en el Bloque 2.';
+      document.getElementById('block2Error').style.display = 'block';
+      return;
+    }
+  }
+
+  document.getElementById('block2Error').style.display = 'none';
+  selectedSlot = null; selectedDate = '';
   let info = 'Servicios: '+selectedServices.map(s=>s.name+' ('+s.id+')').join(', ');
   if (bloque1Svcs.length && bloque2Svcs.length) {
     const gap = 45;
