@@ -3525,10 +3525,17 @@ function saveAppointment() {
   if (id_) {
     const orig = data.appointments.find(x => x.id === id_);
     if (orig && orig.source === 'online' && !orig.salonModified) {
+      let origServiceIds = orig.serviceIds || [];
+      if (orig.blockGroupId) {
+        origServiceIds = [];
+        data.appointments.filter(x => x.blockGroupId === orig.blockGroupId && !x._deleted).forEach(ba => {
+          (ba.serviceIds || []).forEach(sid => { if (!origServiceIds.includes(sid)) origServiceIds.push(sid); });
+        });
+      }
       onlyNotesChanged = (orig.clientId === clientId || (!orig.clientId && !clientId)) &&
         (orig.employeeId === employeeId || (!orig.employeeId && !employeeId)) &&
         orig.date === date && orig.time === time &&
-        JSON.stringify(orig.serviceIds) === JSON.stringify(serviceIds);
+        JSON.stringify(origServiceIds) === JSON.stringify(serviceIds);
     }
   }
 
