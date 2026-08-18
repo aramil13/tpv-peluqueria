@@ -3126,7 +3126,7 @@ function showDayAppts(dateStr) {
           cellContent += `<br><span style="font-size:9px;">${esc(appt.notes)}</span>`;
         }
         const extraClass = isPendingCancelWhatsApp ? ' appt-pending-cancel-whatsapp' : (isPendingWhatsApp ? ' appt-pending-whatsapp' : (isPending ? ' appt-pending-mod' : ''));
-        const reminderCount = appt._waReminderCount || 0;
+        const reminderCount = appt.blockGroupId ? (data.appointments.find(x => x.blockGroupId === appt.blockGroupId && x.blockNum === '1') || appt)._waReminderCount || 0 : appt._waReminderCount || 0;
         const waBtn = clientPhone ? `<span class="appt-grid-wa" onclick="event.stopPropagation();sendWAReminder('${appt.id}')" title="Enviar recordatorio WhatsApp${reminderCount > 0 ? ' (enviado ' + reminderCount + ' vez' + (reminderCount !== 1 ? 'es' : '') + ')' : ''}">📱${reminderCount > 0 ? '<sup style="font-size:7px;background:#fff;color:#25D366;border-radius:50%;padding:1px 3px;font-weight:700;">' + reminderCount + '</sup>' : ''}</span>` : '';
         html += `<td rowspan="${rowspan}" class="appt-grid-cell appt-grid-occ${appt.source==='online'?' appt-online-grid':''}${extraClass}" style="background:${cellColor};" title="${escAttr(detail)}" onclick="${clickHandler}">${cellContent}${isPendingWhatsApp ? '<span class="pending-watermark">🌐</span>' : ''}${isPendingCancelWhatsApp ? '<span class="pending-watermark">❌</span>' : ''}${waBtn}<span class="appt-grid-del" onclick="event.stopPropagation();deleteAppt('${appt.id}')">✕</span></td>`;
       }
@@ -4087,18 +4087,28 @@ function sendWAReminder(apptId) {
   if (!client || !client.phone) return;
   const phone = client.phone.replace(/[^0-9]/g, '');
   const cleanPhone = phone.length > 9 ? phone.slice(-9) : phone;
-  const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
-  const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
+  let svcNames, hours;
+  if (a.blockGroupId) {
+    const blockAppts = data.appointments.filter(x => x.blockGroupId === a.blockGroupId && !x._deleted).sort((x,y) => (x.blockNum||'0').localeCompare(y.blockNum||'0'));
+    const allSvcIds = [];
+    blockAppts.forEach(ba => { (ba.serviceIds || (ba.serviceId ? [ba.serviceId] : [])).forEach(sid => { if (!allSvcIds.includes(sid)) allSvcIds.push(sid); }); });
+    svcNames = allSvcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
+    hours = blockAppts.map(ba => ba.time + (ba.endTime ? ' - ' + ba.endTime : '')).join(' → ');
+  } else {
+    const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+    svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || 'Servicio';
+    hours = a.time + (a.endTime ? ' - ' + a.endTime : '');
+  }
   const emp = data.employees.find(e => e.id === a.employeeId);
   const s = data.settings || {};
   const salonName = s.businessName || 'Nymara Estilistas';
   const dateFmt = new Date(a.date + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-  const hours = a.time + (a.endTime ? ' - ' + a.endTime : '');
   const msg = `Hola ${fullName(client)}, le recordamos su cita en ${salonName}:\n📅 ${dateFmt}\n⏰ ${hours}\n💇 ${svcNames}${emp ? '\n👤 ' + fullName(emp) : ''}\n\n¡Le esperamos!`;
   const waUrl = 'https://wa.me/34' + cleanPhone + '?text=' + encodeURIComponent(msg);
   window.open(waUrl, '_blank');
-  a._waReminderCount = (a._waReminderCount || 0) + 1;
-  a._modified = Date.now();
+  const countTarget = a.blockGroupId ? (data.appointments.find(x => x.blockGroupId === a.blockGroupId && x.blockNum === '1') || a) : a;
+  countTarget._waReminderCount = (countTarget._waReminderCount || 0) + 1;
+  countTarget._modified = Date.now();
   saveKey('appointments');
   updateReminderBadge();
   const sec = document.getElementById('sec-reminders');
@@ -4114,8 +4124,13 @@ function getReminderAppts() {
   const now = Date.now();
   const today = madridDateStr();
   const result = [];
+  const seenBlock = new Set();
   (data.appointments||[]).forEach(a => {
     if (a._deleted || a.cancelledBy === 'salon') return;
+    if (a.blockGroupId) {
+      if (seenBlock.has(a.blockGroupId)) return;
+      seenBlock.add(a.blockGroupId);
+    }
     const client = data.clients.find(c => c.id === a.clientId);
     if (!client || !client.phone) return;
     const apptDate = new Date(a.date + 'T' + (a.time || '10:00'));
@@ -4139,8 +4154,19 @@ function renderReminders() {
   div.innerHTML = list.map(item => {
     const a = item.appt;
     const client = item.client;
-    const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
-    const svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
+    let svcNames, timeDisplay;
+    if (a.blockGroupId) {
+      const blockAppts = data.appointments.filter(x => x.blockGroupId === a.blockGroupId && !x._deleted).sort((x,y) => (x.blockNum||'0').localeCompare(y.blockNum||'0'));
+      const allSvcIds = [];
+      blockAppts.forEach(ba => { (ba.serviceIds || (ba.serviceId ? [ba.serviceId] : [])).forEach(sid => { if (!allSvcIds.includes(sid)) allSvcIds.push(sid); }); });
+      svcNames = allSvcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
+      const times = blockAppts.map(ba => ba.time + (ba.endTime ? '-' + ba.endTime : '')).join(' → ');
+      timeDisplay = times;
+    } else {
+      const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
+      svcNames = svcIds.map(sid => (data.services.find(s => s.id === sid))?.name).filter(Boolean).join(', ') || '?';
+      timeDisplay = a.time + (a.endTime ? '-' + a.endTime : '');
+    }
     const emp = data.employees.find(e => e.id === a.employeeId);
     const isInWindow = item.hoursUntil >= 48 && item.hoursUntil <= 84;
     const count = a._waReminderCount || 0;
@@ -4154,7 +4180,7 @@ function renderReminders() {
         </div>
         <div style="font-size:12px;color:var(--text-light);display:flex;gap:8px;flex-wrap:wrap;">
           <span>📅 ${a.date}</span>
-          <span>⏰ ${a.time}${a.endTime ? '-' + a.endTime : ''}</span>
+          <span>⏰ ${timeDisplay}</span>
           <span>✂️ ${esc(svcNames)}</span>
           ${emp ? '<span>👤 ' + esc(fullName(emp)) + '</span>' : ''}
           <span style="color:${isInWindow ? '#25D366' : 'var(--text-light)'};">⏳ ${hourLabel}</span>
