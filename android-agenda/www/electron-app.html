@@ -3518,6 +3518,8 @@ function saveAppointment() {
   }
   let notes = document.getElementById('apptNotes').value.trim();
   const gap = (data.settings.bloques && data.settings.bloques.bloqueGap) ? data.settings.bloques.bloqueGap : 45;
+  const serviceId = apptSelectedServices.length === 1 ? apptSelectedServices[0].id : '';
+  const serviceIds = apptSelectedServices.map(s => s.id);
 
   let onlyNotesChanged = false;
   if (id_) {
@@ -3707,8 +3709,6 @@ function saveAppointment() {
     return;
   }
 
-  const serviceId = apptSelectedServices.length === 1 ? apptSelectedServices[0].id : '';
-  const serviceIds = apptSelectedServices.map(s => s.id);
   const obj = {
     clientId, serviceId, serviceIds,
     employeeId,
