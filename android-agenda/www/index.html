@@ -634,7 +634,7 @@ function showDayAppts(dateStr) {
   const appts = data.appointments.filter(a => a.date === dateStr && !a._deleted && a.cancelledBy !== 'salon').sort((a,b) => (a.time||'').localeCompare(b.time||''));
   const d = new Date(dateStr + 'T12:00:00');
   const title = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'});
-  document.getElementById('dayTitle').textContent = title;
+  document.getElementById('dayTitle').innerHTML = `${title} <span style="color:var(--secondary);font-weight:700;">— ${appts.length} cita${appts.length!==1?'s':''}</span>`;
   const employees = data.employees.filter(e => !e._deleted).sort((a,b) => empOrderKey(a) - empOrderKey(b));
 
   const colorMap = {};
