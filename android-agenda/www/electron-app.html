@@ -3345,6 +3345,13 @@ async function confirmWhatsAppAppt(id) {
       const b2Svcs = b2SvcIds.map(sid => (data.services||[]).find(s => s.id === sid)).filter(Boolean);
       const b2Dur = b2Svcs.reduce((sum, s) => sum + (s.duration || 30), 0);
       b2All.endTime = String(Math.floor((b2StartMin + b2Dur)/60)).padStart(2,'0') + ':' + String((b2StartMin + b2Dur)%60).padStart(2,'0');
+      b1All.endTime = String(Math.floor((timeToMinutes(b1All.time) + b1Dur)/60)).padStart(2,'0') + ':' + String((timeToMinutes(b1All.time) + b1Dur)%60).padStart(2,'0');
+    }
+    for (const ga of groupAppts) {
+      const sIds = ga.serviceIds || (ga.serviceId ? [ga.serviceId] : []);
+      ga.serviceId = sIds.length === 1 ? sIds[0] : (sIds[0] || '');
+      delete ga.blockGroupId;
+      delete ga.blockNum;
     }
   }
 
