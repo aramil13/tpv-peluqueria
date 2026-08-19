@@ -32,17 +32,16 @@ function todayMadrid() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
-const MAX_BOOKING_DAYS_AHEAD = 3;
-function maxBookingDate() {
+const MIN_BOOKING_DAYS_AHEAD = 3;
+function minBookingDate() {
   const d = new Date();
-  d.setDate(d.getDate() + MAX_BOOKING_DAYS_AHEAD);
+  d.setDate(d.getDate() + MIN_BOOKING_DAYS_AHEAD);
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
 }
 
-function isDateOutOfBounds(dateStr) {
-  const today = todayMadrid();
-  const max = maxBookingDate();
-  return dateStr < today || dateStr > max;
+function isDateTooSoon(dateStr) {
+  const min = minBookingDate();
+  return dateStr < min;
 }
 
 // Email config
@@ -558,9 +557,9 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
       res.end(JSON.stringify({ error: 'date and serviceId required' }));
       return;
     }
-    if (isDateOutOfBounds(date)) {
+    if (isDateTooSoon(date)) {
       res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Solo se pueden reservar citas con un mínimo de '+MAX_BOOKING_DAYS_AHEAD+' días de antelación.' }));
+      res.end(JSON.stringify({ error: 'Solo se pueden reservar citas con un mínimo de '+MIN_BOOKING_DAYS_AHEAD+' días de antelación.' }));
       return;
     }
     const service = (data.services||[]).find(s => s.id === serviceId && !s._deleted);
@@ -663,9 +662,9 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
           res.end(JSON.stringify({ error: 'Faltan campos obligatorios' }));
           return;
         }
-        if (isDateOutOfBounds(b.date)) {
+        if (isDateTooSoon(b.date)) {
           res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Solo se pueden reservar citas con un mínimo de '+MAX_BOOKING_DAYS_AHEAD+' días de antelación.' }));
+          res.end(JSON.stringify({ error: 'Solo se pueden reservar citas con un mínimo de '+MIN_BOOKING_DAYS_AHEAD+' días de antelación.' }));
           return;
         }
         // Find or create client
@@ -1231,9 +1230,9 @@ ${appts.map(a => JSON.stringify(a, null, 2)).join('\n---\n')}
         }
         const newDate = b.newDate || appt.date;
         const newEmpId = b.newEmployeeId !== undefined ? b.newEmployeeId : appt.employeeId;
-        if (isDateOutOfBounds(newDate)) {
+        if (isDateTooSoon(newDate)) {
           res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Solo se pueden reservar citas con un mínimo de '+MAX_BOOKING_DAYS_AHEAD+' días de antelación.' }));
+          res.end(JSON.stringify({ error: 'Solo se pueden reservar citas con un mínimo de '+MIN_BOOKING_DAYS_AHEAD+' días de antelación.' }));
           return;
         }
         const newSvcId = b.newServiceId || appt.serviceId;
