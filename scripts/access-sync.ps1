@@ -24,6 +24,12 @@ function Parse-Time($timeStr) {
     return [DateTime]::Parse("1899-12-30 ${h}:${m}:00")
 }
 
+function Round-ToFiveMinutes($totalMin) {
+    $mod = $totalMin % 5
+    if ($mod -eq 0) { return $totalMin }
+    return $totalMin + (5 - $mod)
+}
+
 function Get-ValidEndTime($endStr, $startStr) {
     if (-not $endStr -or $endStr -notmatch '^(\d{1,2}):(\d{2})$') { return $null }
     $eh = [int]$Matches[1]; $em = [int]$Matches[2]
@@ -34,7 +40,11 @@ function Get-ValidEndTime($endStr, $startStr) {
         $startMin = $sh * 60 + $sm
         if ($endMin -le $startMin) { return $null }
     }
-    return [DateTime]::Parse("1899-12-30 ${eh}:${em}:00")
+    $roundedMin = Round-ToFiveMinutes $endMin
+    $rH = [int]([Math]::Floor($roundedMin / 60))
+    $rM = $roundedMin % 60
+    if ($rH -gt 23) { $rH = 23; $rM = 55 }
+    return [DateTime]::Parse("1899-12-30 ${rH}:${rM}:00")
 }
 
 # Access guarda "sin hora de fin" como 1899-12-30 00:00:00 (fecha cero valida).
