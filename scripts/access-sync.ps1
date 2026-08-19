@@ -24,10 +24,10 @@ function Parse-Time($timeStr) {
     return [DateTime]::Parse("1899-12-30 ${h}:${m}:00")
 }
 
-function Round-ToFiveMinutes($totalMin) {
-    $mod = $totalMin % 5
+function Round-ToFifteenMinutes($totalMin) {
+    $mod = $totalMin % 15
     if ($mod -eq 0) { return $totalMin }
-    return $totalMin + (5 - $mod)
+    return $totalMin + (15 - $mod)
 }
 
 function Get-ValidEndTime($endStr, $startStr) {
@@ -40,7 +40,7 @@ function Get-ValidEndTime($endStr, $startStr) {
         $startMin = $sh * 60 + $sm
         if ($endMin -le $startMin) { return $null }
     }
-    $roundedMin = Round-ToFiveMinutes $endMin
+    $roundedMin = Round-ToFifteenMinutes $endMin
     $rH = [int]([Math]::Floor($roundedMin / 60))
     $rM = $roundedMin % 60
     if ($rH -gt 23) { $rH = 23; $rM = 55 }
