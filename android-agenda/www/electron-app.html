@@ -3360,6 +3360,7 @@ async function confirmWhatsAppAppt(id) {
   updatePendingBadge();
   if (document.getElementById('sec-pending-confirmations')?.classList.contains('active')) renderPendingConfirmations();
 
+  syncPush();
   const syncDone = syncWebNow();
   if (syncDone) await syncDone.catch(() => {});
 }
