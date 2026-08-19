@@ -1,4 +1,5 @@
 const API = window.location.origin;
+const MAX_BOOKING_DAYS_AHEAD = 3;
 let services = [], sections = [], employees = [], allClients = [];
 let selectedServices = [], selectedDate = '', selectedSlot = null;
 let currentClient = null, currentAppointments = [];
@@ -11,6 +12,12 @@ function showLoading(v) { document.getElementById('loadingOverlay').style.displa
 function madridDateStr(d) {
   const dt = d || new Date();
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(dt);
+}
+
+function maxBookingDateStr() {
+  const d = new Date();
+  d.setDate(d.getDate() + MAX_BOOKING_DAYS_AHEAD);
+  return madridDateStr(d);
 }
 
 function getOpeningHoursForDay(dateStr, settings) {
@@ -599,6 +606,7 @@ async function modifyAppt(id) {
   const dateInput = document.getElementById('modifyDate');
   dateInput.value = appt.date;
   dateInput.min = madridDateStr(tomorrow);
+  dateInput.max = maxBookingDateStr();
   document.getElementById('modifyDateDisplay').textContent = '('+fmtDate(appt.date)+')';
   selectedModifySlot = null;
   document.getElementById('modifyBtn').disabled = true;
@@ -827,7 +835,10 @@ function goToDateStep() {
   }
   document.getElementById('selectedService').innerHTML = info;
   document.getElementById('selectedSlot').textContent = '';
-  document.getElementById('bookingDate').value = '';
+  const bookingDateEl = document.getElementById('bookingDate');
+  bookingDateEl.value = '';
+  bookingDateEl.min = madridDateStr();
+  bookingDateEl.max = maxBookingDateStr();
   document.getElementById('noSlots').style.display = 'none';
   document.getElementById('slotsContainer').innerHTML = '';
   goStep(3);

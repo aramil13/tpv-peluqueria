@@ -44,6 +44,19 @@ export async function onRequest(context) {
     return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   }
 
+  const MAX_BOOKING_DAYS_AHEAD = 3;
+  function maxBookingDate() {
+    const d = new Date();
+    d.setDate(d.getDate() + MAX_BOOKING_DAYS_AHEAD);
+    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+  }
+
+  function isDateOutOfBounds(dateStr) {
+    const today = todayMadrid();
+    const max = maxBookingDate();
+    return dateStr < today || dateStr > max;
+  }
+
   function getOpeningHoursForDay(dateStr, settings) {
     if (!settings || !settings.openingHours) return { open: 9, close: 19, closed: false, breakStart: null, breakEnd: null };
     const d = new Date(dateStr + 'T12:00:00').getDay();
@@ -380,6 +393,9 @@ export async function onRequest(context) {
       if (!date || !serviceIdsParam) {
         return json({ error: 'date and serviceId(s) required' }, 400);
       }
+      if (isDateOutOfBounds(date)) {
+        return json({ error: 'Solo se pueden reservar citas con un mínimo de '+MAX_BOOKING_DAYS_AHEAD+' días de antelación.' }, 400);
+      }
       const serviceIds = serviceIdsParam.split(',').filter(Boolean);
       const servicesList = (data.services||[]).filter(s => serviceIds.includes(s.id) && !s._deleted);
       const gap = (data.settings && data.settings.bloques && data.settings.bloques.bloqueGap) || 45;
@@ -496,6 +512,9 @@ export async function onRequest(context) {
         const serviceIds = b.serviceIds || (b.serviceId ? [b.serviceId] : []);
         if (!serviceIds.length || !b.date || !b.time || !b.clientName || !b.clientPhone) {
           return json({ error: 'Faltan campos obligatorios' }, 400);
+        }
+        if (isDateOutOfBounds(b.date)) {
+          return json({ error: 'Solo se pueden reservar citas con un mínimo de '+MAX_BOOKING_DAYS_AHEAD+' días de antelación.' }, 400);
         }
         let client = (data.clients||[]).find(c => normPhone(c.phone) === normPhone(b.clientPhone) && !c._deleted);
         if (!client) {
@@ -975,6 +994,9 @@ export async function onRequest(context) {
         }
         const newDate = b.newDate || appt.date;
         const newEmpId = b.newEmployeeId !== undefined ? b.newEmployeeId : appt.employeeId;
+        if (isDateOutOfBounds(newDate)) {
+          return json({ error: 'Solo se pueden reservar citas con un mínimo de '+MAX_BOOKING_DAYS_AHEAD+' días de antelación.' }, 400);
+        }
         const isBlockGroup = !!appt.blockGroupId;
         const gap = (d.settings && d.settings.bloques && d.settings.bloques.bloqueGap) ? d.settings.bloques.bloqueGap : 45;
         const allApptsToModify = [];

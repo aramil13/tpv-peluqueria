@@ -17,6 +17,19 @@ function todayMadrid() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
+const MAX_BOOKING_DAYS_AHEAD = 3;
+function maxBookingDate() {
+  const d = new Date();
+  d.setDate(d.getDate() + MAX_BOOKING_DAYS_AHEAD);
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+
+function isDateOutOfBounds(dateStr) {
+  const today = todayMadrid();
+  const max = maxBookingDate();
+  return dateStr < today || dateStr > max;
+}
+
 function madridHour() {
   const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Madrid', hour: 'numeric', minute: 'numeric', hour12: false }).formatToParts(new Date());
   const h = parseInt(parts.find(p => p.type === 'hour').value);
@@ -300,6 +313,10 @@ module.exports = async (req, res) => {
       res.status(400).json({ error: 'date and serviceId(s) required' });
       return;
     }
+    if (isDateOutOfBounds(date)) {
+      res.status(400).json({ error: 'Solo se pueden reservar citas con un mínimo de '+MAX_BOOKING_DAYS_AHEAD+' días de antelación.' });
+      return;
+    }
     const serviceIds = serviceIdsParam.split(',').filter(Boolean);
     const servicesList = (data.services||[]).filter(s => serviceIds.includes(s.id) && !s._deleted);
     const gap = (data.settings && data.settings.bloques && data.settings.bloques.bloqueGap) || 45;
@@ -419,6 +436,10 @@ module.exports = async (req, res) => {
       const serviceIds = b.serviceIds || (b.serviceId ? [b.serviceId] : []);
       if (!serviceIds.length || !b.date || !b.time || !b.clientName || !b.clientPhone) {
         res.status(400).json({ error: 'Faltan campos obligatorios' });
+        return;
+      }
+      if (isDateOutOfBounds(b.date)) {
+        res.status(400).json({ error: 'Solo se pueden reservar citas con un mínimo de '+MAX_BOOKING_DAYS_AHEAD+' días de antelación.' });
         return;
       }
       let client = (data.clients||[]).find(c => normPhone(c.phone) === normPhone(b.clientPhone) && !c._deleted);
@@ -948,6 +969,10 @@ module.exports = async (req, res) => {
       }
       const newDate = b.newDate || appt.date;
       const newEmpId = b.newEmployeeId !== undefined ? b.newEmployeeId : appt.employeeId;
+      if (isDateOutOfBounds(newDate)) {
+        res.status(400).json({ error: 'Solo se pueden reservar citas con un mínimo de '+MAX_BOOKING_DAYS_AHEAD+' días de antelación.' });
+        return;
+      }
       const newSvcId = b.newServiceId || appt.serviceId;
       const srv = (d.services||[]).find(s => s.id === newSvcId);
       const srvDuration = srv ? srv.duration : 30;
