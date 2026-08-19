@@ -234,7 +234,11 @@ try {
 
         $clienteCode = Extract-Code $appt.clientId 'svcl_'
         $empleadoCode = Extract-Code $appt.employeeId 'svem_'
-        $servicioCode = Extract-Code $appt.serviceId 'svsv_'
+        $effectiveServiceId = $appt.serviceId
+        if (-not $effectiveServiceId -and $appt.serviceIds -and $appt.serviceIds.Count -gt 0) {
+            $effectiveServiceId = $appt.serviceIds[0]
+        }
+        $servicioCode = Extract-Code $effectiveServiceId 'svsv_'
         $fecha = [DateTime]::Parse($appt.date)
         $horaInicio = Parse-Time $appt.time
         $validEnd = Get-ValidEndTime $appt.endTime $appt.time
@@ -243,7 +247,7 @@ try {
         $notes = if ($appt.notes) { $appt.notes } else { '' }
         $isOnline = ($appt.source -eq 'online') -or ($notes -match 'Reserva online')
         $clientName = if ($appt.clientId -and $clientMap.ContainsKey($appt.clientId)) { $clientMap[$appt.clientId] } else { '' }
-        $serviceName = if ($appt.serviceId -and $serviceMap.ContainsKey($appt.serviceId)) { $serviceMap[$appt.serviceId] } else { '' }
+        $serviceName = if ($effectiveServiceId -and $serviceMap.ContainsKey($effectiveServiceId)) { $serviceMap[$effectiveServiceId] } else { '' }
         $employeeName = if ($appt.employeeId -and $employeeMap.ContainsKey($appt.employeeId)) { $employeeMap[$appt.employeeId] } else { '' }
         $parts = @()
         if ($isOnline) { $parts += 'Reserva online' }
