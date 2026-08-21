@@ -5162,15 +5162,17 @@ function renderReports() {
     sales = sales.sort((a,b) => new Date(b.date) - new Date(a.date));
     
     const filterLabel = dim && dimVal ? ` · Filtro: ${reportDimLabel(dim)}: <strong>${esc((document.getElementById('reportVal').selectedOptions[0]||{}).text||'')}</strong>` : '';
-    const lineMode = dim === 'product' || dim === 'provider' || dim === 'employee' || dim === 'service';
+    const lineMode = dim === 'product' || dim === 'provider' || dim === 'employee' || dim === 'service' || dim === 'section';
     if (lineMode) {
       const provOf = iid => ((data.products.find(x => x.id === iid)||{}).providerId)||'';
+      const secOf = iid => ((data.services.find(x => x.id === iid)||{}).sectionId)||'';
       const lines = [];
       sales.forEach(s => (s.items||[]).forEach(i => {
         let ok = false;
         if (dim === 'product') ok = i.type === 'product' && (!dimVal || i.id === dimVal);
         else if (dim === 'provider') ok = i.type === 'product' && (!dimVal || provOf(i.id) === dimVal);
         else if (dim === 'service') ok = i.type === 'service' && (!dimVal || i.id === dimVal);
+        else if (dim === 'section') ok = i.type === 'service' && (!dimVal || secOf(i.id) === dimVal);
         else ok = !!i.employeeId && (!dimVal || i.employeeId === dimVal);
         if (ok) lines.push({s, i});
       }));
@@ -5178,7 +5180,7 @@ function renderReports() {
       const totLines = lines.reduce((sum,l) => sum + l.i.price*l.i.qty, 0);
       const unitCount = lines.reduce((sum,l) => sum + l.i.qty, 0);
       const conceptLabel = reportDimLabel(dim);
-      const extraCol = dim === 'provider' || dim === 'employee' ? '<th>' + (dim === 'provider' ? 'Producto' : 'Concepto') + '</th>' : '';
+      const extraCol = dim === 'provider' || dim === 'employee' || dim === 'section' ? '<th>' + (dim === 'provider' ? 'Producto' : 'Concepto') + '</th>' : '';
       let html = `<p style="margin-bottom:10px;font-weight:500;">${lines.length} líneas${filterLabel} · Unidades: <strong>${unitCount}</strong> · Total: <strong>${cur(totLines)}</strong></p>
         <div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>${conceptLabel}</th>${extraCol}<th>Fecha</th><th>Cliente</th><th>Cant.</th><th>Precio</th><th>Subtotal</th>${dim === 'employee' ? '' : '<th>Empleada</th>'}</tr></thead><tbody>` +
         lines.map(({s,i}) => {
@@ -5187,8 +5189,9 @@ function renderReports() {
           let concept;
           if (dim === 'provider') { const pk = provOf(i.id); concept = pk ? ((data.providers.find(x => x.id === pk)||{}).name||'Sin proveedor') : 'Sin proveedor'; }
           else if (dim === 'employee') { concept = empName || 'Sin asignar'; }
+          else if (dim === 'section') { const sk = secOf(i.id); concept = sk ? ((data.sections.find(x => x.id === sk)||{}).name||'Sin sección') : 'Sin sección'; }
           else concept = i.name;
-          const extraCell = dim === 'provider' || dim === 'employee' ? `<td>${esc(i.name)}</td>` : '';
+          const extraCell = dim === 'provider' || dim === 'employee' || dim === 'section' ? `<td>${esc(i.name)}</td>` : '';
           return `<tr><td style="text-align:center;font-weight:600;">#${s.number||''}</td><td><strong>${esc(concept)}</strong></td>${extraCell}<td>${new Date(s.date).toLocaleString('es-ES')}</td><td>${esc(client?fullName(client):'Mostrador')}</td><td>${i.qty}</td><td>${cur(i.price)}</td><td><strong>${cur(i.price*i.qty)}</strong></td>${dim === 'employee' ? '' : `<td>${empName?esc(empName):'—'}</td>`}</tr>`;
         }).join('') + '</tbody></table></div>';
       const agg = {};
@@ -5197,6 +5200,7 @@ function renderReports() {
         if (dim === 'product') { key = i.id; name = i.name; }
         else if (dim === 'provider') { key = provOf(i.id); name = key ? ((data.providers.find(x => x.id === key)||{}).name||'Sin proveedor') : 'Sin proveedor'; }
         else if (dim === 'service') { key = i.id; name = i.name; }
+        else if (dim === 'section') { key = secOf(i.id); name = key ? ((data.sections.find(x => x.id === key)||{}).name||'Sin sección') : 'Sin sección'; }
         else { key = i.employeeId; name = key ? ((data.employees.find(e => e.id === key)||{}).name||'Sin asignar') : 'Sin asignar'; }
         if (!agg[key]) agg[key] = {name, qty:0, total:0};
         agg[key].qty += i.qty; agg[key].total += i.price*i.qty;
@@ -5286,11 +5290,15 @@ function renderReports() {
     let rows = '', head = '', totalsP = '';
     if (ent === 'clients') {
       const list = data.clients.filter(c => !c._deleted).sort((a,b) => fullName(a).localeCompare(fullName(b)));
-      const totVisits = list.reduce((s,c) => s+(c.visits||0), 0);
-      const totSpent = list.reduce((s,c) => s+(c.totalSpent||0), 0);
+      const genSales = data.sales.filter(s => !isSaleArchived(s) && !s.clientId);
+      const genVisits = genSales.length;
+      const genSpent = genSales.reduce((sum,s) => sum+s.total, 0);
+      const totVisits = list.reduce((s,c) => s+(c.visits||0), 0) + genVisits;
+      const totSpent = list.reduce((s,c) => s+(c.totalSpent||0), 0) + genSpent;
       head = '<tr><th>#</th><th>Nombre</th><th>Teléfono</th><th>Población</th><th>Visitas</th><th>Gasto Total</th></tr>';
-      rows = list.map((c,i) => `<tr><td>${i+1}</td><td><strong>${esc(fullName(c))}</strong></td><td>${esc(c.phone||'-')}</td><td>${esc(c.city||'-')}</td><td>${c.visits||0}</td><td>${cur(c.totalSpent||0)}</td></tr>`).join('');
-      totalsP = `${list.length} clientes · Visitas totales: <strong>${totVisits}</strong> · Gasto total acumulado: <strong>${cur(totSpent)}</strong> · Media por cliente: <strong>${cur(list.length ? totSpent/list.length : 0)}</strong>`;
+      rows = `<tr style="background:var(--bg);"><td>1</td><td><strong>Mostrador (cliente genérico)</strong></td><td>-</td><td>-</td><td>${genVisits}</td><td>${cur(genSpent)}</td></tr>` +
+        list.map((c,i) => `<tr><td>${i+2}</td><td><strong>${esc(fullName(c))}</strong></td><td>${esc(c.phone||'-')}</td><td>${esc(c.city||'-')}</td><td>${c.visits||0}</td><td>${cur(c.totalSpent||0)}</td></tr>`).join('');
+      totalsP = `${list.length} clientes registrados + cliente genérico · Visitas totales: <strong>${totVisits}</strong> · Gasto total acumulado: <strong>${cur(totSpent)}</strong> · Media por cliente: <strong>${cur(totSpent/(list.length+1))}</strong>`;
     } else if (ent === 'services') {
       const list = data.services.filter(s => !s._deleted).sort((a,b) => (a.name||'').localeCompare(b.name||''));
       const totPrice = list.reduce((s,x) => s+(x.price||0), 0);
