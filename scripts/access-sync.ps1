@@ -592,18 +592,41 @@ try {
         }
     }
 
-    # Phase 3.5: Pull client surnames (Apellidos) and Observaciones from Access Clientes into JSON clients.
-    # Las Observaciones de Access se vuelcan en el campo "Historial Tecnico" (historialTecnico) del TPV.
-    # Se guarda una copia oculta (_obsAccess) del ultimo valor traido de Access: si Access no ha
-    # cambiado desde entonces, no se toca historialTecnico (asi las ediciones hechas en el TPV
-    # no se pierden); si Access cambia, manda Access y se sobrescribe el historial tecnico.
+    # Phase 3.5: Pull client surnames (Apellidos) from Access Clientes, and the client
+    # observations into the TPV "Historial Tecnico" (historialTecnico).
+    # OJO: el programa de Access NO usa Clientes.Observaciones (esta vacio); las observaciones
+    # de clientes viven en la tabla ObserClientes (CodCli + NumObservacion secuencial, una fila
+    # por apunte). Se concatenan en orden cronologico separadas por salto de linea.
+    # Se guarda una copia oculta (_obsAccess) del ultimo texto traido: si Access no ha cambiado
+    # desde entonces, no se toca historialTecnico (asi las ediciones hechas en el TPV no se
+    # pierden); si Access cambia (apunte nuevo/editado/borrado), manda Access y se sobrescribe.
     $surnamesPulled = 0
     $obsPulled = 0
     try {
         $jsonClientMap = @{}
         foreach ($jc in @($json.clients)) { if ($jc.id) { $jsonClientMap[$jc.id] = $jc } }
+
+        # Observaciones por cliente desde ObserClientes, ordenadas por NumObservacion (cronologico)
+        $obsByClient = @{}
+        try {
+            $cmdObs = $conn.CreateCommand()
+            $cmdObs.CommandText = "SELECT CodCli, Observacion FROM ObserClientes ORDER BY CodCli, NumObservacion, Fecha"
+            $or = $cmdObs.ExecuteReader()
+            while ($or.Read()) {
+                if ($or['CodCli'] -eq [System.DBNull]::Value) { continue }
+                $codCli = [int]$or['CodCli']
+                $txt = if ($or['Observacion'] -and $or['Observacion'] -ne [System.DBNull]::Value) { $or['Observacion'].ToString().Trim() } else { '' }
+                if (-not $txt) { continue }
+                if (-not $obsByClient.ContainsKey($codCli)) { $obsByClient[$codCli] = New-Object System.Collections.Generic.List[string] }
+                $obsByClient[$codCli].Add($txt)
+            }
+            $or.Close()
+        } catch {
+            Write-Host "WARN: ObserClientes read skipped: $($_.Exception.Message)"
+        }
+
         $cmdSurname = $conn.CreateCommand()
-        $cmdSurname.CommandText = "SELECT Codigo, Apellidos, Observaciones FROM Clientes"
+        $cmdSurname.CommandText = "SELECT Codigo, Apellidos FROM Clientes"
         $sr = $cmdSurname.ExecuteReader()
         while ($sr.Read()) {
             $codigo = $sr['Codigo']
@@ -622,13 +645,17 @@ try {
                 }
             }
 
-            $observaciones = if ($sr['Observaciones'] -and $sr['Observaciones'] -ne [System.DBNull]::Value) { $sr['Observaciones'].ToString().Trim() } else { '' }
+            # Historial tecnico: todos los apuntes de ObserClientes del cliente, uno por linea
+            $observaciones = ''
+            $codKey = 0
+            try { $codKey = [int]$codigo } catch { $codKey = 0 }
+            if ($obsByClient.ContainsKey($codKey)) { $observaciones = ($obsByClient[$codKey] -join "`n") }
             $hasMarker = $jsonClient.PSObject.Properties['_obsAccess']
             $storedObs = if ($hasMarker) { [string]$jsonClient._obsAccess } else { $null }
             if ($observaciones -ne $storedObs) {
                 # Access cambio (o primera vez). Solo escribir si trae texto, o si ya habiamos
                 # sincronizado antes (permite propagar borrados de Access sin limpiar el TPV
-                # cuando Access nunca tuvo nada).
+                # cuando el cliente nunca tuvo apuntes).
                 if ($observaciones -or $hasMarker) {
                     Set-ApptField $jsonClient 'historialTecnico' $observaciones
                     Set-ApptField $jsonClient '_obsAccess' $observaciones
