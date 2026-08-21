@@ -5166,17 +5166,52 @@ function renderReports() {
     sales = sales.filter(s => saleMatchesDim(s, dim, dimVal));
     sales = sales.sort((a,b) => new Date(b.date) - new Date(a.date));
     
-    let unitsHtml = '';
-    if ((dim === 'service' || dim === 'product') && dimVal) {
-      const units = sales.reduce((sum,s) => sum + (s.items||[]).filter(i => i.id === dimVal && i.type === dim).reduce((q,i) => q+i.qty, 0), 0);
-      unitsHtml = ` · Unidades: <strong>${units}</strong>`;
+    const lineMode = dim === 'product' || dim === 'provider' || dim === 'employee' || dim === 'service';
+    if (lineMode) {
+      const provOf = iid => ((data.products.find(x => x.id === iid)||{}).providerId)||'';
+      const lines = [];
+      sales.forEach(s => (s.items||[]).forEach(i => {
+        let ok = false;
+        if (dim === 'product') ok = i.type === 'product' && (!dimVal || i.id === dimVal);
+        else if (dim === 'provider') ok = i.type === 'product' && (!dimVal || provOf(i.id) === dimVal);
+        else if (dim === 'service') ok = i.type === 'service' && (!dimVal || i.id === dimVal);
+        else ok = !!i.employeeId && (!dimVal || i.employeeId === dimVal);
+        if (ok) lines.push({s, i});
+      }));
+      if (!lines.length) { div.innerHTML = '<div class="empty-state"><p>Sin líneas que coincidan con el filtro</p></div>'; return; }
+      const totLines = lines.reduce((sum,l) => sum + l.i.price*l.i.qty, 0);
+      const unitCount = lines.reduce((sum,l) => sum + l.i.qty, 0);
+      const conceptLabel = dim === 'provider' ? 'Producto' : dim === 'employee' ? 'Concepto' : dim === 'service' ? 'Servicio' : 'Línea';
+      let html = `<p style="margin-bottom:10px;font-weight:500;">${lines.length} líneas${filterLabel} · Unidades: <strong>${unitCount}</strong> · Total: <strong>${cur(totLines)}</strong></p>
+        <div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>${conceptLabel}</th><th>Cant.</th><th>Precio</th><th>Subtotal</th><th>Empleada</th></tr></thead><tbody>` +
+        lines.map(({s,i}) => {
+          const client = data.clients.find(c => c.id === s.clientId);
+          const emp = i.employeeId ? ((data.employees.find(e => e.id === i.employeeId)||{}).name||'') : '';
+          return `<tr><td style="text-align:center;font-weight:600;">#${s.number||''}</td><td>${new Date(s.date).toLocaleString('es-ES')}</td><td>${esc(client?fullName(client):'Mostrador')}</td><td>${esc(i.name)}</td><td>${i.qty}</td><td>${cur(i.price)}</td><td><strong>${cur(i.price*i.qty)}</strong></td><td>${emp?esc(emp):'—'}</td></tr>`;
+        }).join('') + '</tbody></table></div>';
+      const agg = {};
+      lines.forEach(({s,i}) => {
+        let key, name;
+        if (dim === 'product') { key = i.id; name = i.name; }
+        else if (dim === 'provider') { key = provOf(i.id); name = key ? ((data.providers.find(x => x.id === key)||{}).name||'Sin proveedor') : 'Sin proveedor'; }
+        else if (dim === 'service') { key = i.id; name = i.name; }
+        else { key = i.employeeId; name = key ? ((data.employees.find(e => e.id === key)||{}).name||'Sin asignar') : 'Sin asignar'; }
+        if (!agg[key]) agg[key] = {name, qty:0, total:0};
+        agg[key].qty += i.qty; agg[key].total += i.price*i.qty;
+      });
+      const aggList = Object.values(agg).sort((a,b) => b.total - a.total);
+      html += `<p style="margin:14px 0 6px;font-weight:600;">Totales por ${reportDimLabel(dim).toLowerCase()}:</p>
+        <div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>${reportDimLabel(dim)}</th><th>Unidades</th><th>Total</th></tr></thead><tbody>` +
+        aggList.map((o,k) => `<tr><td>${k+1}</td><td><strong>${esc(o.name)}</strong></td><td>${o.qty}</td><td><strong>${cur(o.total)}</strong></td></tr>`).join('') + '</tbody></table></div>';
+      div.innerHTML = html;
+      return;
     }
     const filterLabel = dim && dimVal ? ` · Filtro: ${reportDimLabel(dim)}: <strong>${esc((document.getElementById('reportVal').selectedOptions[0]||{}).text||'')}</strong>` : '';
     const total = sales.reduce((sum, s) => sum + s.total, 0);
     const totalIva = sales.reduce((sum, s) => sum + (s.iva||0), 0);
     const totalBase = sales.reduce((sum, s) => sum + (s.base||0), 0);
     if (!sales.length) { div.innerHTML = '<div class="empty-state"><p>Sin ventas en este período</p></div>'; return; }
-    div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${sales.length} ventas${filterLabel} · Total: <strong>${cur(total)}</strong> · Base: <strong>${cur(totalBase)}</strong> · IVA: <strong>${cur(totalIva)}</strong> · Media: <strong>${cur(total/sales.length)}</strong>${unitsHtml}</p>
+    div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${sales.length} ventas${filterLabel} · Total: <strong>${cur(total)}</strong> · Base: <strong>${cur(totalBase)}</strong> · IVA: <strong>${cur(totalIva)}</strong> · Media: <strong>${cur(total/sales.length)}</strong></p>
       <div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Items</th><th>Base</th><th>IVA</th><th>Total</th><th>Pago</th><th>Tipo</th><th>Acción</th></tr></thead><tbody>` +
       sales.map(s => {
         const client = data.clients.find(c => c.id === s.clientId);
