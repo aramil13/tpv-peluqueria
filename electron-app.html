@@ -451,15 +451,11 @@ tr:hover td { background: #f8f9fa; }
         <div class="tabs">
           <div class="tab active" onclick="switchReportTab('sales',this)">Ventas</div>
           <div class="tab" onclick="switchReportTab('general',this)">Generales</div>
-          <div class="tab" onclick="switchReportTab('clients',this)">Clientes</div>
-          <div class="tab" onclick="switchReportTab('services',this)">Servicios</div>
-          <div class="tab" onclick="switchReportTab('products',this)">Productos</div>
-          <div class="tab" onclick="switchReportTab('employees',this)">Empleados</div>
         </div>
         <div class="search-bar" style="margin-top:10px;">
           <span id="dateFilters" style="display:inline-flex;gap:12px;align-items:center;">
-            <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;">Desde: <input type="date" id="reportFrom" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;">Hasta: <input type="date" id="reportTo" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;">Desde: <input type="date" id="reportFrom" onchange="renderReports()" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;">Hasta: <input type="date" id="reportTo" onchange="renderReports()" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></label>
           </span>
           <span id="salesFilters" style="display:inline-flex;gap:8px;align-items:center;">
             <select id="reportDim" onchange="populateReportValues();renderReports()" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
@@ -482,7 +478,6 @@ tr:hover td { background: #f8f9fa; }
               <option value="employees">Listado de Empleados</option>
             </select>
           </span>
-          <button class="btn btn-primary btn-sm" onclick="renderReports()">Filtrar</button>
           <button class="btn btn-success btn-sm" onclick="exportCSV()">Exportar CSV</button>
           <button class="btn btn-secondary btn-sm" onclick="printReport()">🖨️ Imprimir</button>
         </div>
