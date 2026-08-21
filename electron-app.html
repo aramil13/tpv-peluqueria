@@ -450,14 +450,38 @@ tr:hover td { background: #f8f9fa; }
         <div class="card-header"><h3>Listados e Informes</h3></div>
         <div class="tabs">
           <div class="tab active" onclick="switchReportTab('sales',this)">Ventas</div>
+          <div class="tab" onclick="switchReportTab('general',this)">Generales</div>
           <div class="tab" onclick="switchReportTab('clients',this)">Clientes</div>
           <div class="tab" onclick="switchReportTab('services',this)">Servicios</div>
           <div class="tab" onclick="switchReportTab('products',this)">Productos</div>
           <div class="tab" onclick="switchReportTab('employees',this)">Empleados</div>
         </div>
         <div class="search-bar" style="margin-top:10px;">
-          <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;">Desde: <input type="date" id="reportFrom" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;">Hasta: <input type="date" id="reportTo" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></label>
+          <span id="dateFilters" style="display:inline-flex;gap:12px;align-items:center;">
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;">Desde: <input type="date" id="reportFrom" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></label>
+            <label style="display:flex;align-items:center;gap:4px;font-size:13px;white-space:nowrap;">Hasta: <input type="date" id="reportTo" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></label>
+          </span>
+          <span id="salesFilters" style="display:inline-flex;gap:8px;align-items:center;">
+            <select id="reportDim" onchange="populateReportValues();renderReports()" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+              <option value="">Todas las ventas</option>
+              <option value="client">Por Cliente</option>
+              <option value="service">Por Servicio</option>
+              <option value="product">Por Producto</option>
+              <option value="section">Por Sección</option>
+              <option value="provider">Por Proveedor</option>
+              <option value="employee">Por Empleado</option>
+            </select>
+            <select id="reportVal" onchange="renderReports()" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"><option value="">— Todos —</option></select>
+          </span>
+          <span id="genFilters" style="display:none;align-items:center;">
+            <select id="genEntity" onchange="renderReports()" style="padding:6px 8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+              <option value="clients">Listado de Clientes</option>
+              <option value="services">Listado de Servicios</option>
+              <option value="products">Listado de Productos</option>
+              <option value="providers">Listado de Proveedores</option>
+              <option value="employees">Listado de Empleados</option>
+            </select>
+          </span>
           <button class="btn btn-primary btn-sm" onclick="renderReports()">Filtrar</button>
           <button class="btn btn-success btn-sm" onclick="exportCSV()">Exportar CSV</button>
           <button class="btn btn-secondary btn-sm" onclick="printReport()">🖨️ Imprimir</button>
@@ -5088,7 +5112,43 @@ function switchReportTab(tab, el) {
   reportTab = tab;
   document.querySelectorAll('#sec-reports .tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
+  const isSales = tab === 'sales';
+  const isGen = tab === 'general';
+  document.getElementById('dateFilters').style.display = isGen ? 'none' : 'inline-flex';
+  document.getElementById('salesFilters').style.display = isSales ? 'inline-flex' : 'none';
+  document.getElementById('genFilters').style.display = isGen ? 'inline-flex' : 'none';
+  if (isSales && !document.getElementById('reportVal').options.length) populateReportValues();
   renderReports();
+}
+
+function reportDimLabel(dim) {
+  return ({client:'Cliente',service:'Servicio',product:'Producto',section:'Sección',provider:'Proveedor',employee:'Empleado'})[dim] || '';
+}
+
+function populateReportValues() {
+  const dim = document.getElementById('reportDim').value;
+  const sel = document.getElementById('reportVal');
+  let opts = [];
+  if (dim === 'client') opts = data.clients.filter(c => !c._deleted).map(c => [c.id, fullName(c)]).sort((a,b) => a[1].localeCompare(b[1]));
+  else if (dim === 'service') opts = data.services.filter(s => !s._deleted).map(s => [s.id, s.name]).sort((a,b) => a[1].localeCompare(b[1]));
+  else if (dim === 'product') opts = data.products.filter(p => !p._deleted).map(p => [p.id, p.name]).sort((a,b) => a[1].localeCompare(b[1]));
+  else if (dim === 'section') opts = data.sections.filter(s => !s._deleted).map(s => [s.id, s.name]).sort((a,b) => a[1].localeCompare(b[1]));
+  else if (dim === 'provider') opts = data.providers.filter(p => !p._deleted).map(p => [p.id, p.name]).sort((a,b) => a[1].localeCompare(b[1]));
+  else if (dim === 'employee') opts = data.employees.filter(e => !e._deleted).map(e => [e.id, fullName(e)]).sort((a,b) => a[1].localeCompare(b[1]));
+  sel.innerHTML = '<option value="">— Todos —</option>' + opts.map(o => `<option value="${o[0]}">${esc(o[1])}</option>`).join('');
+}
+
+function saleMatchesDim(s, dim, val) {
+  if (!val) return true;
+  if (dim === 'client') return s.clientId === val;
+  return (s.items||[]).some(i => {
+    if (dim === 'service') return i.type === 'service' && i.id === val;
+    if (dim === 'product') return i.type === 'product' && i.id === val;
+    if (dim === 'section') return i.type === 'service' && ((data.services.find(x => x.id === i.id)||{}).sectionId||'') === val;
+    if (dim === 'provider') return i.type === 'product' && ((data.products.find(x => x.id === i.id)||{}).providerId||'') === val;
+    if (dim === 'employee') return i.employeeId === val;
+    return true;
+  });
 }
 
 function renderReports() {
@@ -5097,16 +5157,26 @@ function renderReports() {
   const to = document.getElementById('reportTo').value;
   
   if (reportTab === 'sales') {
+    if (!document.getElementById('reportVal').options.length) populateReportValues();
+    const dim = document.getElementById('reportDim').value;
+    const dimVal = document.getElementById('reportVal').value;
     let sales = data.sales.filter(s => !isSaleArchived(s));
     if (from) sales = sales.filter(s => s.date >= from);
     if (to) sales = sales.filter(s => s.date <= to+'T23:59:59');
+    sales = sales.filter(s => saleMatchesDim(s, dim, dimVal));
     sales = sales.sort((a,b) => new Date(b.date) - new Date(a.date));
     
+    let unitsHtml = '';
+    if ((dim === 'service' || dim === 'product') && dimVal) {
+      const units = sales.reduce((sum,s) => sum + (s.items||[]).filter(i => i.id === dimVal && i.type === dim).reduce((q,i) => q+i.qty, 0), 0);
+      unitsHtml = ` · Unidades: <strong>${units}</strong>`;
+    }
+    const filterLabel = dim && dimVal ? ` · Filtro: ${reportDimLabel(dim)}: <strong>${esc((document.getElementById('reportVal').selectedOptions[0]||{}).text||'')}</strong>` : '';
     const total = sales.reduce((sum, s) => sum + s.total, 0);
     const totalIva = sales.reduce((sum, s) => sum + (s.iva||0), 0);
     const totalBase = sales.reduce((sum, s) => sum + (s.base||0), 0);
     if (!sales.length) { div.innerHTML = '<div class="empty-state"><p>Sin ventas en este período</p></div>'; return; }
-    div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${sales.length} ventas · Total: <strong>${cur(total)}</strong> · Base: <strong>${cur(totalBase)}</strong> · IVA: <strong>${cur(totalIva)}</strong> · Media: <strong>${cur(total/sales.length)}</strong></p>
+    div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${sales.length} ventas${filterLabel} · Total: <strong>${cur(total)}</strong> · Base: <strong>${cur(totalBase)}</strong> · IVA: <strong>${cur(totalIva)}</strong> · Media: <strong>${cur(total/sales.length)}</strong>${unitsHtml}</p>
       <div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>Items</th><th>Base</th><th>IVA</th><th>Total</th><th>Pago</th><th>Tipo</th><th>Acción</th></tr></thead><tbody>` +
       sales.map(s => {
         const client = data.clients.find(c => c.id === s.clientId);
@@ -5175,6 +5245,53 @@ function renderReports() {
     div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${list.length} empleados · Total facturado: <strong>${cur(totalEmp)}</strong></p>
       <div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Empleado</th><th>Servicios Realizados</th><th>Ventas</th><th>Total Facturado</th></tr></thead><tbody>` +
       list.map((e,i) => `<tr><td>${i+1}</td><td><strong>${esc(fullName(e))}</strong></td><td>${e.qty}</td><td>${e.sales}</td><td><strong>${cur(e.total)}</strong></td></tr>`).join('') + '</tbody></table></div>';
+  } else if (reportTab === 'general') {
+    const ent = document.getElementById('genEntity').value || 'clients';
+    let rows = '', head = '', totalsP = '';
+    if (ent === 'clients') {
+      const list = data.clients.filter(c => !c._deleted).sort((a,b) => fullName(a).localeCompare(fullName(b)));
+      const totVisits = list.reduce((s,c) => s+(c.visits||0), 0);
+      const totSpent = list.reduce((s,c) => s+(c.totalSpent||0), 0);
+      head = '<tr><th>#</th><th>Nombre</th><th>Teléfono</th><th>Población</th><th>Visitas</th><th>Gasto Total</th></tr>';
+      rows = list.map((c,i) => `<tr><td>${i+1}</td><td><strong>${esc(fullName(c))}</strong></td><td>${esc(c.phone||'-')}</td><td>${esc(c.city||'-')}</td><td>${c.visits||0}</td><td>${cur(c.totalSpent||0)}</td></tr>`).join('');
+      totalsP = `${list.length} clientes · Visitas totales: <strong>${totVisits}</strong> · Gasto total acumulado: <strong>${cur(totSpent)}</strong> · Media por cliente: <strong>${cur(list.length ? totSpent/list.length : 0)}</strong>`;
+    } else if (ent === 'services') {
+      const list = data.services.filter(s => !s._deleted).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+      const totPrice = list.reduce((s,x) => s+(x.price||0), 0);
+      head = '<tr><th>#</th><th>Servicio</th><th>Familia</th><th>Duración</th><th>Precio</th></tr>';
+      rows = list.map((sv,i) => { const sec = data.sections.find(x => x.id === sv.sectionId); return `<tr><td>${i+1}</td><td><strong>${esc(sv.name)}</strong></td><td>${sec?esc(sec.name):'-'}</td><td>${sv.duration||0} min</td><td>${cur(sv.price||0)}</td></tr>`; }).join('');
+      totalsP = `${list.length} servicios · Suma precios: <strong>${cur(totPrice)}</strong> · Precio medio: <strong>${cur(list.length ? totPrice/list.length : 0)}</strong>`;
+    } else if (ent === 'products') {
+      const list = data.products.filter(p => !p._deleted).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+      const totStock = list.reduce((s,p) => s+(p.stock||0), 0);
+      const totCost = list.reduce((s,p) => s+(p.cost||0)*(p.stock||0), 0);
+      const totPvp = list.reduce((s,p) => s+(p.price||0)*(p.stock||0), 0);
+      head = '<tr><th>#</th><th>Producto</th><th>Proveedor</th><th>Precio</th><th>Coste</th><th>Stock</th></tr>';
+      rows = list.map((p,i) => { const prov = data.providers.find(x => x.id === p.providerId); return `<tr><td>${i+1}</td><td><strong>${esc(p.name)}</strong></td><td>${prov?esc(prov.name):'-'}</td><td>${cur(p.price||0)}</td><td>${cur(p.cost||0)}</td><td>${p.stock||0}</td></tr>`; }).join('');
+      totalsP = `${list.length} productos · Unidades en stock: <strong>${totStock}</strong> · Valor a coste: <strong>${cur(totCost)}</strong> · Valor a PVP: <strong>${cur(totPvp)}</strong>`;
+    } else if (ent === 'providers') {
+      const list = data.providers.filter(p => !p._deleted).sort((a,b) => (a.name||'').localeCompare(b.name||''));
+      const prodCount = {};
+      data.products.filter(p => !p._deleted && p.providerId).forEach(p => { prodCount[p.providerId] = (prodCount[p.providerId]||0)+1; });
+      const totProds = Object.values(prodCount).reduce((a,b) => a+b, 0);
+      head = '<tr><th>#</th><th>Proveedor</th><th>Teléfono</th><th>Email</th><th>Nº Productos</th></tr>';
+      rows = list.map((pv,i) => `<tr><td>${i+1}</td><td><strong>${esc(pv.name)}</strong></td><td>${esc(pv.phone||'-')}</td><td>${esc(pv.email||'-')}</td><td>${prodCount[pv.id]||0}</td></tr>`).join('');
+      totalsP = `${list.length} proveedores · ${totProds} productos asignados`;
+    } else {
+      const list = data.employees.filter(e => !e._deleted).sort((a,b) => fullName(a).localeCompare(fullName(b)));
+      const stats = {};
+      data.sales.filter(s => !isSaleArchived(s)).forEach(s => s.items.forEach(i => {
+        if (i.type === 'service' && i.employeeId) { stats[i.employeeId] = stats[i.employeeId]||{qty:0,total:0}; stats[i.employeeId].qty += i.qty; stats[i.employeeId].total += i.price*i.qty; }
+      }));
+      const totQty = Object.values(stats).reduce((a,b) => a+b.qty, 0);
+      const totFac = Object.values(stats).reduce((a,b) => a+b.total, 0);
+      head = '<tr><th>#</th><th>Empleado</th><th>Teléfono</th><th>Servicios Realizados</th><th>Total Facturado</th></tr>';
+      rows = list.map((e,i) => { const st = stats[e.id]||{}; return `<tr><td>${i+1}</td><td><strong>${esc(fullName(e))}</strong></td><td>${esc(e.phone||'-')}</td><td>${st.qty||0}</td><td>${cur(st.total||0)}</td></tr>`; }).join('');
+      totalsP = `${list.length} empleados · Servicios realizados: <strong>${totQty}</strong> · Total facturado histórico: <strong>${cur(totFac)}</strong>`;
+    }
+    if (!rows) { div.innerHTML = '<div class="empty-state"><p>Sin datos</p></div>'; return; }
+    div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">Listado general a ${new Date().toLocaleDateString('es-ES')} — ${totalsP}</p>
+      <div style="overflow-x:auto;"><table><thead>${head}</thead><tbody>${rows}</tbody></table></div>`;
   }
 }
 
@@ -5219,6 +5336,9 @@ function exportCSV() {
   let sales = data.sales;
   if (from) sales = sales.filter(s => s.date >= from);
   if (to) sales = sales.filter(s => s.date <= to+'T23:59:59');
+  const dim = document.getElementById('reportDim').value;
+  const dimVal = document.getElementById('reportVal').value;
+  sales = sales.filter(s => saleMatchesDim(s, dim, dimVal));
   
   let csv = 'Fecha,Cliente,Items,Base,IVA,Total,Pago\n';
   sales.forEach(s => {
