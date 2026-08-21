@@ -697,6 +697,7 @@ tr:hover td { background: #f8f9fa; }
       
       <div class="tab" onclick="switchSettingsTab('hours',this)">Horarios</div>
       <div class="tab" onclick="switchSettingsTab('bloques',this)">Bloques</div>
+      <div class="tab" onclick="switchSettingsTab('backup',this)">Backup</div>
     </div>
     <div id="settingsBusiness">
       <div class="grid-2">
@@ -793,6 +794,18 @@ tr:hover td { background: #f8f9fa; }
       <div class="form-group" style="margin-top:8px;"><label>Separación entre bloques (min)</label><input type="number" id="bloqueGap" placeholder="45" min="0" value="45"></div>
       <div style="margin-top:12px;padding:10px;background:var(--bg);border-radius:8px;font-size:12px;color:var(--text-light);">
         <strong>Nota:</strong> Los servicios sin clasificar usan su propia duración. Si una cita tiene servicios de Bloque 1 y Bloque 2, se mostrarán separados en la agenda con el color del primer bloque.
+      </div>
+    </div>
+    <div id="settingsBackup" style="display:none;">
+      <div style="font-size:13px;margin-bottom:12px;color:var(--text-light);">Copia de seguridad de <strong>toda</strong> la base de datos local (clientes, citas, servicios, empleados, productos, ventas y configuración). Se guarda en la carpeta <code>backup-local</code> del directorio del TPV.</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <button class="btn btn-primary" onclick="doBackup()">💾 Crear / Actualizar Backup</button>
+        <span id="backupStatus" style="font-size:12px;"></span>
+      </div>
+      <div style="font-size:11px;color:var(--text-light);margin-top:6px;">Cada backup actualiza <code>TPV_backup.json</code> y crea una copia diaria <code>TPV_&lt;fecha&gt;.json</code>.</div>
+      <div style="margin-top:18px;padding-top:12px;border-top:1px solid var(--border);">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">Copias disponibles</div>
+        <div id="backupList" style="font-size:12px;">Cargando...</div>
       </div>
     </div>
     <div class="modal-footer"><button class="btn btn-primary" onclick="saveSettings()">Guardar</button><button class="btn btn-secondary" onclick="closeModal('settingsModal')">Cancelar</button></div>
@@ -1241,8 +1254,10 @@ function switchSettingsTab(tab, el) {
   document.getElementById('settingsSync').style.display = tab === 'sync' ? 'block' : 'none';
   document.getElementById('settingsHours').style.display = tab === 'hours' ? 'block' : 'none';
   document.getElementById('settingsBloques').style.display = tab === 'bloques' ? 'block' : 'none';
+  document.getElementById('settingsBackup').style.display = tab === 'backup' ? 'block' : 'none';
   if (tab === 'ticket') { populateBackupLists('ticket'); document.getElementById('currentTicketNum').textContent = lastTicketNum(); }
   if (tab === 'invoice') { populateBackupLists('invoice'); document.getElementById('currentInvoiceNum').textContent = lastInvoiceNum(); }
+  if (tab === 'backup') refreshBackupList();
 }
 
 function openSettings() {
@@ -1595,6 +1610,53 @@ function loadOnlineOpeningForDay(dateStr) {
 // ============ SYNC ============
 const LOCAL_SYNC_URL = 'http://localhost:3456';
 function getSyncCfg() { return (data.settings && data.settings.sync) ? data.settings.sync : { enabled: true, url: 'https://nymaraestilistas.es/api' } }
+
+// ============ BACKUP / RESTORE BD LOCAL ============
+function fmtBackupSize(bytes) { return bytes > 1048576 ? (bytes/1048576).toFixed(2)+' MB' : Math.round(bytes/1024)+' KB'; }
+async function refreshBackupList() {
+  const el = document.getElementById('backupList');
+  if (!el) return;
+  try {
+    const r = await fetch(LOCAL_SYNC_URL + '/api/backups');
+    const j = await r.json();
+    if (!j.ok || !j.backups.length) { el.innerHTML = '<div style="color:var(--text-light);">No hay copias todavía. Pulsa «Crear / Actualizar Backup».</div>'; return; }
+    el.innerHTML = '<table><thead><tr><th>Fichero</th><th>Fecha</th><th>Tamaño</th><th></th></tr></thead><tbody>' +
+      j.backups.map(b => {
+        const d = new Date(b.mtime);
+        const isPre = /^TPV_pre_restore_/i.test(b.name);
+        const restoreBtn = isPre ? '' : `<button class="btn btn-secondary btn-sm" onclick="doRestore('${b.name}')">♻️ Restaurar</button>`;
+        return `<tr><td>${esc(b.name)}</td><td>${d.toLocaleDateString('es-ES')} ${d.toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</td><td>${fmtBackupSize(b.size)}</td><td>${restoreBtn}</td></tr>`;
+      }).join('') + '</tbody></table>' +
+      '<div style="margin-top:6px;color:var(--text-light);font-size:11px;">Carpeta: ' + esc(j.dir) + '</div>';
+  } catch (e) {
+    el.innerHTML = '<div style="color:#c0392b;">No se pudo conectar con el servicio local (' + esc(e.message) + ').</div>';
+  }
+}
+async function doBackup() {
+  const st = document.getElementById('backupStatus');
+  st.textContent = 'Guardando...';
+  try {
+    const r = await fetch(LOCAL_SYNC_URL + '/api/backup', { method: 'POST' });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Error desconocido');
+    st.textContent = '✅ Backup actualizado (' + new Date().toLocaleTimeString('es-ES') + ')';
+    refreshBackupList();
+  } catch (e) {
+    st.textContent = '❌ ' + e.message;
+  }
+}
+async function doRestore(name) {
+  if (!confirm('¿Restaurar la copia "' + name + '"?\n\nSe sustituirán TODOS los datos actuales (clientes, citas, servicios, productos, configuración).\nSe guardará antes una copia de seguridad del estado actual.')) return;
+  try {
+    const r = await fetch(LOCAL_SYNC_URL + '/api/restore', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name }) });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error || 'Error desconocido');
+    alert('✅ Copia restaurada. La aplicación se va a recargar.');
+    location.reload();
+  } catch (e) {
+    alert('❌ No se pudo restaurar: ' + e.message);
+  }
+}
 
 function toggleSyncTimeWindows() {
   const enabled = document.getElementById('syncTimeWindowsEnabled').checked;

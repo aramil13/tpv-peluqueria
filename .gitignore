@@ -16,6 +16,9 @@ android-agenda/AgendaTPV.apk
 sync/
 /data/
 
+# Backups de la BD local del TPV
+backup-local/
+
 .env*
 
 wa_auth/

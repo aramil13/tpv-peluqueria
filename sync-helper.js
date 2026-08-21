@@ -16,6 +16,20 @@ const DATA_DIR = (() => {
   catch (_) { const fallback = path.join(__dirname, 'sync'); console.warn(`Data dir "${d}" not writable, using "${fallback}"`); return fallback; }
 })();
 const SYNC_FILE = process.env.SYNC_FILE || path.join(DATA_DIR, 'appointments.json');
+// Carpeta donde se guardan los backups creados desde Configuracion > Backup.
+// Prioridad: env BACKUP_DIR > carpeta backup-local del directorio del TPV (si existe) > DATA_DIR\backups.
+const BACKUP_DIR = (() => {
+  if (process.env.BACKUP_DIR) return process.env.BACKUP_DIR;
+  const candidates = [
+    path.join(__dirname, 'backup-local'),
+    'C:\\Users\\tester\\OneDrive\\Documentos\\carpeta para opencode\\tpv para peluqueria\\backup-local',
+    path.join(DATA_DIR, 'backups')
+  ];
+  for (const c of candidates) {
+    try { fs.mkdirSync(c, { recursive: true }); return c; } catch (_) {}
+  }
+  return path.join(DATA_DIR, 'backups');
+})();
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 const SYNC_FORWARD_URL = process.env.SYNC_FORWARD_URL || '';
 const SYNC_FORWARD_KEY = process.env.SYNC_FORWARD_KEY || '';
@@ -505,6 +519,87 @@ const server = http.createServer((req, res) => {
       });
       return;
     }
+  }
+
+  // === BACKUP / RESTORE de la base de datos local ===
+  if (url === '/api/backups' && req.method === 'GET') {
+    let backups = [];
+    try {
+      backups = fs.readdirSync(BACKUP_DIR)
+        .filter(f => /^TPV[\w.-]*\.json$/i.test(f))
+        .map(f => {
+          const st = fs.statSync(path.join(BACKUP_DIR, f));
+          return { name: f, size: st.size, mtime: st.mtimeMs };
+        })
+        .sort((a, b) => b.mtime - a.mtime);
+    } catch (e) { console.error('[Backups] list error:', e.message); }
+    res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, dir: BACKUP_DIR, backups }));
+    return;
+  }
+
+  if (url === '/api/backup' && req.method === 'POST') {
+    try {
+      fs.mkdirSync(BACKUP_DIR, { recursive: true });
+      const data = readData();
+      const raw = JSON.stringify(data, null, 2);
+      const writeAtomic = (target) => {
+        const tmp = target + '.tmp';
+        fs.writeFileSync(tmp, raw, 'utf8');
+        fs.renameSync(tmp, target);
+      };
+      // Copia movil "actual" (se actualiza en cada backup) + copia fechada por dia
+      writeAtomic(path.join(BACKUP_DIR, 'TPV_backup.json'));
+      writeAtomic(path.join(BACKUP_DIR, `TPV_${todayMadrid()}.json`));
+      console.log('[Backup] creado en', BACKUP_DIR);
+      res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, dir: BACKUP_DIR, updated: ['TPV_backup.json', `TPV_${todayMadrid()}.json`] }));
+    } catch (e) {
+      console.error('[Backup] error:', e);
+      res.writeHead(500, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: e.message }));
+    }
+    return;
+  }
+
+  if (url === '/api/restore' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', async () => {
+      try {
+        const b = JSON.parse(body || '{}');
+        const name = String(b.name || '');
+        // Solo nombres de fichero simples dentro de BACKUP_DIR (sin rutas)
+        if (!/^TPV[\w.-]*\.json$/i.test(name)) throw new Error('Nombre de backup no válido');
+        const src = path.join(BACKUP_DIR, name);
+        if (!fs.existsSync(src)) throw new Error('Backup no encontrado');
+        const raw = fs.readFileSync(src, 'utf8');
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object') throw new Error('El fichero de backup no es válido');
+        // Red de seguridad: copia del estado actual antes de pisarlo
+        fs.mkdirSync(BACKUP_DIR, { recursive: true });
+        try {
+          fs.writeFileSync(path.join(BACKUP_DIR, `TPV_pre_restore_${Date.now()}.json`), JSON.stringify(readData(), null, 2), 'utf8');
+        } catch (e) { console.error('[Restore] no se pudo guardar copia previa:', e.message); }
+        const tmp = SYNC_FILE + '.restore-tmp';
+        fs.writeFileSync(tmp, raw, 'utf8');
+        let done = false;
+        for (let i = 0; i < 10 && !done; i++) {
+          try { fs.renameSync(tmp, SYNC_FILE); done = true; }
+          catch (_) { await new Promise(r => setTimeout(r, 400)); }
+        }
+        if (!done) throw new Error('La base de datos está ocupada, inténtalo de nuevo');
+        lastAccessSyncTs = 0;
+        console.log('[Restore] aplicado:', name);
+        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, restored: name }));
+      } catch (e) {
+        console.error('[Restore] error:', e.message);
+        res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
   }
 
   if (url === '/health') {
