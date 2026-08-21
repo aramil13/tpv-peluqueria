@@ -632,7 +632,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (url === '/api/facturas-temp' && req.method === 'POST') {
+  if (url === '/api/ventas-anuladas' && req.method === 'POST') {
     let body = '';
     req.on('data', chunk => body += chunk);
     req.on('end', () => {
@@ -641,13 +641,13 @@ const server = http.createServer((req, res) => {
         const desde = String(b.desde || '');
         const hasta = String(b.hasta || '');
         if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) throw new Error('Fechas inválidas');
-        const scriptPath = ensurePsScript('buscar-facturas-temp.ps1');
+        const scriptPath = ensurePsScript('buscar-ventas-anuladas.ps1');
         if (!scriptPath) throw new Error('Script no encontrado');
-        console.log('[FacturasTemp] buscando', desde, '→', hasta);
+        console.log('[VentasAnuladas] buscando', desde, '→', hasta);
         execFile('powershell', ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-File', scriptPath, '-Desde', desde, '-Hasta', hasta, '-Json'], { timeout: 120000 }, (error, stdout, stderr) => {
           const out = (stdout || '').trim();
           if (!out) {
-            console.error('[FacturasTemp] error:', error ? error.message : 'sin salida', stderr ? ('| ' + stderr.slice(0, 200)) : '');
+            console.error('[VentasAnuladas] error:', error ? error.message : 'sin salida', stderr ? ('| ' + stderr.slice(0, 200)) : '');
             res.writeHead(500, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ ok: false, error: (stderr || (error && error.message) || 'Sin salida del script').slice(0, 300) }));
             return;
@@ -657,7 +657,7 @@ const server = http.createServer((req, res) => {
             res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
             res.end(JSON.stringify(parsed));
           } catch (e) {
-            console.error('[FacturasTemp] JSON inválido:', e.message);
+            console.error('[VentasAnuladas] JSON inválido:', e.message);
             res.writeHead(500, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
             res.end(JSON.stringify({ ok: false, error: 'Salida inválida del script' }));
           }
