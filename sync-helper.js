@@ -2,6 +2,7 @@ const http = require('http');
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const { execFile } = require('child_process');
 require('dotenv').config({ path: path.join(__dirname, '.env.local') });
 const { syncToAccess } = require('./lib/access-sync');
 const { normPhone, mergeArray, dedupClients, dedupAppointments } = require('./lib/kv-data');
@@ -595,6 +596,46 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ ok: true, restored: name }));
       } catch (e) {
         console.error('[Restore] error:', e.message);
+        res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
+  }
+
+  if (url === '/api/facturas-temp' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(body || '{}');
+        const desde = String(b.desde || '');
+        const hasta = String(b.hasta || '');
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) throw new Error('Fechas inválidas');
+        const scriptPath = process.env.ACCESS_SYNC_SCRIPT
+          ? path.join(path.dirname(process.env.ACCESS_SYNC_SCRIPT), 'buscar-facturas-temp.ps1')
+          : path.join(__dirname, 'scripts', 'buscar-facturas-temp.ps1');
+        if (!fs.existsSync(scriptPath)) throw new Error('Script no encontrado');
+        console.log('[FacturasTemp] buscando', desde, '→', hasta);
+        execFile('powershell', ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-File', scriptPath, '-Desde', desde, '-Hasta', hasta, '-Json'], { timeout: 120000 }, (error, stdout, stderr) => {
+          const out = (stdout || '').trim();
+          if (!out) {
+            console.error('[FacturasTemp] error:', error ? error.message : 'sin salida', stderr ? ('| ' + stderr.slice(0, 200)) : '');
+            res.writeHead(500, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: (stderr || (error && error.message) || 'Sin salida del script').slice(0, 300) }));
+            return;
+          }
+          try {
+            const parsed = JSON.parse(out);
+            res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(parsed));
+          } catch (e) {
+            console.error('[FacturasTemp] JSON inválido:', e.message);
+            res.writeHead(500, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ ok: false, error: 'Salida inválida del script' }));
+          }
+        });
+      } catch (e) {
         res.writeHead(400, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: false, error: e.message }));
       }
