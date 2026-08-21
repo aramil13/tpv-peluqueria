@@ -17,6 +17,35 @@ const DATA_DIR = (() => {
   catch (_) { const fallback = path.join(__dirname, 'sync'); console.warn(`Data dir "${d}" not writable, using "${fallback}"`); return fallback; }
 })();
 const SYNC_FILE = process.env.SYNC_FILE || path.join(DATA_DIR, 'appointments.json');
+
+// Localiza un .ps1 para PowerShell. El exe portable solo extrae app.asar (no app.asar.unpacked),
+// asi que si el script no esta en disco real se copia desde el asar a una carpeta escribible.
+function ensurePsScript(name) {
+  const envDir = process.env.ACCESS_SYNC_SCRIPT ? path.dirname(process.env.ACCESS_SYNC_SCRIPT) : null;
+  const candidates = [];
+  if (envDir) candidates.push(path.join(envDir, name));
+  candidates.push(path.join(__dirname, 'scripts', name));
+  candidates.push(path.join(__dirname, '..', 'scripts', name));
+  for (const c of candidates) {
+    try {
+      if (!fs.existsSync(c)) continue;
+      // Dentro de app.asar no se puede ejecutar PowerShell; solo valen ficheros reales en disco.
+      if (/app\.asar(?!\.unpacked)/.test(c)) continue;
+      return c;
+    } catch (_) {}
+  }
+  try {
+    const src = path.join(__dirname, 'scripts', name);
+    if (!fs.existsSync(src)) return null;
+    const destDir = envDir || path.join(__dirname, 'scripts');
+    fs.mkdirSync(destDir, { recursive: true });
+    const dest = path.join(destDir, name);
+    try { fs.copyFileSync(src, dest); } catch (_) { if (!fs.existsSync(dest)) return null; }
+    console.log('[Scripts] extraído desde el asar:', dest);
+    return dest;
+  } catch (_) { return null; }
+}
+
 // Carpeta donde se guardan los backups creados desde Configuracion > Backup.
 // Prioridad: env BACKUP_DIR > carpeta backup-local del directorio del TPV (si existe) > DATA_DIR\backups.
 const BACKUP_DIR = (() => {
@@ -612,10 +641,8 @@ const server = http.createServer((req, res) => {
         const desde = String(b.desde || '');
         const hasta = String(b.hasta || '');
         if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)) throw new Error('Fechas inválidas');
-        const scriptPath = process.env.ACCESS_SYNC_SCRIPT
-          ? path.join(path.dirname(process.env.ACCESS_SYNC_SCRIPT), 'buscar-facturas-temp.ps1')
-          : path.join(__dirname, 'scripts', 'buscar-facturas-temp.ps1');
-        if (!fs.existsSync(scriptPath)) throw new Error('Script no encontrado');
+        const scriptPath = ensurePsScript('buscar-facturas-temp.ps1');
+        if (!scriptPath) throw new Error('Script no encontrado');
         console.log('[FacturasTemp] buscando', desde, '→', hasta);
         execFile('powershell', ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-File', scriptPath, '-Desde', desde, '-Hasta', hasta, '-Json'], { timeout: 120000 }, (error, stdout, stderr) => {
           const out = (stdout || '').trim();
