@@ -5161,6 +5161,7 @@ function renderReports() {
     sales = sales.filter(s => saleMatchesDim(s, dim, dimVal));
     sales = sales.sort((a,b) => new Date(b.date) - new Date(a.date));
     
+    const filterLabel = dim && dimVal ? ` · Filtro: ${reportDimLabel(dim)}: <strong>${esc((document.getElementById('reportVal').selectedOptions[0]||{}).text||'')}</strong>` : '';
     const lineMode = dim === 'product' || dim === 'provider' || dim === 'employee' || dim === 'service';
     if (lineMode) {
       const provOf = iid => ((data.products.find(x => x.id === iid)||{}).providerId)||'';
@@ -5176,13 +5177,19 @@ function renderReports() {
       if (!lines.length) { div.innerHTML = '<div class="empty-state"><p>Sin líneas que coincidan con el filtro</p></div>'; return; }
       const totLines = lines.reduce((sum,l) => sum + l.i.price*l.i.qty, 0);
       const unitCount = lines.reduce((sum,l) => sum + l.i.qty, 0);
-      const conceptLabel = dim === 'provider' ? 'Producto' : dim === 'employee' ? 'Concepto' : dim === 'service' ? 'Servicio' : 'Línea';
+      const conceptLabel = reportDimLabel(dim);
+      const extraCol = dim === 'provider' || dim === 'employee' ? '<th>' + (dim === 'provider' ? 'Producto' : 'Concepto') + '</th>' : '';
       let html = `<p style="margin-bottom:10px;font-weight:500;">${lines.length} líneas${filterLabel} · Unidades: <strong>${unitCount}</strong> · Total: <strong>${cur(totLines)}</strong></p>
-        <div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>Fecha</th><th>Cliente</th><th>${conceptLabel}</th><th>Cant.</th><th>Precio</th><th>Subtotal</th><th>Empleada</th></tr></thead><tbody>` +
+        <div style="overflow-x:auto;"><table><thead><tr><th>#</th><th>${conceptLabel}</th>${extraCol}<th>Fecha</th><th>Cliente</th><th>Cant.</th><th>Precio</th><th>Subtotal</th>${dim === 'employee' ? '' : '<th>Empleada</th>'}</tr></thead><tbody>` +
         lines.map(({s,i}) => {
           const client = data.clients.find(c => c.id === s.clientId);
-          const emp = i.employeeId ? ((data.employees.find(e => e.id === i.employeeId)||{}).name||'') : '';
-          return `<tr><td style="text-align:center;font-weight:600;">#${s.number||''}</td><td>${new Date(s.date).toLocaleString('es-ES')}</td><td>${esc(client?fullName(client):'Mostrador')}</td><td>${esc(i.name)}</td><td>${i.qty}</td><td>${cur(i.price)}</td><td><strong>${cur(i.price*i.qty)}</strong></td><td>${emp?esc(emp):'—'}</td></tr>`;
+          const empName = i.employeeId ? ((data.employees.find(e => e.id === i.employeeId)||{}).name||'') : '';
+          let concept;
+          if (dim === 'provider') { const pk = provOf(i.id); concept = pk ? ((data.providers.find(x => x.id === pk)||{}).name||'Sin proveedor') : 'Sin proveedor'; }
+          else if (dim === 'employee') { concept = empName || 'Sin asignar'; }
+          else concept = i.name;
+          const extraCell = dim === 'provider' || dim === 'employee' ? `<td>${esc(i.name)}</td>` : '';
+          return `<tr><td style="text-align:center;font-weight:600;">#${s.number||''}</td><td><strong>${esc(concept)}</strong></td>${extraCell}<td>${new Date(s.date).toLocaleString('es-ES')}</td><td>${esc(client?fullName(client):'Mostrador')}</td><td>${i.qty}</td><td>${cur(i.price)}</td><td><strong>${cur(i.price*i.qty)}</strong></td>${dim === 'employee' ? '' : `<td>${empName?esc(empName):'—'}</td>`}</tr>`;
         }).join('') + '</tbody></table></div>';
       const agg = {};
       lines.forEach(({s,i}) => {
@@ -5201,7 +5208,6 @@ function renderReports() {
       div.innerHTML = html;
       return;
     }
-    const filterLabel = dim && dimVal ? ` · Filtro: ${reportDimLabel(dim)}: <strong>${esc((document.getElementById('reportVal').selectedOptions[0]||{}).text||'')}</strong>` : '';
     const total = sales.reduce((sum, s) => sum + s.total, 0);
     const totalIva = sales.reduce((sum, s) => sum + (s.iva||0), 0);
     const totalBase = sales.reduce((sum, s) => sum + (s.base||0), 0);
