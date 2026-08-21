@@ -265,8 +265,15 @@ try {
         if ($serviceName) { $parts += "Servicio: $serviceName" }
         if ($employeeName) { $parts += "Empleada: $employeeName" }
         $motivo = $parts -join ' - '
-        if ($notes) {
-            if ($motivo) { $motivo = "$motivo | $notes" } else { $motivo = $notes }
+        # Strip previously generated prefix from notes to prevent duplication
+        $userNotes = $notes
+        if ($motivo -and $userNotes.StartsWith($motivo)) {
+            $remainder = $userNotes.Substring($motivo.Length)
+            $remainder = $remainder.TrimStart(' ', '|', ' ')
+            $userNotes = $remainder
+        }
+        if ($userNotes) {
+            if ($motivo) { $motivo = "$motivo | $userNotes" } else { $motivo = $userNotes }
         }
 
         $existingNumCita = $null
@@ -585,35 +592,61 @@ try {
         }
     }
 
-    # Phase 3.5: Pull client surnames (Apellidos) from Access Clientes into JSON clients
+    # Phase 3.5: Pull client surnames (Apellidos) and Observaciones from Access Clientes into JSON clients.
+    # Las Observaciones de Access se vuelcan en el campo "Historial Tecnico" (historialTecnico) del TPV.
+    # Se guarda una copia oculta (_obsAccess) del ultimo valor traido de Access: si Access no ha
+    # cambiado desde entonces, no se toca historialTecnico (asi las ediciones hechas en el TPV
+    # no se pierden); si Access cambia, manda Access y se sobrescribe el historial tecnico.
     $surnamesPulled = 0
+    $obsPulled = 0
     try {
         $jsonClientMap = @{}
         foreach ($jc in @($json.clients)) { if ($jc.id) { $jsonClientMap[$jc.id] = $jc } }
         $cmdSurname = $conn.CreateCommand()
-        $cmdSurname.CommandText = "SELECT Codigo, Apellidos FROM Clientes"
+        $cmdSurname.CommandText = "SELECT Codigo, Apellidos, Observaciones FROM Clientes"
         $sr = $cmdSurname.ExecuteReader()
         while ($sr.Read()) {
             $codigo = $sr['Codigo']
-            $apellidos = if ($sr['Apellidos']) { $sr['Apellidos'].ToString().Trim() } else { '' }
-            if (-not $apellidos) { continue }
             $matchId = "svcl_$codigo"
-            if ($jsonClientMap.ContainsKey($matchId)) {
-                $jsonClient = $jsonClientMap[$matchId]
+            if (-not $jsonClientMap.ContainsKey($matchId)) { continue }
+            $jsonClient = $jsonClientMap[$matchId]
+            $clientTouched = $false
+
+            $apellidos = if ($sr['Apellidos']) { $sr['Apellidos'].ToString().Trim() } else { '' }
+            if ($apellidos) {
                 $curAp = if ($jsonClient.apellidos) { [string]$jsonClient.apellidos } else { '' }
                 if ($curAp -ne $apellidos) {
                     Set-ApptField $jsonClient 'apellidos' $apellidos
-                    $jsonClient._modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                    $clientTouched = $true
                     $surnamesPulled++
                 }
+            }
+
+            $observaciones = if ($sr['Observaciones'] -and $sr['Observaciones'] -ne [System.DBNull]::Value) { $sr['Observaciones'].ToString().Trim() } else { '' }
+            $hasMarker = $jsonClient.PSObject.Properties['_obsAccess']
+            $storedObs = if ($hasMarker) { [string]$jsonClient._obsAccess } else { $null }
+            if ($observaciones -ne $storedObs) {
+                # Access cambio (o primera vez). Solo escribir si trae texto, o si ya habiamos
+                # sincronizado antes (permite propagar borrados de Access sin limpiar el TPV
+                # cuando Access nunca tuvo nada).
+                if ($observaciones -or $hasMarker) {
+                    Set-ApptField $jsonClient 'historialTecnico' $observaciones
+                    Set-ApptField $jsonClient '_obsAccess' $observaciones
+                    $clientTouched = $true
+                    $obsPulled++
+                }
+            }
+
+            if ($clientTouched) {
+                Set-ApptField $jsonClient '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
             }
         }
         $sr.Close()
     } catch {
-        Write-Host "WARN: Apellidos sync skipped: $($_.Exception.Message)"
+        Write-Host "WARN: Apellidos/Observaciones sync skipped: $($_.Exception.Message)"
     }
 
-    $shouldWrite = ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0 -or $surnamesPulled -gt 0 -or $accessSynced -gt 0)
+    $shouldWrite = ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0 -or $surnamesPulled -gt 0 -or $obsPulled -gt 0 -or $accessSynced -gt 0)
 
     # Detect concurrent edits: if the JSON file changed while we were reading Access,
     # skip the JSON write so a stale snapshot never overwrites the TPV's latest changes.
@@ -636,7 +669,7 @@ try {
     $sw.Stop()
     $wasAccess = $allAccessActive.Count
     $cancelled = $wasAccess - $updated
-    Write-Host "OK (${($sw.Elapsed.TotalSeconds.ToString('0.00'))}s): $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled, $accessCancelled access-cancelled, $cancelled cancelled, $cleaned dupes, $surnamesPulled surnames (JSON: $($activeAppts.Count), Access: $wasAccess)"
+    Write-Host "OK (${($sw.Elapsed.TotalSeconds.ToString('0.00'))}s): $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled, $accessCancelled access-cancelled, $cancelled cancelled, $cleaned dupes, $surnamesPulled surnames, $obsPulled obs->historial (JSON: $($activeAppts.Count), Access: $wasAccess)"
 } catch {
     if ($conn -and $conn.State -ne 'Closed') { try { $conn.Close() } catch {} }
     Write-Host "ERROR: $($_.Exception.Message)"

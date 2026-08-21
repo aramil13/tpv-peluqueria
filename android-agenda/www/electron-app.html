@@ -3040,10 +3040,11 @@ function showDayAppts(dateStr) {
   let html = `<div class="day-nav-bar" style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px;user-select:none;touch-action:pan-y;cursor:grab;" title="Arrastra con el ratón o desliza el dedo para cambiar de día">
   <span style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
     <button class="btn btn-secondary btn-sm" onclick="shiftDay(-1)" title="Día anterior">◀</button>
-    <span style="font-weight:500;">${title} — ${appts.length} cita(s)</span>
+    <span style="font-weight:500;">${title}</span>
     <button class="btn btn-secondary btn-sm" onclick="shiftDay(1)" title="Día siguiente">▶</button>
   </span>
   <span style="display:flex;align-items:center;gap:6px;white-space:nowrap;">
+    <span style="font-size:12px;color:var(--primary);font-weight:700;">${appts.length} cita${appts.length!==1?'s':''}</span>
     <button class="btn btn-secondary btn-sm" onclick="goToday()">Hoy</button>
     <button class="btn btn-primary btn-sm" onclick="quickAppt('${dateStr}')">+ Agendar</button>
   </span>
@@ -3329,6 +3330,12 @@ async function confirmWhatsAppAppt(id) {
     ga.pendingSalonConfirm = false;
     ga.status = 'confirmed';
     ga.notes = (ga.notes||'').replace('PENDIENTE - ', '');
+    if (ga.source === 'online') {
+      const n = ga.notes || '';
+      const pipeIdx = n.lastIndexOf(' | ');
+      if (pipeIdx !== -1) { ga.notes = n.substring(pipeIdx + 3); }
+      else if (n.match(/^Reserva online - /)) { ga.notes = 'Reserva online'; }
+    }
     ga._modified = Date.now();
   }
 
@@ -3350,6 +3357,7 @@ async function confirmWhatsAppAppt(id) {
     for (const ga of groupAppts) {
       const sIds = ga.serviceIds || (ga.serviceId ? [ga.serviceId] : []);
       ga.serviceId = sIds.length === 1 ? sIds[0] : (sIds[0] || '');
+      ga.notes = '';
       delete ga.blockGroupId;
       delete ga.blockNum;
     }
@@ -4014,7 +4022,7 @@ function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
   if (!employeeId || !endTime) return null;
   const t1 = parseFloat(time.split(':')[0]) + parseFloat(time.split(':')[1])/60;
   const e1 = parseFloat(endTime.split(':')[0]) + parseFloat(endTime.split(':')[1])/60;
-  const appts = data.appointments.filter(a => a.id !== excludeId && a.date === date && a.employeeId === employeeId && !a._deleted && a.endTime);
+  const appts = data.appointments.filter(a => a.id !== excludeId && a.date === date && a.employeeId === employeeId && !a._deleted && !a.cancelledBy && a.endTime);
   for (const a of appts) {
     const t2 = parseFloat(a.time.split(':')[0]) + parseFloat(a.time.split(':')[1])/60;
     const e2 = parseFloat(apptEndTimeStr(a).split(':')[0]) + parseFloat(apptEndTimeStr(a).split(':')[1])/60;

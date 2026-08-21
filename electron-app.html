@@ -72,6 +72,8 @@ tr:hover td { background: #f8f9fa; }
 .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 8px 12px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; transition: border .2s; background: #fff; }
 .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: var(--primary); }
 .form-group textarea { resize: vertical; min-height: 60px; }
+#apptNotes, #apptServiceSearch { pointer-events: auto !important; user-select: text !important; -webkit-user-select: text !important; }
+#apptNotes:focus, #apptServiceSearch:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 2px rgba(37,211,102,.25); }
 .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,.5); z-index: 1000; justify-content: center; align-items: center; }
 .modal.show { display: flex; }
@@ -1973,6 +1975,22 @@ document.addEventListener('keydown', function(e) {
   document.querySelectorAll('.modal.show').forEach(m => m.classList.remove('show'));
   document.querySelectorAll('.emp-sel-overlay').forEach(o => { if (o.parentNode) o.parentNode.removeChild(o); });
 });
+(function() {
+  const apptM = document.getElementById('appointmentModal');
+  if (!apptM) return;
+  apptM.addEventListener('mousedown', function(e) {
+    const ids = ['apptNotes', 'apptServiceSearch'];
+    const targetIds = ids.includes(e.target.id);
+    const elAtPoint = document.elementFromPoint(e.clientX, e.clientY);
+    const wantsFocus = targetIds || (elAtPoint && ids.includes(elAtPoint.id));
+    if (wantsFocus) {
+      const target = targetIds ? e.target : elAtPoint;
+      console.log('[APPT-DEBUG] mousedown target:', e.target.id || e.target.tagName, 'atPoint:', elAtPoint ? (elAtPoint.id || elAtPoint.tagName) : 'null', 'focusing:', target.id);
+      e.stopPropagation();
+      target.focus({preventScroll: true});
+    }
+  }, true);
+})();
 
 // ============ CLIENTS ============
 function renderClients() {
@@ -3329,6 +3347,12 @@ async function confirmWhatsAppAppt(id) {
     ga.pendingSalonConfirm = false;
     ga.status = 'confirmed';
     ga.notes = (ga.notes||'').replace('PENDIENTE - ', '');
+    if (ga.source === 'online') {
+      const n = ga.notes || '';
+      const pipeIdx = n.lastIndexOf(' | ');
+      if (pipeIdx !== -1) { ga.notes = n.substring(pipeIdx + 3); }
+      else if (n.match(/^Reserva online - /)) { ga.notes = 'Reserva online'; }
+    }
     ga._modified = Date.now();
   }
 
@@ -3350,6 +3374,7 @@ async function confirmWhatsAppAppt(id) {
     for (const ga of groupAppts) {
       const sIds = ga.serviceIds || (ga.serviceId ? [ga.serviceId] : []);
       ga.serviceId = sIds.length === 1 ? sIds[0] : (sIds[0] || '');
+      ga.notes = '';
       delete ga.blockGroupId;
       delete ga.blockNum;
     }
@@ -4014,7 +4039,7 @@ function checkApptOverlap(date, time, endTime, employeeId, excludeId) {
   if (!employeeId || !endTime) return null;
   const t1 = parseFloat(time.split(':')[0]) + parseFloat(time.split(':')[1])/60;
   const e1 = parseFloat(endTime.split(':')[0]) + parseFloat(endTime.split(':')[1])/60;
-  const appts = data.appointments.filter(a => a.id !== excludeId && a.date === date && a.employeeId === employeeId && !a._deleted && a.endTime);
+  const appts = data.appointments.filter(a => a.id !== excludeId && a.date === date && a.employeeId === employeeId && !a._deleted && !a.cancelledBy && a.endTime);
   for (const a of appts) {
     const t2 = parseFloat(a.time.split(':')[0]) + parseFloat(a.time.split(':')[1])/60;
     const e2 = parseFloat(apptEndTimeStr(a).split(':')[0]) + parseFloat(apptEndTimeStr(a).split(':')[1])/60;
