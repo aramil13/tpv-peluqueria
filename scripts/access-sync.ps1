@@ -315,8 +315,11 @@ try {
                 # Se considera cambiado si Access difiere TANTO del motivo que el TPV generaria
                 # como de las notas que el TPV ya conoce (las citas creadas en Access guardan su
                 # texto libre en Motivo/notes, asi que esa igualdad es el estado "en paz").
+                # EXCEPCION - reservas online: su Motivo es texto generado por la propia sync
+                # y las Notas del TPV deben quedar VACIAS (no se vuelca el Motivo de Access),
+                # asi que aqui no se detecta cambio de Motivo (evita re-sincros eternas).
                 $snapMotivo = if ($snap.motivo) { [string]$snap.motivo } else { '' }
-                if ($snapMotivo -ne $motivo -and $snapMotivo -ne $jsonNotes) {
+                if (-not $isOnline -and $snapMotivo -ne $motivo -and $snapMotivo -ne $jsonNotes) {
                     $motivoChanged = $true
                 }
             }
@@ -359,7 +362,9 @@ try {
                     if (Get-ValidEndTime $snapEndTime $snapTime) {
                         Set-ApptField $appt 'endTime' $snapEndTime
                     }
-                    Set-ApptField $appt 'notes' $snapMotivo
+                    # Reservas online: las Notas del TPV quedan vacias; el Motivo generado
+                    # de Access NO se pasa a Notas (solo aplica a citas no online).
+                    Set-ApptField $appt 'notes' $(if ($isOnline) { '' } else { $snapMotivo })
                     Set-ApptField $appt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
                     Set-AccessSynced $appt
                     $matchedNumCitas[$existingNumCita] = $true

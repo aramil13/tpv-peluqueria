@@ -3410,10 +3410,8 @@ async function confirmWhatsAppAppt(id) {
     ga.status = 'confirmed';
     ga.notes = (ga.notes||'').replace('PENDIENTE - ', '');
     if (ga.source === 'online') {
-      const n = ga.notes || '';
-      const pipeIdx = n.lastIndexOf(' | ');
-      if (pipeIdx !== -1) { ga.notes = n.substring(pipeIdx + 3); }
-      else if (n.match(/^Reserva online - /)) { ga.notes = 'Reserva online'; }
+      // Reserva online: las Notas del TPV quedan vacias; el detalle viaja en el Motivo de Access
+      ga.notes = '';
     }
     ga._modified = Date.now();
   }
