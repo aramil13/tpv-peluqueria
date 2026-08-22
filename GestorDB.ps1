@@ -1,4 +1,4 @@
-Add-Type -AssemblyName System.Windows.Forms
+﻿Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 
 $dbPath = "C:\TPVGratuito\peluqueria\TpvPeluqueria.accdb"
@@ -261,7 +261,7 @@ $script:grid.ReadOnly = $true
 $script:grid.AllowUserToAddRows = $false
 $script:grid.AllowUserToDeleteRows = $false
 $script:grid.SelectionMode = "FullRowSelect"
-$script:grid.MultiSelect = $false
+$script:grid.MultiSelect = $true
 $script:grid.RowHeadersVisible = $true
 $script:grid.AutoSizeColumnsMode = "AllCells"
 $script:grid.BackgroundColor = "White"
@@ -362,17 +362,18 @@ $btnDeleteRow.Add_Click({
         [System.Windows.Forms.MessageBox]::Show("Activa el modo Edicion primero", "Info", "OK", "Information")
         return
     }
-    $row = $script:grid.SelectedRows[0]
     $tableName = $script:currentTable
-    $boundItem = $row.DataBoundItem
-    if ($boundItem -eq $null -or $boundItem.Row.RowState -eq [System.Data.DataRowState]::Added) {
+    $rows = @($script:grid.SelectedRows | Where-Object { $_.DataBoundItem -ne $null -and $_.DataBoundItem.Row.RowState -ne [System.Data.DataRowState]::Added })
+    if ($rows.Count -eq 0) {
         [System.Windows.Forms.MessageBox]::Show("Fila nueva sin guardar. Recargando tabla.", "Info", "OK", "Information")
         LoadTable($tableName)
         return
     }
     $colTypes = GetColumnTypes($tableName)
-    $where = BuildRowWhere $boundItem.Row $colTypes
-    $confirm = [System.Windows.Forms.MessageBox]::Show("Eliminar este registro de $tableName ?", "Confirmar", "YesNo", "Warning")
+    $wheres = @()
+    foreach ($r in $rows) { $wheres += ((BuildRowWhere $r.DataBoundItem.Row $colTypes) -join ' AND ') }
+    $plural = if ($rows.Count -gt 1) { "s" } else { "" }
+    $confirm = [System.Windows.Forms.MessageBox]::Show("Eliminar $($rows.Count) registro$plural de $tableName ?", "Confirmar", "YesNo", "Warning")
     if ($confirm -eq "Yes") {
         $conn = New-Object System.Data.OleDb.OleDbConnection($connStr)
         $conn.Open()
@@ -380,13 +381,17 @@ $btnDeleteRow.Add_Click({
         $conn.Close()
         $hasBorrar = $false
         foreach ($c in $cols.Rows) { if ($c["COLUMN_NAME"] -eq "Borrar") { $hasBorrar = $true; break } }
-        $sql = if ($hasBorrar) { "UPDATE [$tableName] SET Borrar = 1 WHERE $($where -join ' AND ')" } else { "DELETE FROM [$tableName] WHERE $($where -join ' AND ')" }
+        $verb = if ($hasBorrar) { "UPDATE [$tableName] SET Borrar = 1 WHERE " } else { "DELETE FROM [$tableName] WHERE " }
+        $hechos = 0
         try {
-            ExecuteNonQuery($sql)
-            $script:lblStatus.Text = "Registro eliminado de $tableName"
+            foreach ($w in $wheres) {
+                ExecuteNonQuery($verb + $w)
+                $hechos++
+            }
+            $script:lblStatus.Text = "$hechos registro$plural eliminado$plural de $tableName"
             LoadTable($script:currentTable)
         } catch {
-            [System.Windows.Forms.MessageBox]::Show("Error: $_", "Error", "OK", "Error")
+            [System.Windows.Forms.MessageBox]::Show("Error tras $hechos eliminado$plural`: $_", "Error", "OK", "Error")
         }
     }
 })
@@ -403,24 +408,29 @@ $btnHardDeleteRow.Add_Click({
         [System.Windows.Forms.MessageBox]::Show("Activa el modo Edicion primero", "Info", "OK", "Information")
         return
     }
-    $row = $script:grid.SelectedRows[0]
     $tableName = $script:currentTable
-    $boundItem = $row.DataBoundItem
-    if ($boundItem -eq $null -or $boundItem.Row.RowState -eq [System.Data.DataRowState]::Added) {
+    $rows = @($script:grid.SelectedRows | Where-Object { $_.DataBoundItem -ne $null -and $_.DataBoundItem.Row.RowState -ne [System.Data.DataRowState]::Added })
+    if ($rows.Count -eq 0) {
         [System.Windows.Forms.MessageBox]::Show("Fila nueva sin guardar. Recargando tabla.", "Info", "OK", "Information")
         LoadTable($tableName)
         return
     }
     $colTypes = GetColumnTypes($tableName)
-    $where = BuildRowWhere $boundItem.Row $colTypes
-    $confirm = [System.Windows.Forms.MessageBox]::Show("SE ELIMINARA DEFINITIVAMENTE este registro de $tableName. Esta accion no se puede deshacer. Continuar?", "Borrado definitivo", "YesNo", "Warning")
+    $wheres = @()
+    foreach ($r in $rows) { $wheres += ((BuildRowWhere $r.DataBoundItem.Row $colTypes) -join ' AND ') }
+    $plural = if ($rows.Count -gt 1) { "s" } else { "" }
+    $confirm = [System.Windows.Forms.MessageBox]::Show("SE ELIMINARAN DEFINITIVAMENTE $($rows.Count) registro$plural de $tableName. Esta accion no se puede deshacer. Continuar?", "Borrado definitivo", "YesNo", "Warning")
     if ($confirm -eq "Yes") {
+        $hechos = 0
         try {
-            ExecuteNonQuery("DELETE FROM [$tableName] WHERE $($where -join ' AND ')")
-            $script:lblStatus.Text = "Registro eliminado definitivamente de $tableName"
+            foreach ($w in $wheres) {
+                ExecuteNonQuery("DELETE FROM [$tableName] WHERE $w")
+                $hechos++
+            }
+            $script:lblStatus.Text = "$hechos registro$plural eliminado$plural definitivamente de $tableName"
             LoadTable($script:currentTable)
         } catch {
-            [System.Windows.Forms.MessageBox]::Show("Error: $_", "Error", "OK", "Error")
+            [System.Windows.Forms.MessageBox]::Show("Error tras $hechos borrado$plural`: $_", "Error", "OK", "Error")
         }
     }
 })
@@ -621,3 +631,4 @@ try {
 }
 
 [void]$script:form.ShowDialog()
+
