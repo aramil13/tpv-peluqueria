@@ -670,6 +670,38 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (url === '/api/sync-facturas' && req.method === 'POST') {
+    const scriptPath = ensurePsScript('sincronizar-facturas.ps1');
+    if (!scriptPath) {
+      res.writeHead(500, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: 'Script sincronizar-facturas.ps1 no encontrado' }));
+      return;
+    }
+    console.log('[SyncFacturas] inicio, JSON:', SYNC_FILE);
+    const dbArgs = ['-JsonFile', SYNC_FILE];
+    if (process.env.ACCESS_DB_PATH) dbArgs.push('-DbPath', process.env.ACCESS_DB_PATH);
+    execFile('powershell', ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-File', scriptPath, ...dbArgs], { timeout: 300000 }, (error, stdout, stderr) => {
+      const out = (stdout || '').trim();
+      if (!out) {
+        console.error('[SyncFacturas] error:', error ? error.message : 'sin salida', stderr ? ('| ' + stderr.slice(0, 300)) : '');
+        res.writeHead(500, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: (stderr || (error && error.message) || 'Sin salida del script').slice(0, 300), importados: 0, exportados: 0, yaEnTpv: 0, errores: [] }));
+        return;
+      }
+      let parsed;
+      try {
+        parsed = JSON.parse(out);
+      } catch (e) {
+        console.error('[SyncFacturas] JSON inválido:', e.message, '| salida:', out.slice(0, 200));
+        parsed = { ok: false, error: 'Salida inválida del script: ' + out.slice(0, 200), importados: 0, exportados: 0, yaEnTpv: 0, errores: [] };
+      }
+      console.log('[SyncFacturas] fin:', out.slice(0, 200));
+      res.writeHead(parsed.ok ? 200 : 500, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(parsed));
+    });
+    return;
+  }
+
   if (url === '/health') {
     const data = readData();
     const totalProducts = (data.products||[]).length;

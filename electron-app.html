@@ -282,12 +282,21 @@ tr:hover td { background: #f8f9fa; }
               <div class="row"><span>Subtotal</span><span id="ticketSubtotal">0.00€</span></div>
               <div class="row" style="font-size:12px;color:var(--text-light);"><span>Base Imponible</span><span id="ticketBase">0.00€</span></div>
               <div class="row" style="font-size:12px;color:var(--text-light);"><span>IVA <span id="ticketIvaLabel">21</span>%</span><span id="ticketIva">0.00€</span></div>
+              <div class="row" style="font-size:12px;color:var(--danger);display:none;"><span>Descuento</span><span id="ticketDiscount">-0.00€</span></div>
               <div class="row" style="border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:8px;"><span>Cliente</span><span id="ticketClient">Mostrador</span></div>
               <div class="row grand-total"><span>Total</span><span id="ticketTotal">0.00€</span></div>
             </div>
             <div style="margin-bottom:10px;">
               <select id="ticketClientSelect" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;" onchange="updateTicketClient()">
                 <option value="">Cliente: Mostrador</option>
+              </select>
+            </div>
+            <div style="margin-bottom:10px;display:flex;gap:6px;align-items:center;">
+              <label style="font-size:12px;flex-shrink:0;">Descuento</label>
+              <input type="number" id="discountValue" min="0" step="0.01" placeholder="0" style="width:90px;padding:6px;border:1px solid var(--border);border-radius:6px;font-size:13px;" oninput="updateTicket()">
+              <select id="discountType" style="padding:7px;border:1px solid var(--border);border-radius:6px;font-size:13px;" onchange="updateTicket()">
+                <option value="amount">€</option>
+                <option value="percent">%</option>
               </select>
             </div>
             <div id="ticketClientInvoice" style="font-size:11px;color:var(--text-light);margin-bottom:10px;padding:8px;background:var(--bg);border-radius:6px;display:none;"></div>
@@ -455,7 +464,7 @@ tr:hover td { background: #f8f9fa; }
     <!-- REPORTS -->
     <div class="section" id="sec-reports">
       <div class="card">
-        <div class="card-header"><h3>Listados e Informes</h3></div>
+        <div class="card-header"><h3>Listados e Informes</h3><button class="btn btn-secondary btn-sm" id="btnSyncFacturas" onclick="syncFacturas()">⇄ Sincronizar con Access</button></div>
         <div class="tabs">
           <div class="tab active" onclick="switchReportTab('sales',this)">Ventas</div>
           <div class="tab" onclick="switchReportTab('general',this)">Generales</div>
@@ -4605,14 +4614,21 @@ function updateTicket() {
     }).join('');
   }
   
-  const subtotal = ticket.items.reduce((sum, i) => sum + i.price * i.qty * (i._removed ? -1 : 1), 0);
-  const iva = ivaAmount(subtotal);
-  const base = basePrice(subtotal);
+  const subtotal = ticketSubtotalAmount();
+  const disc = ticketDiscount();
+  const total = Math.round((subtotal - disc.amount) * 100) / 100;
+  const iva = ivaAmount(total);
+  const base = basePrice(total);
   document.getElementById('ticketSubtotal').textContent = cur(subtotal);
   document.getElementById('ticketBase').textContent = cur(base);
   document.getElementById('ticketIva').textContent = cur(iva);
   document.getElementById('ticketIvaLabel').textContent = getIvaRate();
-  document.getElementById('ticketTotal').textContent = cur(subtotal);
+  document.getElementById('ticketTotal').textContent = cur(total);
+  const discRow = document.getElementById('ticketDiscount');
+  if (discRow) {
+    discRow.parentElement.style.display = disc.amount > 0 ? 'flex' : 'none';
+    discRow.textContent = '-' + cur(disc.amount);
+  }
   
   setPayment(ticket.paymentMethod || 'cash');
   
@@ -4646,6 +4662,17 @@ function updateTicketClient() {
 function ticketSubtotalAmount() {
   return ticket.items.reduce((sum, i) => sum + i.price * i.qty * (i._removed ? -1 : 1), 0);
 }
+function ticketDiscount() {
+  const sub = ticketSubtotalAmount();
+  const valEl = document.getElementById('discountValue');
+  const typeEl = document.getElementById('discountType');
+  if (!valEl || !typeEl) return { amount: 0, pct: 0 };
+  const raw = parseFloat(valEl.value) || 0;
+  if (raw <= 0 || sub <= 0) return { amount: 0, pct: 0 };
+  let amt = typeEl.value === 'percent' ? sub * Math.min(raw, 100) / 100 : raw;
+  amt = Math.min(Math.round(amt * 100) / 100, Math.round(sub * 100) / 100);
+  return { amount: amt, pct: typeEl.value === 'percent' ? Math.round(Math.min(raw, 100) * 100) / 100 : 0 };
+}
 function pagoLabel(pm) {
   return pm === 'card' ? '💳 Tarjeta' : pm === 'mixed' ? '💰💳 Mixto' : '💰 Contado';
 }
@@ -4654,6 +4681,7 @@ function pagoPlain(pm) {
 }
 function pagoDetail(sale) {
   if (sale.paymentMethod !== 'mixed') return pagoPlain(sale.paymentMethod);
+  if (sale.cashAmount == null && sale.cardAmount == null) return 'Mixto';
   const c = (sale.cashAmount || 0).toFixed(2);
   const t = (sale.cardAmount || 0).toFixed(2);
   return `Mixto (Efectivo ${c}€ / Tarjeta ${t}€)`;
@@ -4730,6 +4758,8 @@ function clearTicket() {
   ticket.clientId = '';
   document.getElementById('mixCash').value = '';
   document.getElementById('mixCard').value = '';
+  document.getElementById('discountValue').value = '';
+  document.getElementById('discountType').value = 'amount';
   setPayment('cash');
   editingSaleId = null;
   originalSaleForRectify = null;
@@ -4767,6 +4797,9 @@ function editTicket(id) {
     document.getElementById('mixCash').value = (sale.cashAmount != null ? sale.cashAmount : 0).toFixed(2);
     document.getElementById('mixCard').value = (sale.cardAmount != null ? sale.cardAmount : 0).toFixed(2);
   }
+  document.getElementById('discountValue').value =
+    sale.discountPct ? String(sale.discountPct) : (sale.discount ? sale.discount.toFixed(2) : '');
+  document.getElementById('discountType').value = sale.discountPct ? 'percent' : 'amount';
   document.querySelector('.nav-item[data-section="pos"]')?.click();
   updateTicket();
 }
@@ -4797,7 +4830,9 @@ function deleteTicket(id) {
 function completeSale() {
   if (!ticket.items.length) { alert('El ticket está vacío'); return; }
   
-  const total = ticket.items.reduce((sum, i) => sum + i.price * i.qty, 0);
+  const subtotalSale = ticket.items.reduce((sum, i) => sum + i.price * i.qty, 0);
+  const disc = ticketDiscount();
+  const total = Math.round((subtotalSale - disc.amount) * 100) / 100;
   const iva = ivaAmount(total);
   const base = basePrice(total);
 
@@ -4959,6 +4994,8 @@ function completeSale() {
     clientId: ticket.clientId || '',
     date: new Date().toISOString(),
     paymentMethod: ticket.paymentMethod || 'cash',
+    discount: disc.amount,
+    ...(disc.pct ? { discountPct: disc.pct } : {}),
     ...payExtra
   };
   data.sales.push(sale);
@@ -5025,6 +5062,7 @@ function showReceipt(sale, base, iva) {
     <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-light);"><span>Base</span><span>${cur(base)}</span></div>
       <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-light);"><span>IVA (${getIvaRate()}%)</span><span>${cur(iva)}</span></div>
+      ${sale.discount ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--danger);"><span>Descuento${sale.discountPct ? ' (' + sale.discountPct + '%)' : ''}</span><span>-${cur(sale.discount)}</span></div>` : ''}
       <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:var(--primary);margin-top:4px;padding-top:4px;border-top:2px solid var(--primary);"><span>TOTAL</span><span>${cur(sale.total)}</span></div>
     </div>
     <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px;font-size:11px;color:var(--text-light);">
@@ -5156,6 +5194,7 @@ function showInvoice(saleId) {
     <div style="border-top:2px solid var(--primary);padding-top:10px;margin-bottom:15px;">
       <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;padding:2px 0;"><span>Base Imponible</span><span>${cur(sale.base||0)}</span></div>
       <div style="display:flex;justify-content:space-between;font-size:13px;color:#555;padding:2px 0;"><span>IVA (${sale.ivaRate||getIvaRate()}%)</span><span>${cur(sale.iva||0)}</span></div>
+      ${sale.discount ? `<div style="display:flex;justify-content:space-between;font-size:13px;color:var(--danger);padding:2px 0;"><span>Descuento${sale.discountPct ? ' (' + sale.discountPct + '%)' : ''}</span><span>-${cur(sale.discount)}</span></div>` : ''}
       <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700;color:var(--primary);padding-top:8px;margin-top:4px;border-top:2px solid var(--primary);"><span>TOTAL</span><span>${cur(sale.total)}</span></div>
     </div>
     <div style="font-size:12px;color:#555;text-align:center;padding-top:10px;border-top:1px solid #ddd;">
@@ -5252,6 +5291,30 @@ function renderAnuladasInvoices(div, j) {
   html += `<tr style="font-weight:700;background:var(--bg);"><td colspan="3" style="text-align:right;">TOTAL GENERAL</td><td>${cur(r.base||0)}</td><td>${cur(r.iva||0)}</td><td>${cur(r.total||0)}</td><td></td></tr>`;
   html += '</tbody></table></div>';
   div.innerHTML = html;
+}
+
+function syncFacturas() {
+  const btn = document.getElementById('btnSyncFacturas');
+  if (!confirm('¿Sincronizar facturas/tickets con Access?\n\n· Importa al TPV las facturas definitivas de Access que falten.\n· Exporta a Access los tickets/facturas del TPV aún no sincronizados.\n\nPuede tardar un momento.')) return;
+  btn.disabled = true;
+  const oldText = btn.textContent;
+  btn.textContent = '⏳ Sincronizando...';
+  fetch(LOCAL_SYNC_URL + '/api/sync-facturas', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+    .then(r => r.json())
+    .then(j => {
+      if (j.ok) {
+        alert('Sincronización completada.\n\nImportados desde Access: ' + (j.importados || 0) +
+          '\nYa estaban en el TPV: ' + (j.yaEnTpv || 0) +
+          '\nExportados a Access: ' + (j.exportados || 0) +
+          ((j.errores && j.errores.length) ? ('\nAvisos: ' + j.errores.join(' | ')) : ''));
+        renderReports();
+        renderDashboard();
+      } else {
+        alert('Error en la sincronización: ' + (j.error || 'desconocido') + ((j.errores && j.errores.length) ? '\n' + j.errores.join('\n') : ''));
+      }
+    })
+    .catch(() => alert('No se pudo conectar con el servicio local (sync-helper). Abre el TPV e inténtalo de nuevo.'))
+    .finally(() => { btn.disabled = false; btn.textContent = oldText; });
 }
 
 function renderReports() {
@@ -5475,6 +5538,7 @@ function showSaleDetail(id) {
   if (client && client.address) html += `<p><strong>Dirección:</strong> ${esc(client.address)}</p>`;
   if (client && (client.city||client.province)) html += `<p><strong>Población:</strong> ${esc(client.city||'')} ${esc(client.province||'')}</p>`;
   html += `<p><strong>Pago:</strong> ${pagoDetail(s)}</p>
+    ${s.discount ? `<p style="color:var(--danger);"><strong>Descuento:</strong> -${cur(s.discount)}${s.discountPct ? ' (' + s.discountPct + '%)' : ''}</p>` : ''}
     <p><strong>Base:</strong> ${cur(s.base||0)}</p>
     <p><strong>IVA (${s.ivaRate||getIvaRate()}%):</strong> ${cur(s.iva||0)}</p>
     <p><strong>${s.total < 0 ? 'A devolver' : 'Total'}:</strong> ${cur(Math.abs(s.total))}</p>
@@ -5502,11 +5566,11 @@ function exportCSV() {
   const dimVal = document.getElementById('reportVal').value;
   sales = sales.filter(s => saleMatchesDim(s, dim, dimVal));
   
-  let csv = 'Fecha,Cliente,Items,Base,IVA,Total,Pago\n';
+  let csv = 'Fecha,Cliente,Items,Base,IVA,Total,Descuento,Pago\n';
   sales.forEach(s => {
     const client = data.clients.find(c => c.id === s.clientId);
     const items = s.items.map(i => `${i.qty}x ${i.name}`).join('; ');
-    csv += `"${new Date(s.date).toLocaleString('es-ES')}","${client?fullName(client):'Mostrador'}","${items}",${(s.base||0).toFixed(2)},${(s.iva||0).toFixed(2)},${s.total.toFixed(2)},"${pagoPlain(s.paymentMethod)}"\n`;
+    csv += `"${new Date(s.date).toLocaleString('es-ES')}","${client?fullName(client):'Mostrador'}","${items}",${(s.base||0).toFixed(2)},${(s.iva||0).toFixed(2)},${s.total.toFixed(2)},${(s.discount||0).toFixed(2)},"${pagoPlain(s.paymentMethod)}"\n`;
   });
   
   const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
