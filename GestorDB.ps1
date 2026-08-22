@@ -308,10 +308,11 @@ $script:grid.Add_CellEndEdit({
             $affected = ExecuteNonQuery($sql)
             if ($affected -gt 0) {
                 $script:lblStatus.Text = "Guardado: $colName en $script:currentTable ($affected fila(s))"
+                $boundItem.Row.AcceptChanges()
             } else {
                 $script:lblStatus.Text = "Sin coincidencias (fila modificada en la BD). Recargando..."
+                ReloadTableDeferred
             }
-            ReloadTableDeferred
         } catch {
             [System.Windows.Forms.MessageBox]::Show("Error al guardar: $_", "Error", "OK", "Error")
         }
