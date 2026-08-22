@@ -1859,6 +1859,14 @@ function applyRemoteData(remote, source) {
     });
     data.clients = mergedClients;
   }
+  if (Array.isArray(remote.sales) && remote.sales.length > 0) {
+    if (!Array.isArray(data.sales)) data.sales = [];
+    const localSales = new Map(data.sales.map(s => [s.id, s]));
+    remote.sales.forEach(s => {
+      if (!s || typeof s !== 'object' || !s.id) return;
+      if (!localSales.has(s.id)) { data.sales.push(s); localSales.set(s.id, s); }
+    });
+  }
   if (Array.isArray(remote.employees) && remote.employees.length > 0) data.employees = [...remote.employees];
   if (Array.isArray(remote.sections) && remote.sections.length > 0) data.sections = [...remote.sections];
   if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
@@ -1894,6 +1902,7 @@ function syncPull() {
     try {
       saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
       saveKey('clients'); saveKey('projects'); saveKey('providers'); saveKey('appointments');
+      saveKey('sales');
     } catch(e) { console.error('SAVE ERROR:', e); }
 
     const active = document.querySelector('.nav-item.active');
@@ -1907,6 +1916,8 @@ function syncPull() {
       else if (sec === 'products') { renderProducts(); renderWarehouse(); }
       else if (sec === 'projects') renderProjects();
       else if (sec === 'dashboard') renderDashboard();
+      else if (sec === 'reports') renderReports();
+      else if (sec === 'pos') renderPosItems();
     }
   }).catch(e => {
     console.error('SYNC PULL ERROR:', e);
