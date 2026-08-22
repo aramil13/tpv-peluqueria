@@ -294,6 +294,14 @@ tr:hover td { background: #f8f9fa; }
             <div style="margin-bottom:10px;display:flex;gap:8px;">
               <button class="btn" id="payCash" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;" onclick="setPayment('cash')">💰 Contado</button>
               <button class="btn" id="payCard" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;" onclick="setPayment('card')">💳 Tarjeta</button>
+              <button class="btn" id="payMixed" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;" onclick="setPayment('mixed')">💰💳 Mixto</button>
+            </div>
+            <div id="mixedPayRow" style="display:none;margin-bottom:10px;padding:8px;background:var(--bg);border-radius:6px;border:1px solid var(--border);">
+              <div style="display:flex;gap:8px;font-size:12px;">
+                <label style="flex:1;">Efectivo €<input type="number" id="mixCash" step="0.01" min="0" style="width:100%;padding:6px;margin-top:2px;border:1px solid var(--border);border-radius:6px;" oninput="updateMixedAmounts('cash')"></label>
+                <label style="flex:1;">Tarjeta €<input type="number" id="mixCard" step="0.01" min="0" style="width:100%;padding:6px;margin-top:2px;border:1px solid var(--border);border-radius:6px;" oninput="updateMixedAmounts('card')"></label>
+              </div>
+              <div id="mixHint" style="font-size:11px;margin-top:4px;color:var(--text-light);"></div>
             </div>
             <div class="ticket-actions">
               <button class="btn btn-success" onclick="completeSale()">💰 Cobrar</button>
@@ -4635,12 +4643,65 @@ function updateTicketClient() {
   }
 }
 
+function ticketSubtotalAmount() {
+  return ticket.items.reduce((sum, i) => sum + i.price * i.qty * (i._removed ? -1 : 1), 0);
+}
+function pagoLabel(pm) {
+  return pm === 'card' ? '💳 Tarjeta' : pm === 'mixed' ? '💰💳 Mixto' : '💰 Contado';
+}
+function pagoPlain(pm) {
+  return pm === 'card' ? 'Tarjeta' : pm === 'mixed' ? 'Mixto' : 'Contado';
+}
+function pagoDetail(sale) {
+  if (sale.paymentMethod !== 'mixed') return pagoPlain(sale.paymentMethod);
+  const c = (sale.cashAmount || 0).toFixed(2);
+  const t = (sale.cardAmount || 0).toFixed(2);
+  return `Mixto (Efectivo ${c}€ / Tarjeta ${t}€)`;
+}
+function mixedAmounts() {
+  return {
+    cash: Math.max(0, parseFloat(document.getElementById('mixCash').value) || 0),
+    card: Math.max(0, parseFloat(document.getElementById('mixCard').value) || 0)
+  };
+}
+function updateMixedHint() {
+  const { cash, card } = mixedAmounts();
+  const diff = cash + card - ticketSubtotalAmount();
+  document.getElementById('mixHint').textContent =
+    Math.abs(diff) < 0.005 ? '✔ Reparto completo' : 'Pendiente por repartir: ' + cur(diff);
+}
+function syncMixedInputs() {
+  const cashEl = document.getElementById('mixCash');
+  const cardEl = document.getElementById('mixCard');
+  const total = ticketSubtotalAmount();
+  const c = parseFloat(cashEl.value), t = parseFloat(cardEl.value);
+  if (!isNaN(c) && !isNaN(t) && c >= 0 && t >= 0 && Math.abs(c + t - total) < 0.005) { updateMixedHint(); return; }
+  if (!isNaN(c) && c >= 0 && c <= total) { cardEl.value = Math.max(0, total - c).toFixed(2); }
+  else if (!isNaN(t) && t >= 0 && t <= total) { cashEl.value = Math.max(0, total - t).toFixed(2); }
+  else { cashEl.value = (0).toFixed(2); cardEl.value = Math.max(0, total).toFixed(2); }
+  updateMixedHint();
+}
+function updateMixedAmounts(changed) {
+  const total = ticketSubtotalAmount();
+  if (changed === 'cash') {
+    const c = Math.max(0, parseFloat(document.getElementById('mixCash').value) || 0);
+    document.getElementById('mixCard').value = Math.max(0, total - c).toFixed(2);
+  } else {
+    const t = Math.max(0, parseFloat(document.getElementById('mixCard').value) || 0);
+    document.getElementById('mixCash').value = Math.max(0, total - t).toFixed(2);
+  }
+  updateMixedHint();
+}
 function setPayment(method) {
   ticket.paymentMethod = method;
   document.getElementById('payCash').style.borderColor = method === 'cash' ? 'var(--primary)' : 'var(--border)';
   document.getElementById('payCash').style.background = method === 'cash' ? '#f4ecf7' : 'var(--card)';
   document.getElementById('payCard').style.borderColor = method === 'card' ? 'var(--primary)' : 'var(--border)';
   document.getElementById('payCard').style.background = method === 'card' ? '#f4ecf7' : 'var(--card)';
+  document.getElementById('payMixed').style.borderColor = method === 'mixed' ? 'var(--primary)' : 'var(--border)';
+  document.getElementById('payMixed').style.background = method === 'mixed' ? '#f4ecf7' : 'var(--card)';
+  document.getElementById('mixedPayRow').style.display = method === 'mixed' ? 'block' : 'none';
+  if (method === 'mixed') syncMixedInputs();
 }
 
 function removeTicketItem(idx) {
@@ -4667,6 +4728,8 @@ function cancelEditTicket() {
 function clearTicket() {
   ticket.items = [];
   ticket.clientId = '';
+  document.getElementById('mixCash').value = '';
+  document.getElementById('mixCard').value = '';
   setPayment('cash');
   editingSaleId = null;
   originalSaleForRectify = null;
@@ -4700,6 +4763,10 @@ function editTicket(id) {
   }
   ticket.clientId = sale.clientId || '';
   ticket.paymentMethod = sale.paymentMethod || 'cash';
+  if (ticket.paymentMethod === 'mixed') {
+    document.getElementById('mixCash').value = (sale.cashAmount != null ? sale.cashAmount : 0).toFixed(2);
+    document.getElementById('mixCard').value = (sale.cardAmount != null ? sale.cardAmount : 0).toFixed(2);
+  }
   document.querySelector('.nav-item[data-section="pos"]')?.click();
   updateTicket();
 }
@@ -4733,6 +4800,16 @@ function completeSale() {
   const total = ticket.items.reduce((sum, i) => sum + i.price * i.qty, 0);
   const iva = ivaAmount(total);
   const base = basePrice(total);
+
+  let payExtra = {};
+  if ((ticket.paymentMethod || 'cash') === 'mixed') {
+    const { cash, card } = mixedAmounts();
+    if (total <= 0 || Math.abs(cash + card - total) >= 0.005) {
+      alert('El reparto Efectivo + Tarjeta debe igualar el total del ticket (' + cur(total) + ')');
+      return;
+    }
+    payExtra = { cashAmount: Math.round(cash * 100) / 100, cardAmount: Math.round(card * 100) / 100 };
+  }
   
   if (editingSaleId && originalSaleForRectify) {
     const existing = data.sales.find(s => s.id === editingSaleId);
@@ -4838,6 +4915,7 @@ function completeSale() {
         clientId: ticket.clientId || '',
         date: new Date().toISOString(),
         paymentMethod: ticket.paymentMethod || 'cash',
+        ...payExtra,
         isRectifying: true,
         rectifiesSaleId: existing.id,
         originalNumber: existing.number,
@@ -4880,7 +4958,8 @@ function completeSale() {
     ivaRate: getIvaRate(),
     clientId: ticket.clientId || '',
     date: new Date().toISOString(),
-    paymentMethod: ticket.paymentMethod || 'cash'
+    paymentMethod: ticket.paymentMethod || 'cash',
+    ...payExtra
   };
   data.sales.push(sale);
   
@@ -4952,7 +5031,7 @@ function showReceipt(sale, base, iva) {
       <div>Cliente: ${esc(client?fullName(client):'Mostrador')}</div>
       ${client && client.nif ? `<div>DNI/NIF: ${esc(client.nif)}</div>` : ''}
       ${client && client.address ? `<div>Dirección: ${esc(client.address)}${client.city ? ', ' + esc(client.city) : ''}</div>` : ''}
-      <div>Pago: ${sale.paymentMethod==='card' ? 'Tarjeta' : 'Contado'}</div>
+      <div>Pago: ${pagoDetail(sale)}</div>
     </div>
     <div style="text-align:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text-light);font-style:italic;">${esc(bs.ticketFooter||'¡Gracias por su visita!')}</div>`;
   
@@ -4998,7 +5077,7 @@ function showRectifyingReceipt(sale, base, iva) {
       <div>Cliente: ${esc(client?fullName(client):'Mostrador')}</div>
       ${client && client.nif ? `<div>DNI/NIF: ${esc(client.nif)}</div>` : ''}
       ${client && client.address ? `<div>Dirección: ${esc(client.address)}${client.city ? ', ' + esc(client.city) : ''}</div>` : ''}
-      <div>Pago: ${sale.paymentMethod==='card' ? 'Tarjeta' : 'Contado'}</div>
+      <div>Pago: ${pagoDetail(sale)}</div>
     </div>
     <div style="text-align:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text-light);font-style:italic;">${esc(bs.ticketFooter||'¡Gracias por su visita!')}</div>`;
 
@@ -5080,7 +5159,7 @@ function showInvoice(saleId) {
       <div style="display:flex;justify-content:space-between;font-size:18px;font-weight:700;color:var(--primary);padding-top:8px;margin-top:4px;border-top:2px solid var(--primary);"><span>TOTAL</span><span>${cur(sale.total)}</span></div>
     </div>
     <div style="font-size:12px;color:#555;text-align:center;padding-top:10px;border-top:1px solid #ddd;">
-      <div>Pago: ${sale.paymentMethod==='card' ? 'Tarjeta 💳' : 'Contado 💰'}</div>
+      <div>Pago: ${pagoLabel(sale.paymentMethod)}</div>
       ${bs.invoiceFooter ? `<div style="margin-top:6px;font-style:italic;">${esc(bs.invoiceFooter)}</div>` : ''}
     </div>`;
 
@@ -5271,7 +5350,7 @@ function renderReports() {
           : '<span class="badge badge-success">Ticket</span>';
         return `<tr><td style="text-align:center;font-weight:600;">#${s.number||''}</td><td>${new Date(s.date).toLocaleString('es-ES')}</td><td>${esc(client?fullName(client):'Mostrador')}</td>
           <td>${esc(items)}</td><td>${cur(s.base||0)}</td><td>${cur(s.iva||0)}</td><td><strong>${cur(s.total)}</strong></td>
-          <td>${s.paymentMethod === 'card' ? '💳 Tarjeta' : '💰 Contado'}</td>
+          <td>${pagoLabel(s.paymentMethod)}</td>
           <td>${tipoBadge}${invoiceNum ? `<br><small style="font-size:10px;color:var(--text-light);">${esc(invoiceNum)}</small>` : ''}${s.isRectifying ? `<br><small style="font-size:10px;color:var(--text-light);">→ #${s.originalNumber||''}</small>` : ''}</td>
           <td><div class="btn-group">
             <button class="btn btn-primary btn-sm" onclick="editTicket('${s.id}')" title="Editar">✏️</button>
@@ -5395,7 +5474,7 @@ function showSaleDetail(id) {
   if (client && client.nif) html += `<p><strong>NIF/CIF:</strong> ${esc(client.nif)}</p>`;
   if (client && client.address) html += `<p><strong>Dirección:</strong> ${esc(client.address)}</p>`;
   if (client && (client.city||client.province)) html += `<p><strong>Población:</strong> ${esc(client.city||'')} ${esc(client.province||'')}</p>`;
-  html += `<p><strong>Pago:</strong> ${s.paymentMethod === 'card' ? '💳 Tarjeta' : '💰 Contado'}</p>
+  html += `<p><strong>Pago:</strong> ${pagoDetail(s)}</p>
     <p><strong>Base:</strong> ${cur(s.base||0)}</p>
     <p><strong>IVA (${s.ivaRate||getIvaRate()}%):</strong> ${cur(s.iva||0)}</p>
     <p><strong>${s.total < 0 ? 'A devolver' : 'Total'}:</strong> ${cur(Math.abs(s.total))}</p>
@@ -5427,7 +5506,7 @@ function exportCSV() {
   sales.forEach(s => {
     const client = data.clients.find(c => c.id === s.clientId);
     const items = s.items.map(i => `${i.qty}x ${i.name}`).join('; ');
-    csv += `"${new Date(s.date).toLocaleString('es-ES')}","${client?fullName(client):'Mostrador'}","${items}",${(s.base||0).toFixed(2)},${(s.iva||0).toFixed(2)},${s.total.toFixed(2)},"${s.paymentMethod === 'card' ? 'Tarjeta' : 'Contado'}"\n`;
+    csv += `"${new Date(s.date).toLocaleString('es-ES')}","${client?fullName(client):'Mostrador'}","${items}",${(s.base||0).toFixed(2)},${(s.iva||0).toFixed(2)},${s.total.toFixed(2)},"${pagoPlain(s.paymentMethod)}"\n`;
   });
   
   const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
@@ -5610,7 +5689,7 @@ function renderDashboard() {
     salesDiv.innerHTML = '<div style="overflow-x:auto;"><table><thead><tr><th>Fecha</th><th>Total</th><th>IVA</th><th>Cliente</th><th>Pago</th></tr></thead><tbody>' +
       recentSales.map(s => {
         const client = data.clients.find(c => c.id === s.clientId);
-        return `<tr><td>${new Date(s.date).toLocaleString('es-ES')}</td><td><strong>${cur(s.total)}</strong></td><td>${cur(s.iva||0)}</td><td>${client?esc(fullName(client)):'Mostrador'}</td><td>${s.paymentMethod === 'card' ? '💳 Tarjeta' : '💰 Contado'}</td></tr>`;
+        return `<tr><td>${new Date(s.date).toLocaleString('es-ES')}</td><td><strong>${cur(s.total)}</strong></td><td>${cur(s.iva||0)}</td><td>${client?esc(fullName(client)):'Mostrador'}</td><td>${pagoLabel(s.paymentMethod)}</td></tr>`;
       }).join('') + '</tbody></table></div>';
   }
   
