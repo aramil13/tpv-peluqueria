@@ -1865,6 +1865,7 @@ function applyRemoteData(remote, source) {
     const localSales = new Map(data.sales.map(s => [s.id, s]));
     remote.sales.forEach(s => {
       if (!s || typeof s !== 'object' || !s.id) return;
+      if (s._deleted) return;
       if (!localSales.has(s.id)) { data.sales.push(s); localSales.set(s.id, s); }
     });
   }
