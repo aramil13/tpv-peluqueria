@@ -136,11 +136,16 @@ section { padding: 70px 0; }
 .about-photo {
   position: relative; width: 100%; aspect-ratio: 4/3;
   border-radius: var(--radius); overflow: hidden;
+  background: linear-gradient(135deg, var(--accent), #f5e8fa);
 }
 
 .about-photo img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
+  position: absolute; top: 50%; left: 50%;
+  width: 100%; height: 100%; object-fit: cover;
   filter: saturate(1.06) contrast(1.03) brightness(1.02);
+  transform: translate(-50%, -50%) scale(.5);
+  border-radius: calc(var(--radius) - 6px);
+  box-shadow: 0 10px 32px rgba(142,68,173,.20);
 }
 
 .about-photo::before {
@@ -151,7 +156,7 @@ section { padding: 70px 0; }
 .about-photo::after {
   content: ""; position: absolute; inset: 0; pointer-events: none;
   border-radius: inherit;
-  box-shadow: inset 0 0 42px 26px rgba(255,255,255,.88);
+  box-shadow: inset 0 0 30px 16px rgba(255,255,255,.30);
 }
 
 /* Services */
