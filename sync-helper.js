@@ -480,7 +480,7 @@ const server = http.createServer((req, res) => {
           const merged = { ...current };
           const wasCancelledOrDeleted = new Set();
           (current.appointments||[]).forEach(a => { if (a && (a.cancelledBy || a._deleted)) wasCancelledOrDeleted.add(a.id); });
-          const LIST_KEYS = ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers'];
+          const LIST_KEYS = ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers', 'sales'];
           LIST_KEYS.forEach(k => {
             if (Array.isArray(remote[k])) {
               merged[k] = mergeArray(Array.isArray(current[k]) ? current[k] : [], remote[k]);

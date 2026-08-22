@@ -1746,6 +1746,7 @@ function syncPush() {
     products: Array.isArray(data.products) ? data.products : [],
     projects: Array.isArray(data.projects) ? data.projects : [],
     providers: Array.isArray(data.providers) ? data.providers : [],
+    sales: Array.isArray(data.sales) ? data.sales : [],
     settings: data.settings || {}
   });
   const headers = { 'Content-Type': 'application/json' };
