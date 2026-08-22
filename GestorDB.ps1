@@ -83,7 +83,8 @@ function GetColumnTypes([string]$tableName) {
 }
 
 function FormatSqlValue($val, $dataType) {
-    if ($val -eq $null -or $val -eq [System.DBNull]::Value) { return "NULL" }
+    if ($val -is [System.DBNull]) { return "NULL" }
+    if ($null -eq $val) { return "NULL" }
     if ($val -is [DateTime]) { return "#$($val.ToString('yyyy-MM-dd HH:mm:ss'))#" }
     if ($val -is [bool]) { return $(if ($val) { "-1" } else { "0" }) }
     $textTypes = @(129,130,200,201,202,203)
@@ -91,21 +92,35 @@ function FormatSqlValue($val, $dataType) {
         $escaped = ([string]$val) -replace "'", "''"
         return "'$escaped'"
     }
+    if ($val -is [double] -or $val -is [single]) {
+        return $val.ToString('R', [System.Globalization.CultureInfo]::InvariantCulture)
+    }
     return [string]$val
 }
 
 function BuildRowWhere($dRow, $colTypes) {
+    $inv = [System.Globalization.CultureInfo]::InvariantCulture
     $where = @()
     foreach ($col in $dRow.Table.Columns) {
         $name = $col.ColumnName
         $val = $dRow[$name, [System.Data.DataRowVersion]::Original]
-        if ($val -eq $null -or $val -eq [System.DBNull]::Value) {
+        if ($val -is [System.DBNull] -or $null -eq $val) {
             $where += "[$name] IS NULL"
+            continue
+        }
+        if (($colTypes[$name] -eq 5 -or $colTypes[$name] -eq 4 -or $colTypes[$name] -eq 14) -and ($val -is [double] -or $val -is [single] -or $val -is [decimal])) {
+            $lo = [string]::Format($inv, '{0:0.0000}', ([math]::Floor($val * 10000) / 10000) - 0.0001)
+            $hi = [string]::Format($inv, '{0:0.0000}', ([math]::Ceiling($val * 10000) / 10000) + 0.0001)
+            $where += "([$name] >= $lo AND [$name] <= $hi)"
         } else {
             $where += "[$name] = $(FormatSqlValue $val $colTypes[$name])"
         }
     }
     return $where
+}
+
+function ReloadTableDeferred {
+    [void]$script:grid.BeginInvoke(([System.Windows.Forms.MethodInvoker]{ LoadTable($script:currentTable) }))
 }
 
 $script:form = New-Object System.Windows.Forms.Form
@@ -281,7 +296,7 @@ $script:grid.Add_CellEndEdit({
         try {
             ExecuteNonQuery($sql)
             $script:lblStatus.Text = "Fila insertada en $script:currentTable"
-            LoadTable($script:currentTable)
+            ReloadTableDeferred
         } catch {
             [System.Windows.Forms.MessageBox]::Show("Error al insertar: $_", "Error", "OK", "Error")
         }
@@ -296,7 +311,7 @@ $script:grid.Add_CellEndEdit({
             } else {
                 $script:lblStatus.Text = "Sin coincidencias (fila modificada en la BD). Recargando..."
             }
-            LoadTable($script:currentTable)
+            ReloadTableDeferred
         } catch {
             [System.Windows.Forms.MessageBox]::Show("Error al guardar: $_", "Error", "OK", "Error")
         }
@@ -375,6 +390,40 @@ $btnDeleteRow.Add_Click({
     }
 })
 
+$btnHardDeleteRow = New-Object System.Windows.Forms.Button
+$btnHardDeleteRow.Text = "Borrado definitivo"
+$btnHardDeleteRow.Location = New-Object System.Drawing.Point(450, 6)
+$btnHardDeleteRow.Size = New-Object System.Drawing.Size(140, 28)
+$btnHardDeleteRow.ForeColor = [System.Drawing.Color]::White
+$btnHardDeleteRow.BackColor = [System.Drawing.Color]::Firebrick
+$btnHardDeleteRow.Add_Click({
+    if ($script:grid.SelectedRows.Count -eq 0) { return }
+    if (-not $script:chkEditMode.Checked) {
+        [System.Windows.Forms.MessageBox]::Show("Activa el modo Edicion primero", "Info", "OK", "Information")
+        return
+    }
+    $row = $script:grid.SelectedRows[0]
+    $tableName = $script:currentTable
+    $boundItem = $row.DataBoundItem
+    if ($boundItem -eq $null -or $boundItem.Row.RowState -eq [System.Data.DataRowState]::Added) {
+        [System.Windows.Forms.MessageBox]::Show("Fila nueva sin guardar. Recargando tabla.", "Info", "OK", "Information")
+        LoadTable($tableName)
+        return
+    }
+    $colTypes = GetColumnTypes($tableName)
+    $where = BuildRowWhere $boundItem.Row $colTypes
+    $confirm = [System.Windows.Forms.MessageBox]::Show("SE ELIMINARA DEFINITIVAMENTE este registro de $tableName. Esta accion no se puede deshacer. Continuar?", "Borrado definitivo", "YesNo", "Warning")
+    if ($confirm -eq "Yes") {
+        try {
+            ExecuteNonQuery("DELETE FROM [$tableName] WHERE $($where -join ' AND ')")
+            $script:lblStatus.Text = "Registro eliminado definitivamente de $tableName"
+            LoadTable($script:currentTable)
+        } catch {
+            [System.Windows.Forms.MessageBox]::Show("Error: $_", "Error", "OK", "Error")
+        }
+    }
+})
+
 $btnExportCSV = New-Object System.Windows.Forms.Button
 $btnExportCSV.Text = "Exportar CSV"
 $btnExportCSV.Location = New-Object System.Drawing.Point(230, 6)
@@ -408,7 +457,7 @@ $btnSqlConsole.Location = New-Object System.Drawing.Point(340, 6)
 $btnSqlConsole.Size = New-Object System.Drawing.Size(100, 28)
 $btnSqlConsole.Add_Click({ ShowSqlConsole })
 
-$actionBar.Controls.AddRange(@($btnAddRow, $btnDeleteRow, $btnExportCSV, $btnSqlConsole))
+$actionBar.Controls.AddRange(@($btnAddRow, $btnDeleteRow, $btnHardDeleteRow, $btnExportCSV, $btnSqlConsole))
 
 function ShowSqlConsole {
     $dlg = New-Object System.Windows.Forms.Form
