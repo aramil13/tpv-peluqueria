@@ -18,6 +18,11 @@ $connStr = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$DbPath;Jet OLEDB:Data
 
 function R2($x) { [Math]::Round([double]$x, 2) }
 function R3($x) { [Math]::Round([double]$x, 3) }
+function Clip130($s) {
+    $t = [string]$s
+    if ($t.Length -gt 130) { return $t.Substring(0, 130) }
+    return $t
+}
 
 $result = [ordered]@{ ok = $true; importados = 0; yaEnTpv = 0; exportados = 0; errores = @() }
 
@@ -170,14 +175,17 @@ try {
         $tx = $conn.BeginTransaction()
         $exportados = 0
         $asignados = New-Object System.Collections.ArrayList
+        $numeroActual = 0
+        $indiceActual = 0
         try {
             foreach ($s in $pendientes) {
                 $numero = $nextNum; $nextNum++
+                $numeroActual = $numero
                 [void]$asignados.Add(@{ sale = $s; numero = [int]$numero })
 
                 $fechaVenta = if ($s.PSObject.Properties['date'] -and $s.date) { [DateTime]$s.date } else { Get-Date }
                 $fechaAcc = [DateTime]$fechaVenta.Date
-                $horaAcc = [DateTime]::Parse('1899-12-30').Add($fechaVenta.TimeOfDay)
+                    $horaAcc = [DateTime]::Parse('1899-12-30').AddSeconds([Math]::Floor($fechaVenta.TimeOfDay.TotalSeconds))
 
                 $cliCode = 0
                 if ($s.clientId -match '^svcl_(\d+)$') { $cliCode = [int]$Matches[1] }
@@ -208,9 +216,9 @@ try {
                 $insCab.CommandText = "INSERT INTO Cabecera_Factura (Numero, Fecha, FechaVenta, Hora, Hora_Inicio, Cliente, Mesa, Comensales, Zona_Venta, Empleado, Codigo_Empleado, Total, Impuesto, Impuesto_2, ImpuestoIncluido, Pago, Tarjeta, Efectivo, Recargo, Descuento, Borrar, Cierre, Terminal, Repartidor, Num_Albaran, CaracteristicaVenta, Observaciones, consumoDinDeposito, PagoDinDeposito, numCierre, PagoValeDescuento, PagoTarjetaRegalo, PagoValePromo, ImporteBonoDenda) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                 $vals = @(
                     [double]$numero, $fechaAcc, $fechaAcc, $horaAcc, [DateTime]::Parse('1899-12-30'),
-                    [int]$cliCode, 0, 0, 0, [string]$empName, [int]$empCode,
+                    [int]$cliCode, 0, 0, 0, (Clip130 $empName), [int]$empCode,
                     $total, $imp, 0.0, $true, [int]$pagoCode, $tarj, $efe, 0.0, $dto,
-                    $false, $false, 1, 0, 0, '', '', 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0
+                    $false, $false, '1', 0, 0, '', '', 0.0, 0.0, 0, 0.0, 0.0, 0.0, 0.0
                 )
                 foreach ($v in $vals) {
                     $p = $insCab.CreateParameter(); $p.Value = $v; [void]$insCab.Parameters.Add($p)
@@ -221,6 +229,7 @@ try {
                 $indice = 0
                 foreach ($it in @($s.items)) {
                     $indice++
+                    $indiceActual = $indice
                     $qty = if ($it.PSObject.Properties['qty']) { [double]$it.qty } else { 1 }
                     if ($qty -eq 0) { $qty = 1 }
                     $unit = if ($it.PSObject.Properties['price']) { [double]$it.price } else { 0 }
@@ -240,9 +249,9 @@ try {
                     $insDet.Transaction = $tx
                     $insDet.CommandText = "INSERT INTO Detalle_Factura (Num_Factura, indice, Codigo, Producto, Unidades, Precio, Precio_Unit, Coste, Descuento, Impuesto, TipoImpuesto, Impuesto_2, borrar, codEmpleado, NombreEmpleado, CodFamilia, Menu, ProductoDeMenu, Recargo, MargenComercial, Tipo_Venta, Num_Albaran) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
                     $dvals = @(
-                        [double]$numero, [int]$indice, [int]$codArt, [string]$it.name,
+                        [int]$numero, [int]$indice, [int]$codArt, (Clip130 $it.name),
                         $qty, $linea, (R2 $unit), 0.0, 0.0, $lineIva, 1.0, 0.0,
-                        $false, [int]$iEmpCode, [string]$iEmpName, 0, $false, $false, 0.0, 0.0, '', 0
+                        $false, [int]$iEmpCode, (Clip130 $iEmpName), 0, $false, $false, 0.0, 0.0, '', 0
                     )
                     foreach ($v in $dvals) {
                         $p = $insDet.CreateParameter(); $p.Value = $v; [void]$insDet.Parameters.Add($p)
@@ -265,14 +274,17 @@ try {
         } catch {
             try { $tx.Rollback() } catch {}
             $result.ok = $false
-            $result.errores += ("EXPORT: " + $_.Exception.Message)
+            $ex = $_.Exception
+            $detalle = $ex.Message
+            while ($ex.InnerException) { $ex = $ex.InnerException; $detalle += ' << ' + $ex.Message }
+            $result.errores += ("EXPORT (venta #$numeroActual, linea $indiceActual): " + $detalle)
         }
     }
 
     $conn.Close()
 
     # ================= guardar JSON =================
-    $shouldWrite = (-not $SoloLeer) -and ($importados -gt 0 -or $result.exportados -gt 0)
+    $shouldWrite = (-not $SoloLeer) -and (-not $DbPath) -and ($importados -gt 0 -or $result.exportados -gt 0)
     if ($shouldWrite) {
         $currentStamp = (Get-Item -LiteralPath $JsonFile).LastWriteTimeUtc
         if ($currentStamp -ne $jsonFileStamp) {
