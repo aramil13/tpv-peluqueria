@@ -133,10 +133,25 @@ section { padding: 70px 0; }
 
 .about-text p { color: var(--text-light); font-size: 15px; line-height: 1.8; margin-bottom: 16px; }
 
-.about-placeholder {
-  width: 100%; aspect-ratio: 4/3;
-  background: linear-gradient(135deg, var(--accent), #f5e8fa);
-  border-radius: var(--radius);
+.about-photo {
+  position: relative; width: 100%; aspect-ratio: 4/3;
+  border-radius: var(--radius); overflow: hidden;
+}
+
+.about-photo img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  filter: saturate(1.06) contrast(1.03) brightness(1.02);
+}
+
+.about-photo::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(135deg, rgba(245,232,250,.38) 0%, rgba(142,68,173,.10) 55%, rgba(255,255,255,.18) 100%);
+}
+
+.about-photo::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 42px 26px rgba(255,255,255,.88);
 }
 
 /* Services */
