@@ -5967,9 +5967,8 @@ function cleanDupAppointments() {
 function init() {
   const today = madridDateStr();
   document.getElementById('apptDate').value = today;
-  document.getElementById('reportTo').value = today;
-  const monthAgo = new Date(); monthAgo.setMonth(monthAgo.getMonth()-1);
-  document.getElementById('reportFrom').value = madridDateStr(monthAgo);
+  document.getElementById('reportTo').value = '';
+  document.getElementById('reportFrom').value = '';
   
   // La web de reservas: respetar hora configurada; si ya pasó → abierta
   if (!data.settings.onlineOpening) data.settings.onlineOpening = {};

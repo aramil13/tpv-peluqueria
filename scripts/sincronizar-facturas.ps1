@@ -179,6 +179,17 @@ try {
         $indiceActual = 0
         try {
             foreach ($s in $pendientes) {
+                # idempotencia: si ya existe una cabecera identica (fecha+total+cliente), no reexportar
+                $chk = $conn.CreateCommand()
+                $chk.Transaction = $tx
+                $chk.CommandText = "SELECT TOP 1 Numero FROM Cabecera_Factura WHERE Fecha = ? AND Total = ? AND Cliente = ? ORDER BY Numero DESC"
+                foreach ($v in @([DateTime]$fechaAcc, [double]$total, [int]$cliCode)) { $pp = $chk.CreateParameter(); $pp.Value = $v; [void]$chk.Parameters.Add($pp) }
+                $existente = $chk.ExecuteScalar()
+                $chk.Dispose()
+                if ($null -ne $existente) {
+                    [void]$asignados.Add(@{ sale = $s; numero = [int][double]$existente })
+                    continue
+                }
                 $numero = $nextNum; $nextNum++
                 $numeroActual = $numero
                 [void]$asignados.Add(@{ sale = $s; numero = [int]$numero })

@@ -244,18 +244,37 @@ function readData() {
 
       return raw;
     }
-  } catch (e) { /* fall through */ }
+  } catch (e) {
+    console.error('[Sync] readData fallo; se devuelve vacio PERO los escritores bloquean tiendas rotas:', e.message);
+  }
   return { appointments: [], clients: [], services: [], employees: [], products: [], projects: [], movements: [], sections: [], providers: [], settings: {}, lastModified: 0 };
+}
+
+// Tienda claramente rota/vacia: prohibido grabarla encima de una buena.
+function isBrokenEmptyStore(d) {
+  if (!d || typeof d !== 'object') return true;
+  const arr = k => Array.isArray(d[k]) ? d[k].length : 0;
+  return arr('appointments') === 0 && arr('sales') === 0 && arr('clients') === 0;
+}
+
+function writeDataAtomic(data) {
+  ensureDir(SYNC_FILE);
+  const tmp = SYNC_FILE + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+  fs.renameSync(tmp, SYNC_FILE);
 }
 
 function writeData(data) {
   try {
-    ensureDir(SYNC_FILE);
+    if (isBrokenEmptyStore(data)) {
+      console.error('[Sync] writeData BLOQUEADO: tienda vacia/rota, no se toca el fichero');
+      return false;
+    }
     if (data && Array.isArray(data.appointments)) {
       data.appointments = dedupAppointments(data.appointments);
     }
     data.lastModified = Date.now();
-    fs.writeFileSync(SYNC_FILE, JSON.stringify(data, null, 2), 'utf8');
+    writeDataAtomic(data);
     syncToAccess(SYNC_FILE).catch(e => console.error('[AccessSync] writeData hook failed:', e.message || e));
     return true;
   } catch (e) {
@@ -266,12 +285,15 @@ function writeData(data) {
 
 function writeDataSilent(data) {
   try {
-    ensureDir(SYNC_FILE);
+    if (isBrokenEmptyStore(data)) {
+      console.error('[Sync] writeDataSilent BLOQUEADO: tienda vacia/rota, no se toca el fichero');
+      return false;
+    }
     if (data && Array.isArray(data.appointments)) {
       data.appointments = dedupAppointments(data.appointments);
     }
     data.lastModified = Date.now();
-    fs.writeFileSync(SYNC_FILE, JSON.stringify(data, null, 2), 'utf8');
+    writeDataAtomic(data);
     return true;
   } catch (e) {
     console.error('Error writing data (silent):', e);
