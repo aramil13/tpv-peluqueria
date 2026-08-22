@@ -264,7 +264,7 @@ section { padding: 70px 0; }
 /* Testimonials */
 .testimonials { background: var(--bg); }
 
-.testimonials-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.testimonials-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
 
 .testimonial-card {
   background: var(--white); border-radius: var(--radius); padding: 24px 20px;
