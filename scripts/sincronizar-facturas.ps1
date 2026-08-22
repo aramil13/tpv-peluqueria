@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory=$true)]
     [string]$JsonFile,
     [string]$DbPath = 'C:\TPVGratuito\peluqueria\TpvPeluqueria.accdb',
-    [switch]$SoloLeer
+    [switch]$SoloLeer,
+    [switch]$NoGuardar
 )
 
 # Sincronizacion bidireccional de facturas/tickets entre Access (Cabecera/Detalle_Factura)
@@ -295,7 +296,7 @@ try {
     $conn.Close()
 
     # ================= guardar JSON =================
-    $shouldWrite = (-not $SoloLeer) -and (-not $DbPath) -and ($importados -gt 0 -or $result.exportados -gt 0)
+    $shouldWrite = (-not $SoloLeer) -and (-not $NoGuardar) -and ($importados -gt 0 -or $result.exportados -gt 0)
     if ($shouldWrite) {
         $currentStamp = (Get-Item -LiteralPath $JsonFile).LastWriteTimeUtc
         if ($currentStamp -ne $jsonFileStamp) {
