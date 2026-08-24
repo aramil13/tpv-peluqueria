@@ -8,6 +8,16 @@ $dbPath = $DbPath
 $password = '131201%SolKerMediaP'
 $connStr = "Provider=Microsoft.ACE.OLEDB.12.0;Data Source=$dbPath;Jet OLEDB:Database Password=$password"
 
+# Auditoria de anulaciones: cada cancelacion (detectada en Access o ejecutada por
+# la Fase 3) queda registrada con fecha/hora para poder rastrear quien la origino.
+function Write-Audit($evento, $detalle) {
+    try {
+        $auditPath = Join-Path (Split-Path -Parent $JsonFile) 'access-audit.log'
+        $ts = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
+        [System.IO.File]::AppendAllText($auditPath, "$ts | $evento | $detalle`r`n", [System.Text.Encoding]::UTF8)
+    } catch {}
+}
+
 function Extract-Code($internalId, $prefix) {
     if ($internalId -match "$prefix(\d+)") {
         return [int]$Matches[1]
@@ -450,6 +460,7 @@ try {
             Set-ApptField $appt '_deleted' $true
             Set-ApptField $appt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
             Set-ApptField $appt 'cancelledBy' 'salon'
+            Write-Audit 'ANULACION-DETECTADA-EN-ACCESS' ("num_cita=$cnc uid=$cuid fecha=$($appt.date) hora=$($appt.time) id=$($appt.id) motivo=$($appt.notes)")
             Set-AccessSynced $appt
             # Remove from active map so it doesn't match again
             $jsonUidActive.Remove($cuid)
@@ -548,6 +559,10 @@ try {
         $accessSnapshot[$_].fecha -ge (Get-Date).Date
     })
     if ($toCancelNcs.Count -gt 0) {
+        foreach ($ncCancel in $toCancelNcs) {
+            $snapCancel = $accessSnapshot[$ncCancel]
+            Write-Audit 'ANULACION-FASE3-SIN-PAREJA' ("num_cita=$ncCancel uid=$($snapCancel.uid) fecha=$($snapCancel.fecha.ToString('yyyy-MM-dd')) hora=$($snapCancel.horaInicio.ToString('HH:mm')) motivo=$($snapCancel.motivo)")
+        }
         if ($matchedNumCitas.Count -gt 0) {
             # Build list of matched num_cita values
             $matchedNcs = @($matchedNumCitas.Keys)
