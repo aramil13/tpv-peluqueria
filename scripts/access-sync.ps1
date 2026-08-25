@@ -275,7 +275,6 @@ try {
         if ($isOnline) { $parts += 'Reserva online' }
         if ($clientName) { $parts += "Cliente: $clientName" }
         if ($serviceName) { $parts += "Servicio: $serviceName" }
-        if ($employeeName) { $parts += "Empleada: $employeeName" }
         $motivo = $parts -join ' - '
         # Strip previously generated prefix from notes to prevent duplication
         $userNotes = $notes
