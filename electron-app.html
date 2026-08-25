@@ -1833,12 +1833,13 @@ function applyRemoteData(remote, source) {
       const key = String(a.clientId||'') + '|' + String(a.date||'') + '|' + String(a.time||'') + '|' + String(a.endTime||'') + '|' + String(a.employeeId||'') + '|' + String(a.serviceId||'') + '|' + String(a.blockGroupId||'') + '|' + String(a.blockNum||'');
       const existing = dedupMap.get(key);
       if (!existing) { dedupMap.set(key, a); return; }
+      if (!existing.color && a.color) existing.color = a.color;
+      else if (existing.color && !a.color) a.color = existing.color;
       const existingBad = existing._deleted || existing.cancelledBy === 'client' || existing.cancelledBy === 'salon';
       const aBad = a._deleted || a.cancelledBy === 'client' || a.cancelledBy === 'salon';
-      if (!aBad && existingBad) { dedupMap.set(key, a); return; }
-      if (aBad && !existingBad) return;
-      if (a.pendingSalonConfirm && !existing.pendingSalonConfirm) { dedupMap.set(key, a); return; }
-      if (!a.pendingSalonConfirm && existing.pendingSalonConfirm) return;
+      const rankA = (aBad ? 1 : 2) * 10000000000000 + (a._modified || 0);
+      const rankE = (existingBad ? 1 : 2) * 10000000000000 + (existing._modified || 0);
+      if (rankA > rankE) dedupMap.set(key, a);
     });
     data.appointments = [...dedupMap.values()];
   }
@@ -5959,6 +5960,8 @@ function cleanDupAppointments() {
     const existing = seen.get(key);
     if (!existing) { seen.set(key, a); return; }
     removed++;
+    if (!existing.color && a.color) existing.color = a.color;
+    else if (existing.color && !a.color) a.color = existing.color;
     if (rank(a) > rank(existing)) seen.set(key, a);
   });
   if (removed > 0) { data.appointments = Array.from(seen.values()); saveKey('appointments'); }

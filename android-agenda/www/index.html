@@ -452,6 +452,8 @@ let dedupRemoved = 0;
     const existing = seen.get(key);
     if (!existing) { seen.set(key, a); return; }
     dedupRemoved++;
+    if (!existing.color && a.color) existing.color = a.color;
+    else if (existing.color && !a.color) a.color = existing.color;
     if (rank(a) > rank(existing)) seen.set(key, a);
   });
   if (dedupRemoved > 0) {

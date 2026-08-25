@@ -236,8 +236,10 @@ try {
     $cmdFixUid.Parameters.Add($pNc) | Out-Null
 
     $cmdUpdate = $conn.CreateCommand()
-    $cmdUpdate.CommandText = "UPDATE Agenda SET Cliente=?, Empleado=?, Servicio=?, Fecha=?, Hora_Inicio=?, Hora_Final=?, Motivo=?, client_uid=? WHERE num_cita=?"
-    for ($i = 0; $i -lt 9; $i++) { $cmdUpdate.Parameters.Add($cmdUpdate.CreateParameter()) | Out-Null }
+    # El Motivo NO se sincroniza en updates: es el campo de texto libre del gestor de
+    # Access y las Notas son el campo libre del TPV. Solo se genera al INSERTAR la fila.
+    $cmdUpdate.CommandText = "UPDATE Agenda SET Cliente=?, Empleado=?, Servicio=?, Fecha=?, Hora_Inicio=?, Hora_Final=?, client_uid=? WHERE num_cita=?"
+    for ($i = 0; $i -lt 8; $i++) { $cmdUpdate.Parameters.Add($cmdUpdate.CreateParameter()) | Out-Null }
 
     $cmdInsert = $conn.CreateCommand()
     $cmdInsert.CommandText = "INSERT INTO Agenda (num_cita, Cliente, Empleado, Servicio, Fecha, Hora_Inicio, Hora_Final, Motivo, Anulado, client_uid) VALUES (?,?,?,?,?,?,?,?,?,?)"
@@ -310,9 +312,6 @@ try {
             # Detect if Access was modified externally
             $snap = $accessSnapshot[$existingNumCita]
             $accessChanged = $false
-            $motivoChanged = $false
-            $snapMotivo = ''
-            $jsonNotes = if ($appt.notes) { [string]$appt.notes } else { '' }
             if ($snap) {
                 $snapDate = if ($snap.fecha -is [DateTime]) { $snap.fecha.ToString('yyyy-MM-dd') } else { '' }
                 $snapTime = if ($snap.horaInicio -is [DateTime]) { $snap.horaInicio.ToString('HH:mm') } else { '' }
@@ -321,20 +320,11 @@ try {
                     $snap.empleado -ne $empleadoCode -or $snap.servicio -ne $servicioCode) {
                     $accessChanged = $true
                 }
-                # El Motivo es editable por el usuario en Access y debe sincronizarse con el TPV.
-                # Se considera cambiado si Access difiere TANTO del motivo que el TPV generaria
-                # como de las notas que el TPV ya conoce (las citas creadas en Access guardan su
-                # texto libre en Motivo/notes, asi que esa igualdad es el estado "en paz").
-                # EXCEPCION - reservas online: su Motivo es texto generado por la propia sync
-                # y las Notas del TPV deben quedar VACIAS (no se vuelca el Motivo de Access),
-                # asi que aqui no se detecta cambio de Motivo (evita re-sincros eternas).
-                $snapMotivo = if ($snap.motivo) { [string]$snap.motivo } else { '' }
-                if (-not $isOnline -and $snapMotivo -ne $motivo -and $snapMotivo -ne $jsonNotes) {
-                    $motivoChanged = $true
-                }
+                # El Motivo de Access y las Notas del TPV NO se sincronizan (campos libres
+                # independientes); los cambios de texto no provocan conflictos ni volcados.
             }
 
-            if ($accessChanged -or $motivoChanged) {
+            if ($accessChanged) {
                 # Prioridad por origen: si el JSON se modifico (TPV) DESPUES de la ultima reconciliacion con Access -> gana el TPV
                 $effAccessMod = if ($null -ne $appt._modifiedAccess) { [int64]$appt._modifiedAccess } else { [int64]0 }
                 $tpvWins = ([int64]$appt._modified -gt $effAccessMod)
@@ -355,9 +345,8 @@ try {
                     $cmdUpdate.Parameters[3].Value = $fecha
                     $cmdUpdate.Parameters[4].Value = $horaInicio
                     $cmdUpdate.Parameters[5].Value = $horaFinalParam
-                    $cmdUpdate.Parameters[6].Value = $motivo
-                    $cmdUpdate.Parameters[7].Value = $uid
-                    $cmdUpdate.Parameters[8].Value = $existingNumCita
+                    $cmdUpdate.Parameters[6].Value = $uid
+                    $cmdUpdate.Parameters[7].Value = $existingNumCita
                     $null = Invoke-SafeWrite $cmdUpdate 'update (tpv wins)'
                     $matchedNumCitas[$existingNumCita] = $true
                     if ($allAccessActive.ContainsKey($existingNumCita)) { $updated++ } else { $reactivated++ }
@@ -372,9 +361,7 @@ try {
                     if (Get-ValidEndTime $snapEndTime $snapTime) {
                         Set-ApptField $appt 'endTime' $snapEndTime
                     }
-                    # Reservas online: las Notas del TPV quedan vacias; el Motivo generado
-                    # de Access NO se pasa a Notas (solo aplica a citas no online).
-                    Set-ApptField $appt 'notes' $(if ($isOnline) { '' } else { $snapMotivo })
+                    # Notas/Motivo desacoplados: el texto de Access no se vuelca a las Notas.
                     Set-ApptField $appt '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
                     Set-AccessSynced $appt
                     $matchedNumCitas[$existingNumCita] = $true
@@ -387,22 +374,15 @@ try {
                 }
             } else {
                 # Push JSON to Access
-                # Sin conflicto de prioridad: el TPV empuja sus datos. Pero si Access es el origen
-                # del texto (su Motivo == las notas que el TPV ya conoce), se preserva ese texto
-                # en vez de sobrescribirlo con el motivo generado automaticamente.
-                $motivoToWrite = $motivo
-                if ($snapMotivo -ne $motivo -and $snapMotivo -eq $jsonNotes) {
-                    $motivoToWrite = $snapMotivo
-                }
                 # NO escribir si Access ya tiene exactamente los mismos valores: evita tomar locks
                 # sobre filas que el usuario podria estar editando en Access cada ciclo de 30s.
+                # El Motivo se compara solo consigo mismo (no se escribe en updates).
                 $snapCli = if ($snap.cliente -gt 0) { "svcl_$($snap.cliente)" } else { '' }
                 $snapEmp = if ($snap.empleado -gt 0) { "svem_$($snap.empleado)" } else { '' }
                 $snapSvc = if ($snap.servicio -gt 0) { "svsv_$($snap.servicio)" } else { '' }
                 $sameValues = ($snapCli -eq $clienteCode) -and ($snapEmp -eq $empleadoCode) -and
                               ($snapSvc -eq $servicioCode) -and ($snapDate -eq $appt.date) -and
-                              ($snapTime -eq $appt.time) -and ($snapEndTime -eq $appt.endTime) -and
-                              ($snapMotivo -eq $motivoToWrite)
+                              ($snapTime -eq $appt.time) -and ($snapEndTime -eq $appt.endTime)
                 if (-not $sameValues) {
                     $cmdUpdate.Parameters[0].Value = $clienteCode
                     $cmdUpdate.Parameters[1].Value = $empleadoCode
@@ -410,9 +390,8 @@ try {
                     $cmdUpdate.Parameters[3].Value = $fecha
                     $cmdUpdate.Parameters[4].Value = $horaInicio
                     $cmdUpdate.Parameters[5].Value = $horaFinalParam
-                    $cmdUpdate.Parameters[6].Value = $motivoToWrite
-                    $cmdUpdate.Parameters[7].Value = $uid
-                    $cmdUpdate.Parameters[8].Value = $existingNumCita
+                    $cmdUpdate.Parameters[6].Value = $uid
+                    $cmdUpdate.Parameters[7].Value = $existingNumCita
                     $null = Invoke-SafeWrite $cmdUpdate 'update (push)'
                 }
                 $matchedNumCitas[$existingNumCita] = $true
