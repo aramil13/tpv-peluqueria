@@ -958,6 +958,22 @@ if (data.settings && data.settings.openingHours) {
   if (migrated) { DB.set('settings', data.settings); }
 }
 
+// Migrate historialTecnico → historialTratamientos (rename field)
+if (Array.isArray(data.clients)) {
+  let mig = false;
+  data.clients.forEach(c => {
+    if (c && c.historialTecnico && !c.historialTratamientos) {
+      c.historialTratamientos = c.historialTecnico;
+      delete c.historialTecnico;
+      mig = true;
+    } else if (c && c.historialTecnico) {
+      delete c.historialTecnico;
+      mig = true;
+    }
+  });
+  if (mig) saveKey('clients');
+}
+
 // Vercel URLs disabled — sync goes to local helper (localhost:3456) and cloud (nymaraestilistas.es/api)
 
 // Clean up any corrupted entries in main entities (caused by importing binary files as CSV)

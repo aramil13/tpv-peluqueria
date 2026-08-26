@@ -242,6 +242,19 @@ function readData() {
         }
       });
 
+      // Migrate historialTecnico → historialTratamientos
+      let migH = false;
+      (raw.clients||[]).forEach(c => {
+        if (c && c.historialTecnico && !c.historialTratamientos) {
+          c.historialTratamientos = c.historialTecnico;
+          delete c.historialTecnico;
+          migH = true;
+        } else if (c && c.historialTecnico) {
+          delete c.historialTecnico;
+          migH = true;
+        }
+      });
+
       return raw;
     }
   } catch (e) {
