@@ -3793,6 +3793,7 @@ function saveAppointment() {
             serviceIds: bloque1Svcs.map(s => s.id),
             _modified: Date.now(), _deleted: false,
             blockGroupId, blockNum: '1',
+            color: apptSelectedColor || '',
             salonModified: isOnline && !onlyNotesChanged ? true : existing.salonModified
           });
         }
@@ -3804,7 +3805,8 @@ function saveAppointment() {
           serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
           serviceIds: bloque1Svcs.map(s => s.id),
           _modified: Date.now(), _deleted: false,
-          blockGroupId, blockNum: '1'
+          blockGroupId, blockNum: '1',
+          color: apptSelectedColor || ''
         });
       }
       if (bloque2Svcs.length) {
@@ -3819,7 +3821,8 @@ function saveAppointment() {
           serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
           serviceIds: bloque2Svcs.map(s => s.id),
           _modified: Date.now(), _deleted: false,
-          blockGroupId, blockNum: '2'
+          blockGroupId, blockNum: '2',
+          color: apptSelectedColor || ''
         });
       }
     } else if (bloque2Svcs.length) {
@@ -3836,6 +3839,7 @@ function saveAppointment() {
             serviceIds: bloque2Svcs.map(s => s.id),
             _modified: Date.now(), _deleted: false,
             blockGroupId, blockNum: '2',
+            color: apptSelectedColor || '',
             salonModified: isOnline && !onlyNotesChanged ? true : existing.salonModified
           });
         }
@@ -3847,7 +3851,8 @@ function saveAppointment() {
           serviceId: bloque2Svcs.length === 1 ? bloque2Svcs[0].id : '',
           serviceIds: bloque2Svcs.map(s => s.id),
           _modified: Date.now(), _deleted: false,
-          blockGroupId, blockNum: '2'
+          blockGroupId, blockNum: '2',
+          color: apptSelectedColor || ''
         });
       }
     } else if (bloque1Svcs.length) {
@@ -3864,6 +3869,7 @@ function saveAppointment() {
             serviceIds: bloque1Svcs.map(s => s.id),
             _modified: Date.now(), _deleted: false,
             blockGroupId, blockNum: '1',
+            color: apptSelectedColor || '',
             salonModified: isOnline && !onlyNotesChanged ? true : existing.salonModified
           });
         }
@@ -3875,7 +3881,8 @@ function saveAppointment() {
           serviceId: bloque1Svcs.length === 1 ? bloque1Svcs[0].id : '',
           serviceIds: bloque1Svcs.map(s => s.id),
           _modified: Date.now(), _deleted: false,
-          blockGroupId, blockNum: '1'
+          blockGroupId, blockNum: '1',
+          color: apptSelectedColor || ''
         });
       }
     }
