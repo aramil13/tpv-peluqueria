@@ -127,7 +127,7 @@ async function handleClientLogin(phone, res) {
   appointments.sort((a,b) => (a.date+' '+a.time).localeCompare(b.date+' '+b.time));
   res.json({
     ok: true,
-    client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '', historialTecnico: client.historialTecnico || '', punctuality: client.punctuality || '' },
+    client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '', historialSalud: client.historialSalud || '', historialTratamientos: client.historialTratamientos || '', historialCapilar: client.historialCapilar || '', punctuality: client.punctuality || '' },
     appointments: appointments.map(a => {
       const svcIds = a.serviceIds || (a.serviceId ? [a.serviceId] : []);
       const svcNames = svcIds.map(id => svcMap[id] ? svcMap[id].name : null).filter(Boolean);
@@ -447,7 +447,7 @@ module.exports = async (req, res) => {
           id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
           name: (b.clientName||'')+' (Online)', phone: b.clientPhone, email: b.clientEmail||'',
           address: '', city: '', province: '', zip: '', nif: '', notes: '',
-          historialTecnico: '', punctuality: '',
+          historialSalud: '', historialTratamientos: '', historialCapilar: '', punctuality: '',
           visits: 0, totalSpent: 0, created: new Date().toISOString(),
           _modified: Date.now(), _deleted: false
         };
@@ -848,13 +848,13 @@ module.exports = async (req, res) => {
           name: (b.name||'')+' (Online)', phone: b.phone, email: b.email.trim(),
           passwordHash: hashPassword(b.password),
           address: '', city: '', province: '', zip: '', nif: '', notes: '',
-          historialTecnico: '', punctuality: '',
+          historialSalud: '', historialTratamientos: '', historialCapilar: '', punctuality: '',
           visits: 0, totalSpent: 0, created: new Date().toISOString(),
           _modified: Date.now(), _deleted: false
         };
         d.clients.push(client);
         await writeData(d);
-        res.json({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email, historialTecnico: client.historialTecnico, punctuality: client.punctuality } });
+        res.json({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email, historialSalud: client.historialSalud, historialTratamientos: client.historialTratamientos, historialCapilar: client.historialCapilar, punctuality: client.punctuality } });
       } catch (e) {
         res.status(400).json({ error: e.message });
       }

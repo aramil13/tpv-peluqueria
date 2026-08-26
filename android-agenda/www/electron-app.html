@@ -489,9 +489,11 @@ tr:hover td { background: #f8f9fa; }
     </div>
     <div class="form-group"><label>Notas</label><textarea id="clientNotes" placeholder="Notas adicionales..."></textarea></div>
     <div class="form-group" style="margin-top:8px;"><label>Puntualidad</label><select id="clientPunctuality"><option value="">Seleccionar...</option><option value="puntual">Puntual</option><option value="impuntual">Impuntual</option><option value="dificil">Difícil</option></select></div>
-    <div class="form-group"><label>Historial Técnico</label><textarea id="clientHistorial" placeholder="Historial técnico del cliente..." rows="4"></textarea></div>
+    <div class="form-group"><label>Historial de Salud y Seguridad</label><textarea id="clientHistorialSalud" placeholder="Alergias, condiciones médicas, consentimientos informados..." rows="3"></textarea></div>
+    <div class="form-group"><label>Historial de Tratamientos</label><textarea id="clientHistorialTratamientos" placeholder="Registro de visitas, servicios realizados, estilista encargado..." rows="3"></textarea></div>
+    <div class="form-group"><label>Historial Técnico y Capilar</label><textarea id="clientHistorialCapilar" placeholder="Diagnóstico capilar, fórmulas de color, tratamientos químicos previos..." rows="3"></textarea></div>
     <div id="clientStats" style="margin:10px 0;padding:10px;background:var(--bg);border-radius:6px;display:none;"><strong style="font-size:13px;">Estadísticas</strong><div id="clientStatsContent" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:6px;font-size:12px;"></div></div>
-    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button><button class="btn btn-primary" onclick="saveClient()">Guardar</button></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="printPoliticaConfidencialidad()" style="background:#6c757d;color:#fff;margin-right:auto;">Politica de confidencialidad</button><button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button><button class="btn btn-primary" onclick="saveClient()">Guardar</button></div>
     <input type="hidden" id="clientEditId">
   </div>
 </div>
@@ -2012,7 +2014,9 @@ function saveClient() {
     email: document.getElementById('clientEmail').value.trim(),
     passwordHash: pw ? hashPW(pw) : (() => { const c = data.clients.find(x => x.id === id_); return c ? c.passwordHash||'' : ''; })(),
     notes: document.getElementById('clientNotes').value.trim(),
-    historialTecnico: document.getElementById('clientHistorial').value.trim(),
+    historialSalud: document.getElementById('clientHistorialSalud').value.trim(),
+    historialTratamientos: document.getElementById('clientHistorialTratamientos').value.trim(),
+    historialCapilar: document.getElementById('clientHistorialCapilar').value.trim(),
     punctuality: document.getElementById('clientPunctuality').value,
     _modified: Date.now(),
     _deleted: false
@@ -2036,7 +2040,9 @@ function saveClient() {
         existing.zip = obj.zip;
         existing.email = obj.email;
         existing.notes = obj.notes;
-        existing.historialTecnico = obj.historialTecnico;
+        existing.historialSalud = obj.historialSalud;
+        existing.historialTratamientos = obj.historialTratamientos;
+        existing.historialCapilar = obj.historialCapilar;
         existing._modified = Date.now();
         saveKey('clients'); clearClientForm(); closeModal('clientModal'); renderClients(); syncPush();
         return;
@@ -2062,7 +2068,9 @@ function editClient(id) {
   document.getElementById('clientEmail').value = c.email||'';
   const pwField = document.getElementById('clientPassword');
   if (pwField) pwField.value = '';
-  document.getElementById('clientHistorial').value = c.historialTecnico||'';
+  document.getElementById('clientHistorialSalud').value = c.historialSalud||'';
+  document.getElementById('clientHistorialTratamientos').value = c.historialTratamientos||'';
+  document.getElementById('clientHistorialCapilar').value = c.historialCapilar||'';
   document.getElementById('clientPunctuality').value = c.punctuality||'';
   document.getElementById('clientModalTitle').textContent = 'Editar Cliente';
   const appointments = data.appointments.filter(a => a.clientId === id);
@@ -2092,7 +2100,7 @@ function deleteClient(id) {
 }
 
 function clearClientForm() {
-  ['clientEditId','clientName','clientSurname','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNotes','clientHistorial','clientPassword'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['clientEditId','clientName','clientSurname','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNotes','clientHistorialSalud','clientHistorialTratamientos','clientHistorialCapilar','clientPassword'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('clientPunctuality').value = '';
   document.getElementById('clientStats').style.display = 'none';
   document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
@@ -3989,7 +3997,7 @@ function quickCreateClient() {
   const client = {
     id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
     name: name.trim(), phone: phone.trim(), email: '', address: '', city: '', province: '',
-    zip: '', nif: '', notes: '', historialTecnico: '', punctuality: '',
+    zip: '', nif: '', notes: '', historialSalud: '', historialTratamientos: '', historialCapilar: '', punctuality: '',
     visits: 0, totalSpent: 0, created: new Date().toISOString(),
     _modified: Date.now(), _deleted: false, whatsapp: false
   };
@@ -4905,6 +4913,48 @@ function showRectifyingReceipt(sale, base, iva) {
 
   document.getElementById('receiptContent').innerHTML = html;
   openModal('receiptModal');
+}
+
+function printPoliticaConfidencialidad() {
+  const id_ = document.getElementById('clientEditId').value;
+  const c = id_ ? data.clients.find(x => x.id === id_) : null;
+  const clientName = c ? fullName(c) : document.getElementById('clientName').value.trim() + ' ' + document.getElementById('clientSurname').value.trim();
+  const clientNif = c ? (c.nif||'') : document.getElementById('clientNif').value.trim();
+  const clientPhone = c ? (c.phone||'') : document.getElementById('clientPhone').value.trim();
+  const clientEmail = c ? (c.email||'') : document.getElementById('clientEmail').value.trim();
+  const clientAddress = c ? ((c.address||'') + (c.city?', '+c.city:'') + (c.province?', '+c.province:'') + (c.zip?' '+c.zip:'')) : '';
+  const today = new Date().toLocaleDateString('es-ES');
+  function copyHTML() {
+    return `<div style="max-width:700px;margin:0 auto;font-family:Arial,sans-serif;font-size:13px;color:#222;">
+      <h2 style="text-align:center;margin-bottom:4px;">DATOS DEL CLIENTE</h2>
+      <hr style="border:1px solid #333;">
+      <table style="width:100%;border-collapse:collapse;margin-bottom:10px;">
+        <tr><td style="padding:4px 0;font-weight:bold;width:120px;">Nombre:</td><td style="padding:4px 0;border-bottom:1px solid #999;">${clientName}</td></tr>
+        <tr><td style="padding:4px 0;font-weight:bold;">DNI/NIE:</td><td style="padding:4px 0;border-bottom:1px solid #999;">${clientNif}</td></tr>
+        <tr><td style="padding:4px 0;font-weight:bold;">Teléfono:</td><td style="padding:4px 0;border-bottom:1px solid #999;">${clientPhone}</td></tr>
+        <tr><td style="padding:4px 0;font-weight:bold;">Email:</td><td style="padding:4px 0;border-bottom:1px solid #999;">${clientEmail}</td></tr>
+        <tr><td style="padding:4px 0;font-weight:bold;">Dirección:</td><td style="padding:4px 0;border-bottom:1px solid #999;">${clientAddress}</td></tr>
+        <tr><td style="padding:4px 0;font-weight:bold;">Fecha:</td><td style="padding:4px 0;border-bottom:1px solid #999;">${today}</td></tr>
+      </table>
+      <h2 style="text-align:center;margin-top:16px;margin-bottom:4px;">POLITICA DE PROTECCIÓN DE DATOS</h2>
+      <hr style="border:1px solid #333;">
+      <p style="text-align:center;font-weight:bold;margin-bottom:8px;">Marioli Suarez Forcelledo</p>
+      <p style="text-align:justify;line-height:1.5;">En cumplimiento de la Ley 15/1999 de Protección de datos Personales se le informa que los datos que con fines promocionales, comerciales y publicitarios se recaban a través de este formulario serán incorporados al fichero de Clientes de la mercantil Nymara Estilistas.</p>
+      <p style="text-align:justify;line-height:1.5;">Nymara Estilistas como destinataria y responsable del fichero, se obliga a adoptar los medios y medidas de seguridad oportunos para la salvaguarda de los datos aquí recabados. Los derechos de acceso, cancelación, rectificación y oposición que le asisten podrán ejercitarse en:</p>
+      <p style="text-align:justify;line-height:1.5;margin-top:10px;font-style:italic;">La cumplimentación de este formulario permite beneficiarse de las promociones y ofertas comerciales que se realicen, y supone su consentimiento para la comunicación de éstas tanto por medios tradicionales como electrónicos.</p>
+      <div style="margin-top:40px;display:flex;justify-content:space-between;">
+        <div style="text-align:center;width:45%;"><div style="border-top:1px solid #333;padding-top:6px;">Firma del Cliente</div></div>
+        <div style="text-align:center;width:45%;"><div style="border-top:1px solid #333;padding-top:6px;">Firma</div></div>
+      </div>
+    </div>`;
+  }
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Política de Confidencialidad</title>
+    <style>@media print{.page-break{page-break-after:always;}} body{margin:0;padding:20px;}</style>
+    </head><body>${copyHTML()}<div class="page-break"></div>${copyHTML()}</body></html>`;
+  const w = window.open('','_blank','width=800,height=900');
+  w.document.write(html);
+  w.document.close();
+  setTimeout(() => { w.print(); }, 500);
 }
 
 function printReceipt() {

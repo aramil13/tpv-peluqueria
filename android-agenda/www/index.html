@@ -1131,7 +1131,7 @@ function quickCreateClient() {
   const client = {
     id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
     name: name.trim(), phone: phone.trim(), email: '', address: '', city: '', province: '',
-    zip: '', nif: '', notes: '', historialTecnico: '', punctuality: '',
+    zip: '', nif: '', notes: '', historialSalud: '', historialTratamientos: '', historialCapilar: '', punctuality: '',
     visits: 0, totalSpent: 0, created: new Date().toISOString(),
     _modified: Date.now(), _deleted: false, whatsapp: false
   };

@@ -591,12 +591,12 @@ try {
     }
 
     # Phase 3.5: Pull client surnames (Apellidos) from Access Clientes, and the client
-    # observations into the TPV "Historial Tecnico" (historialTecnico).
+    # observations into the TPV "Historial de Tratamientos" (historialTratamientos).
     # OJO: el programa de Access NO usa Clientes.Observaciones (esta vacio); las observaciones
     # de clientes viven en la tabla ObserClientes (CodCli + NumObservacion secuencial, una fila
     # por apunte). Se concatenan en orden cronologico separadas por salto de linea.
     # Se guarda una copia oculta (_obsAccess) del ultimo texto traido: si Access no ha cambiado
-    # desde entonces, no se toca historialTecnico (asi las ediciones hechas en el TPV no se
+    # desde entonces, no se toca historialTratamientos (asi las ediciones hechas en el TPV no se
     # pierden); si Access cambia (apunte nuevo/editado/borrado), manda Access y se sobrescribe.
     $surnamesPulled = 0
     $obsPulled = 0
@@ -655,7 +655,7 @@ try {
                 # sincronizado antes (permite propagar borrados de Access sin limpiar el TPV
                 # cuando el cliente nunca tuvo apuntes).
                 if ($observaciones -or $hasMarker) {
-                    Set-ApptField $jsonClient 'historialTecnico' $observaciones
+                    Set-ApptField $jsonClient 'historialTratamientos' $observaciones
                     Set-ApptField $jsonClient '_obsAccess' $observaciones
                     $clientTouched = $true
                     $obsPulled++

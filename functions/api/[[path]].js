@@ -270,7 +270,7 @@ export async function onRequest(context) {
     }
     return json({
       ok: true,
-      client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '', historialTecnico: client.historialTecnico || '', punctuality: client.punctuality || '' },
+      client: { id: client.id, name: client.name, phone: client.phone, email: client.email || '', historialSalud: client.historialSalud || '', historialTratamientos: client.historialTratamientos || '', historialCapilar: client.historialCapilar || '', punctuality: client.punctuality || '' },
       appointments: result
     });
   }
@@ -521,7 +521,7 @@ export async function onRequest(context) {
             id: 'c'+Date.now().toString(36)+Math.random().toString(36).substr(2,4),
             name: (b.clientName||'')+' (Online)', phone: b.clientPhone, email: b.clientEmail||'',
             address: '', city: '', province: '', zip: '', nif: '', notes: '',
-            historialTecnico: '', punctuality: '',
+            historialSalud: '', historialTratamientos: '', historialCapilar: '', punctuality: '',
             visits: 0, totalSpent: 0, created: new Date().toISOString(),
             _modified: Date.now(), _deleted: false
           };
@@ -836,13 +836,13 @@ export async function onRequest(context) {
             name: (b.name||'')+' (Online)', phone: b.phone, email: b.email.trim(),
             passwordHash,
             address: '', city: '', province: '', zip: '', nif: '', notes: '',
-            historialTecnico: '', punctuality: '',
+            historialSalud: '', historialTratamientos: '', historialCapilar: '', punctuality: '',
             visits: 0, totalSpent: 0, created: new Date().toISOString(),
             _modified: Date.now(), _deleted: false
           };
           d.clients.push(client);
           await writeData(d);
-          return json({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email, historialTecnico: client.historialTecnico, punctuality: client.punctuality } });
+          return json({ ok: true, client: { id: client.id, name: client.name, phone: client.phone, email: client.email, historialSalud: client.historialSalud, historialTratamientos: client.historialTratamientos, historialCapilar: client.historialCapilar, punctuality: client.punctuality } });
         } catch (e) {
           return json({ error: e.message }, 400);
         }
