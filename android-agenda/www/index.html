@@ -77,9 +77,9 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 
 .bottom-nav { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); display: flex; box-shadow: 0 -2px 10px rgba(0,0,0,.1); z-index: 100; padding-bottom: env(safe-area-inset-bottom, 0px); }
-.bottom-nav .tab { flex: 1; text-align: center; padding: 7px 0; cursor: pointer; font-size: 10px; color: var(--text-light); border-top: 2px solid transparent; transition: all .2s; -webkit-tap-highlight-color: transparent; }
+.bottom-nav .tab { flex: 1; text-align: center; padding: 6px 0; cursor: pointer; font-size: 9px; color: var(--text-light); border-top: 2px solid transparent; transition: all .2s; -webkit-tap-highlight-color: transparent; }
 .bottom-nav .tab.active { color: var(--primary); border-top-color: var(--primary); font-weight: 600; }
-.bottom-nav .tab .icon { font-size: 18px; display: block; margin-bottom: 1px; }
+.bottom-nav .tab .icon { font-size: 16px; display: block; margin-bottom: 1px; }
 .page { display: none; }
 .page.active { display: block; }
 .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 500; }
@@ -114,9 +114,51 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 .service-dd-item { padding:8px 10px; cursor:pointer; white-space:nowrap; font-size:13px; border-bottom:1px solid #eee; }
 .service-dd-item:hover { background:var(--primary); color:#fff; }
 .service-dd-empty { padding:8px 10px; color:#999; font-size:12px; }
+
+/* --- Fotos de cliente: zona responsive (movil y tablet) --- */
+.client-photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.client-photo-card { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--card); }
+.client-photo-img { display: block; width: 100%; height: 110px; object-fit: cover; cursor: pointer; }
+.client-photo-del {
+  position: absolute; top: 5px; right: 5px; z-index: 3;
+  width: 30px; height: 30px; padding: 0; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.55); background: rgba(0,0,0,.62); color: #fff;
+  font-size: 19px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.client-photo-del:hover { background: rgba(0,0,0,.82); }
+.client-photo-del:active { background: var(--danger); }
+.client-photo-meta { padding: 4px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.client-photo-meta select {
+  flex: 1 1 88px; min-width: 0; padding: 3px 4px; font-size: 11px;
+  background: var(--card); color: var(--text); border: 1px solid var(--border); border-radius: 4px;
+}
+.client-photo-meta span {
+  flex: 1 1 88px; min-width: 0; font-size: 11px; color: var(--text); padding: 2px 6px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
 @media (min-width: 600px) {
   .modal-content { border-radius: 16px; margin: auto; max-width: 500px; }
   .modal-overlay { align-items: center; }
+  /* Tablet: tarjetas de foto mas grandes y cruz de borrar mayor */
+  .client-photos-grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+  .client-photo-img { height: 150px; }
+  .client-photo-del { width: 34px; height: 34px; font-size: 22px; top: 6px; right: 6px; }
+  .client-photo-meta { padding: 6px; gap: 6px; }
+  .client-photo-meta select, .client-photo-meta span { font-size: 12px; padding: 4px 6px; }
+}
+@media (min-width: 900px) {
+  /* Tablet 11": el modal de cliente aprovecha mas ancho */
+  #clientModal .modal-content { max-width: 760px; }
+  .client-photos-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .client-photo-img { height: 170px; }
+}
+@media (max-width: 360px) {
+  .client-photos-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
+  .client-photo-img { height: 95px; }
+  .client-photo-del { width: 26px; height: 26px; font-size: 16px; }
 }
 @media (max-width: 480px) {
   .agenda-nav h3 { min-width: 0; flex: 1; font-size: 14px; }
@@ -179,7 +221,8 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 <div id="pageClients" class="page">
   <div class="card">
     <div class="card-header"><h3>Clientes</h3><button class="btn btn-sm btn-primary" onclick="openClientModal()">+ Añadir</button></div>
-    <div style="padding:0 12px 8px;"><input type="text" id="searchClient" class="search-input" placeholder="Buscar cliente..." oninput="renderClients()"></div>
+    <div id="clientsSummary" style="padding:6px 12px;font-size:12px;color:var(--text-light);background:var(--bg);border-bottom:1px solid var(--border);">Clientes: 0 - Con diagnostico: 0</div>
+    <div style="padding:0 12px 8px;display:flex;gap:6px;align-items:center;"><input type="text" id="searchClient" class="search-input" placeholder="Buscar cliente..." oninput="renderClients()" style="flex:1;"><button id="btnFilterDiag" class="btn btn-xs btn-secondary" onclick="toggleDiagFilter()" style="white-space:nowrap;">Diagnostico (0)</button></div>
     <div id="clientsList"></div>
   </div>
 </div>
@@ -218,6 +261,11 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
   </div>
 </div>
 
+<div id="pageDiagnosis" class="page">
+  <div id="diagStatus" style="padding:8px 12px;font-size:12px;color:var(--text-light);"></div>
+  <iframe id="diagFrame" data-src="diagnosis/index.html" src="" style="width:100%;height:calc(100vh - 70px);border:none;background:#0b0915;display:block;"></iframe>
+</div>
+
 <div id="pageConfig" class="page">
   <div class="card">
     <div class="card-header"><h3>Sincronización</h3></div>
@@ -246,6 +294,7 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
   <div class="tab" data-tab="pageEmployees"><span class="icon">👥</span>Empleados</div>
   <div class="tab" data-tab="pageServices"><span class="icon">💇</span>Servicios</div>
   <div class="tab" data-tab="pageProducts"><span class="icon">📦</span>Productos</div>
+  <div class="tab" data-tab="pageDiagnosis"><span class="icon">🧬</span>Diagnóst.</div>
   <div class="tab" data-tab="pageConfig"><span class="icon">⚙️</span>Conf.</div>
 </nav>
 
@@ -317,6 +366,19 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
         <button class="btn btn-xs" type="button" onclick="genClientPW()" style="position:absolute;right:4px;top:30px;padding:2px 5px;font-size:10px;background:var(--primary);color:#fff;border:none;border-radius:3px;cursor:pointer;">Gen</button>
       </div>
       <div class="form-group"><label>Notas</label><textarea id="clientNotes" placeholder="Notas..." style="min-height:40px;"></textarea></div>
+    </div>
+    <div class="form-group"><label>Puntualidad</label><select id="clientPunctuality"><option value="">Seleccionar...</option><option value="puntual">Puntual</option><option value="impuntual">Impuntual</option><option value="dificil">Difícil</option></select></div>
+    <div class="form-group"><label>Historial de Salud y Seguridad</label><textarea id="clientHistorialSalud" placeholder="Alergias, condiciones médicas..." rows="2" style="min-height:50px;"></textarea></div>
+    <div class="form-group"><label>Historial de Tratamientos</label><textarea id="clientHistorialTratamientos" placeholder="Registro de visitas..." rows="2" style="min-height:50px;"></textarea></div>
+    <div class="form-group"><label>Historial Técnico y Capilar</label><textarea id="clientHistorialCapilar" placeholder="Diagnóstico capilar..." rows="2" style="min-height:50px;"></textarea></div>
+    <div class="form-group"><label>Fotos del cliente</label>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+        <input type="file" id="clientPhotoFile" accept="image/*" style="display:none;" onchange="addClientPhoto(this)">
+        <button type="button" class="btn btn-xs btn-secondary" onclick="document.getElementById('clientPhotoFile').click()">Añadir foto</button>
+        <select id="clientPhotoType" style="width:auto;padding:4px 8px;font-size:12px;"><option value="before">Antes</option><option value="after">Después</option></select>
+        <input type="date" id="clientPhotoDate" style="width:auto;padding:4px 8px;font-size:12px;">
+      </div>
+      <div id="clientPhotosGallery" class="client-photos-grid"></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button>
@@ -414,6 +476,8 @@ let data = {
   settings: DB.get('settings') || {}
 };
 ['appointments','clients','services','employees','products','sections','providers'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
+// Exponer data al iframe del diagnóstico (mismo origen)
+window.data = data;
 
 // Auto-clean: repair non-online cancelledBy='salon' only (NO auto-delete past)
 const todayC = new Date().toISOString().split('T')[0];
@@ -505,6 +569,10 @@ document.querySelectorAll('.bottom-nav .tab').forEach(tab => {
     if (this.dataset.tab === 'pageProducts') renderProducts();
     if (this.dataset.tab === 'pageAgenda') renderAgenda();
     if (this.dataset.tab === 'pageConfig') { loadSyncSettings(); updateSyncStatus(); }
+    if (this.dataset.tab === 'pageDiagnosis') {
+      const fr = document.getElementById('diagFrame');
+      if (fr && !fr.getAttribute('src')) { fr.setAttribute('src', fr.dataset.src); }
+    }
   });
 });
 
@@ -1470,15 +1538,61 @@ function deleteApptFromModal() {
 }
 
 // ============ CLIENTS ============
+function hasDiag(c) { if (!c || !c.historialCapilar) return false; const t = String(c.historialCapilar).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); return t.indexOf('diagnostico capilar') !== -1; }
+let diagFilterOn = false;
+function toggleDiagFilter() { diagFilterOn = !diagFilterOn; const btn = document.getElementById('btnFilterDiag'); if (btn) btn.classList.toggle('btn-primary', diagFilterOn); updateDiagFilterCount(); renderClients(); }
+function updateDiagFilterCount() {
+    const total = (data.clients||[]).filter(c => !c._deleted).length;
+    const n = (data.clients||[]).filter(c => !c._deleted && hasDiag(c)).length;
+    const btn = document.getElementById('btnFilterDiag'); if (btn) btn.textContent = 'Diagnostico (' + n + ')';
+    const sum = document.getElementById('clientsSummary'); if (sum) sum.textContent = 'Clientes: ' + total + ' - Con diagnostico: ' + n;
+}
 function renderClients() {
   const div = document.getElementById('clientsList');
   const q = (document.getElementById('searchClient').value||'').toLowerCase();
-  const list = data.clients.filter(c => !c._deleted && (fullName(c).toLowerCase().includes(q) || (c.phone||'').includes(q) || (c.nif||'').toLowerCase().includes(q))).sort((a,b) => fullName(a).localeCompare(fullName(b)));
+  const list = data.clients.filter(c => !c._deleted && (fullName(c).toLowerCase().includes(q) || (c.phone||'').includes(q) || (c.nif||'').toLowerCase().includes(q)) && (!diagFilterOn || hasDiag(c))).sort((a,b) => fullName(a).localeCompare(fullName(b)));
+  updateDiagFilterCount();
   if (!list.length) { div.innerHTML = '<div class="empty-state"><p>No hay clientes</p></div>'; return; }
   div.innerHTML = list.map(c => `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--border);">
-    <div><strong>${esc(fullName(c))}</strong>${c.nif?`<br><span style="font-size:10px;color:var(--text-light);">${esc(c.nif)}</span>`:''}${c.phone?`<br><span style="font-size:11px;color:var(--text-light);">${esc(c.phone)}</span>`:''}${c.email?` · ${esc(c.email)}`:''}</div>
+    <div><strong>${esc(fullName(c))}</strong>${(c.photos&&c.photos.length)?' 📷':''}${c.nif?`<br><span style="font-size:10px;color:var(--text-light);">${esc(c.nif)}</span>`:''}${c.phone?`<br><span style="font-size:11px;color:var(--text-light);">${esc(c.phone)}</span>`:''}${c.email?` . ${esc(c.email)}`:''}</div>
     <div class="btn-group"><button class="btn btn-xs btn-secondary" onclick="editClient('${c.id}')">✏️</button><button class="btn btn-xs btn-danger" onclick="deleteClient('${c.id}')">🗑️</button></div>
   </div>`).join('');
+}
+
+let clientPhotosWorking = [];
+function renderClientPhotos() {
+  const g = document.getElementById('clientPhotosGallery'); if (!g) return;
+  if (!clientPhotosWorking.length) { g.innerHTML = '<div style="color:var(--text-light);font-size:11px;">Sin fotos</div>'; return; }
+  g.innerHTML = clientPhotosWorking.map((p,i) => '<div class="client-photo-card">' +
+    '<img class="client-photo-img" src="' + p.dataUrl + '" onclick="viewClientPhoto(' + i + ')">' +
+    '<button type="button" class="client-photo-del" onclick="deleteClientPhoto(' + i + ')" title="Eliminar foto" aria-label="Eliminar foto">×</button>' +
+    '<div class="client-photo-meta">' +
+      '<select onchange="clientPhotosWorking[' + i + '].type=this.value"><option value="before"' + (p.type==='before'?' selected':'') + '>Antes</option><option value="after"' + (p.type==='after'?' selected':'') + '>Despues</option></select>' +
+      '<span>' + (p.date||'') + '</span>' +
+    '</div>' +
+  '</div>').join('');
+}
+function addClientPhoto(input) {
+  const file = input && input.files && input.files[0]; if (!file) return;
+  if (file.size > 4*1024*1024) { alert('La foto supera 4 MB'); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const type = (document.getElementById('clientPhotoType')||{}).value || 'before';
+    const date = (document.getElementById('clientPhotoDate')||{}).value || new Date().toISOString().slice(0,10);
+    clientPhotosWorking.push({ id: 'ph_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), dataUrl: e.target.result, type, date, created: new Date().toISOString() });
+    renderClientPhotos();
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+function deleteClientPhoto(idx) {
+  if (!confirm('Eliminar esta foto?')) return;
+  clientPhotosWorking.splice(idx,1);
+  renderClientPhotos();
+}
+function viewClientPhoto(idx) {
+  const p = clientPhotosWorking[idx]; if (!p) return;
+  const w = window.open('', '_blank'); if (w) { w.document.write('<img src="' + p.dataUrl + '" style="max-width:100%;height:auto;">'); }
 }
 
 function openClientModal() {
@@ -1494,6 +1608,12 @@ function openClientModal() {
   document.getElementById('clientEmail').value = '';
   document.getElementById('clientPassword').value = '';
   document.getElementById('clientNotes').value = '';
+  document.getElementById('clientPunctuality').value = '';
+  document.getElementById('clientHistorialSalud').value = '';
+  document.getElementById('clientHistorialTratamientos').value = '';
+  document.getElementById('clientHistorialCapilar').value = '';
+  clientPhotosWorking = [];
+  renderClientPhotos();
   document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
   document.getElementById('clientModal').classList.add('show');
 }
@@ -1512,6 +1632,12 @@ function editClient(id) {
   document.getElementById('clientEmail').value = c.email||'';
   document.getElementById('clientPassword').value = '';
   document.getElementById('clientNotes').value = c.notes||'';
+  document.getElementById('clientPunctuality').value = c.punctuality||'';
+  document.getElementById('clientHistorialSalud').value = c.historialSalud||'';
+  document.getElementById('clientHistorialTratamientos').value = c.historialTratamientos||'';
+  document.getElementById('clientHistorialCapilar').value = c.historialCapilar||'';
+  clientPhotosWorking = (c.photos || []).slice();
+  renderClientPhotos();
   document.getElementById('clientModalTitle').textContent = 'Editar Cliente';
   document.getElementById('clientModal').classList.add('show');
 }
@@ -1533,6 +1659,11 @@ function saveClient() {
     email: document.getElementById('clientEmail').value.trim(),
     passwordHash: pw ? hashPW(pw) : (() => { const c = data.clients.find(x => x.id === id_); return c ? c.passwordHash||'' : ''; })(),
     notes: document.getElementById('clientNotes').value.trim(),
+    punctuality: document.getElementById('clientPunctuality').value,
+    historialSalud: document.getElementById('clientHistorialSalud').value.trim(),
+    historialTratamientos: document.getElementById('clientHistorialTratamientos').value.trim(),
+    historialCapilar: document.getElementById('clientHistorialCapilar').value.trim(),
+    photos: clientPhotosWorking.slice(),
     _modified: Date.now(),
     _deleted: false
   };
@@ -1936,12 +2067,137 @@ function mergeRemote(type, remote) {
   return changed;
 }
 
+function updateDiagStatus(msg) {
+    const el = document.getElementById('diagStatus');
+    if (el) el.textContent = msg || '';
+}
+
+function onDiagnosisResults(results) {
+    let clientId = '';
+    try {
+        const fr = document.getElementById('diagFrame');
+        const doc = fr && (fr.contentDocument || (fr.contentWindow && fr.contentWindow.document));
+        if (doc) {
+            const sel = doc.getElementById('client-select');
+            if (sel) clientId = sel.value;
+        }
+    } catch (e) { }
+    if (!clientId) { alert('Selecciona un cliente antes de analizar.'); return; }
+    const client = (data.clients || []).find(c => c.id === clientId && !c._deleted);
+    if (!client) { alert('Cliente no encontrado.'); return; }
+
+    const follicle = (results && results.follicleSebum && results.follicleSebum.label) ? results.follicleSebum.label : (results && results.follicleSebum);
+    const metrics = [
+        'Densidad ' + (results && results.density != null ? results.density : '--'),
+        'Grosor ' + (results && results.thickness != null ? results.thickness : '--') + ' um',
+        'Hidratacion ' + (results && results.hydration != null ? results.hydration : '--') + '%',
+        'Sebo ' + (results && results.sebum != null ? results.sebum : '--'),
+        'Caspa ' + (results && results.dandruff != null ? results.dandruff : '--'),
+        'Eritema ' + (results && results.erythema != null ? results.erythema : '--'),
+        'Sebo folicular ' + (follicle != null ? follicle : '--')
+    ];
+    const interp = (results && results.interpretation ? String(results.interpretation) : '').trim().replace(/\s+/g, ' ');
+    const date = new Date().toLocaleDateString('es-ES');
+    let entry = '[' + date + '] Diagnostico capilar: ' + metrics.join(' - ');
+    if (interp) entry += '\nInterpretacion: ' + interp;
+
+    const cfg = getSyncCfg();
+    const syncEnabled = !!(cfg && cfg.enabled);
+
+    const applyLocal = (c) => {
+        const current = c.historialCapilar || '';
+        if (current.indexOf(entry) === -1) {
+            c.historialCapilar = current ? (current + '\n' + entry) : entry;
+        }
+        if (results && results.photoData) {
+            if (!Array.isArray(c.photos)) c.photos = [];
+            const already = c.photos.some(p => p && p.dataUrl === results.photoData);
+            if (!already) {
+                c.photos.push({
+                    id: 'ph_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+                    dataUrl: results.photoData,
+                    type: 'before',
+                    date: date,
+                    created: new Date().toISOString()
+                });
+            }
+        }
+        c._modified = Date.now();
+    };
+
+    if (!syncEnabled) {
+        applyLocal(client);
+        saveKey('clients');
+        updateDiagStatus('OK. Resultados guardados en local (sync desactivado).');
+        updateDiagFilterCount();
+        return;
+    }
+
+    let attempts = 0;
+    const MAX = 3;
+    const attempt = () => {
+        attempts++;
+        syncPull().then(() => {
+            const c = (data.clients || []).find(x => x.id === clientId && !x._deleted);
+            if (!c) { updateDiagStatus('Cliente no encontrado tras sync.'); return; }
+            const current = c.historialCapilar || '';
+            const alreadyEntry = current.indexOf(entry) !== -1;
+            if (!alreadyEntry) applyLocal(c);
+            saveKey('clients');
+            syncPush();
+            setTimeout(() => {
+                syncPull().then(() => {
+                    const c2 = (data.clients || []).find(x => x.id === clientId && !x._deleted);
+                    if (c2) {
+                        if (results && results.photoData) {
+                            if (!Array.isArray(c2.photos)) c2.photos = [];
+                            const hasIt = c2.photos.some(p => p && p.dataUrl === results.photoData);
+                            if (!hasIt) {
+                                c2.photos.push({
+                                    id: 'ph_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+                                    dataUrl: results.photoData,
+                                    type: 'before',
+                                    date: date,
+                                    created: new Date().toISOString()
+                                });
+                            }
+                        }
+                        if ((c2.historialCapilar || '').indexOf(entry) === -1) {
+                            const cur = c2.historialCapilar || '';
+                            c2.historialCapilar = cur ? (cur + '\n' + entry) : entry;
+                        }
+                        c2._modified = Date.now();
+                        saveKey('clients');
+                        updateDiagStatus('OK. Resultados guardados en el historial de ' + (c2.name || ''));
+                        updateDiagFilterCount();
+                    } else if (attempts < MAX) {
+                        attempt();
+                    } else {
+                        updateDiagStatus('No se pudo verificar el guardado. Revisa la conexion.');
+                    }
+                }).catch(() => { if (attempts < MAX) attempt(); });
+            }, 1500);
+        }).catch(() => { if (attempts < MAX) attempt(); });
+    };
+    attempt();
+}
+
+// Exponer onDiagnosisResults al iframe del diagnostico (y respaldo por postMessage)
+window.onDiagnosisResults = onDiagnosisResults;
+window.addEventListener('message', function (ev) {
+    try {
+        if (ev.data && ev.data.type === 'diagnosis_results' && ev.data.results) {
+            onDiagnosisResults(ev.data.results);
+        }
+    } catch (e) {}
+});
+
 function syncPull() {
   const c = getSyncCfg();
   if (!c.enabled) return;
   const dot = document.getElementById('syncDot');
   if (dot) dot.classList.add('syncing');
-  fetchWithTimeout(syncBase()+'/sync', {})
+  return fetchWithTimeout(syncBase()+'/sync', {})
     .then(r => {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();

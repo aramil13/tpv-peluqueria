@@ -1,0 +1,1452 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnósticos con apoyo de AI | Diagnosis Capilar Inteligente</title>
+    <style>
+        :root {
+            --bg-dark: #0b0915;
+            --bg-card: #161425;
+            --accent-color: #a78bfa;
+            --accent-glow: rgba(167, 139, 250, 0.3);
+            --text-primary: #ffffff;
+            --text-secondary: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            background: var(--bg-dark);
+            color: var(--text-primary);
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            margin: 0;
+            padding: 20px;
+            line-height: 1.5;
+        }
+
+        .container { max-width: 1200px; margin: 0 auto; }
+        
+        header { text-align: center; margin-bottom: 30px; }
+        header h1 { font-size: 2rem; margin: 0; color: var(--accent-color); }
+        header p { color: var(--text-secondary); margin: 5px 0 0; }
+
+        .app-grid {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 900px) {
+            .app-grid { grid-template-columns: 1fr; }
+            .card { padding: 14px; }
+        }
+        @media (max-width: 480px) {
+            .container { padding: 0 8px; }
+            .card { padding: 10px; border-radius: 12px; }
+        }
+
+        .card { 
+            background: var(--bg-card); 
+            border: 1px solid var(--border-color); 
+            border-radius: 16px; 
+            padding: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            height: fit-content;
+        }
+
+        .upload-zone {
+            border: 2px dashed var(--accent-color);
+            background: rgba(167, 139, 250, 0.05);
+            border-radius: 12px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+        }
+        .upload-zone:hover { background: rgba(167, 139, 250, 0.1); }
+        .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+        .upload-icon { width: 40px; height: 40px; color: var(--accent-color); margin-bottom: 10px; }
+
+        #preview-img { 
+            width: 100%; 
+            border-radius: 12px; 
+            display: none; 
+            margin-top: 20px;
+            border: 1px solid var(--border-color);
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .metric-card {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border-color);
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            transition: transform 0.2s;
+        }
+        .metric-card:hover { transform: translateY(-2px); border-color: var(--accent-color); }
+        .metric-value { font-size: 1.5rem; font-weight: 700; color: var(--accent-color); margin-bottom: 4px; }
+        .metric-label { font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; }
+
+        .primary-btn {
+            width: 100%;
+            padding: 14px;
+            background: var(--accent-color);
+            color: #0b0915;
+            border: none;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .primary-btn:hover:not(:disabled) { background: #b7a1ff; transform: translateY(-2px); box-shadow: 0 4px 15px var(--accent-glow); }
+        .primary-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .secondary-btn {
+            width: 100%;
+            padding: 12px;
+            background: transparent;
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            margin-top: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .secondary-btn:hover { color: #fff; border-color: #fff; }
+
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: rgba(255,255,255,0.1);
+            margin-bottom: 10px;
+        }
+
+        #camera-container {
+            position: relative;
+            margin-top: 20px;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+        }
+        video { width: 100%; display: block; background: #000; }
+        
+        .product-card {
+            display: flex;
+            gap: 12px;
+            padding: 12px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            margin-bottom: 8px;
+        }
+        .product-img { width: 60px; height: 60px; border-radius: 8px; object-fit: cover; background: #fff; }
+        .product-info { flex: 1; }
+        .product-info strong { font-weight: 600; font-size: 0.9rem; color: #fff; display: block; }
+        .product-info p { font-size: 0.75rem; color: var(--text-secondary); margin: 4px 0; }
+        .product-info a { font-size: 0.75rem; color: var(--accent-color); text-decoration: none; }
+
+        .symptom-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .symptom-field {
+            border: 1px solid var(--border-color);
+            border-radius: 10px;
+            padding: 10px;
+            background: rgba(255,255,255,0.03);
+        }
+        .symptom-field label {
+            display: block;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+        .symptom-field select {
+            width: 100%;
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 8px;
+            font-size: 0.85rem;
+        }
+        .symptom-field input[type="checkbox"] {
+            width: 16px; height: 16px; accent-color: var(--accent-color);
+        }
+        .symptom-check {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 0.82rem; color: var(--text-primary); cursor: pointer;
+        }
+
+        .guide-toggle {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            background: rgba(167,139,250,0.1);
+            color: var(--accent-color);
+            border: 1px solid rgba(167,139,250,0.3);
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.85rem;
+            font-family: inherit;
+            transition: all 0.2s;
+        }
+        .guide-toggle:hover { background: rgba(167,139,250,0.2); }
+        #guide-panel { margin-top: 12px; }
+        .guide-accordion { border: 1px solid var(--border-color); border-radius: 10px; margin-bottom: 8px; overflow: hidden; }
+        .guide-accordion summary {
+            padding: 10px 12px;
+            background: rgba(255,255,255,0.04);
+            color: var(--text-primary);
+            font-weight: 600;
+            font-size: 0.85rem;
+            cursor: pointer;
+        }
+        .guide-accordion .guide-body { padding: 12px; }
+        .guide-accordion .guide-body p { font-size: 0.8rem; margin: 6px 0; color: var(--text-secondary); }
+        .guide-accordion .guide-body b { color: var(--text-primary); }
+        .guide-accordion .guide-body ul { margin: 6px 0; padding-left: 18px; }
+        .guide-accordion .guide-body li { font-size: 0.78rem; color: var(--text-secondary); margin: 4px 0; }
+        .guide-tag {
+            display: inline-block; background: rgba(167,139,250,0.15); color: var(--accent-color);
+            border-radius: 20px; padding: 2px 10px; font-size: 0.7rem; font-weight: 600; margin-right: 6px;
+        }
+
+        .diag-summary {
+            margin-top: 18px; padding: 14px; border-radius: 12px;
+            background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.25);
+        }
+        .diag-summary h4 { margin: 0 0 8px 0; color: var(--accent-color); font-size: 0.9rem; }
+        .diag-summary p { margin: 6px 0; font-size: 0.82rem; color: var(--text-secondary); }
+        .diag-summary b { color: var(--text-primary); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Diagnósticos con apoyo de AI</h1>
+            <p>Análisis capilar avanzado mediante visión artificial</p>
+        </header>
+
+        <section class="card" style="margin-bottom:16px;">
+            <h3 style="margin:0 0 8px 0; font-size:1rem;">Cliente *</h3>
+            <input type="text" id="client-search" placeholder="Buscar cliente..." style="width:100%;padding:8px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);font-family:inherit;margin-bottom:8px;box-sizing:border-box;">
+            <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;">
+                <select id="client-select" style="flex:1 1 60%;min-width:0;padding:8px;border-radius:8px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);font-family:inherit;"></select>
+                <button type="button" id="btn-new-client" style="flex:0 0 auto;padding:8px 10px;border-radius:8px;border:1px solid var(--accent-color);background:rgba(167,139,250,0.15);color:var(--accent-color);font-weight:600;cursor:pointer;white-space:nowrap;">➕ Nuevo</button>
+            </div>
+            <div id="new-client-form" style="display:none;margin-bottom:8px;padding:10px;border:1px solid var(--border-color);border-radius:8px;background:rgba(255,255,255,0.03);">
+                <input type="text" id="nc-name" placeholder="Nombre *" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);margin-bottom:6px;box-sizing:border-box;">
+                <input type="text" id="nc-surname" placeholder="Apellidos" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);margin-bottom:6px;box-sizing:border-box;">
+                <input type="tel" id="nc-phone" placeholder="Teléfono" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);margin-bottom:6px;box-sizing:border-box;">
+                <input type="email" id="nc-email" placeholder="Email" style="width:100%;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:var(--bg-card);color:var(--text-primary);margin-bottom:8px;box-sizing:border-box;">
+                <div style="display:flex;gap:6px;">
+                    <button type="button" id="nc-save" style="flex:1;padding:8px;border-radius:6px;border:none;background:var(--accent-color);color:#fff;font-weight:600;cursor:pointer;">Guardar</button>
+                    <button type="button" id="nc-cancel" style="flex:1;padding:8px;border-radius:6px;border:1px solid var(--border-color);background:transparent;color:var(--text-primary);cursor:pointer;">Cancelar</button>
+                </div>
+            </div>
+                <option value="">— Selecciona un cliente —</option>
+            </select>
+            <p style="font-size:0.8rem;color:var(--text-secondary);margin:6px 0 0 0;">Obligatorio: los resultados se guardarán en el historial técnico y capilar de este cliente.</p>
+        </section>
+
+        <main class="app-grid">
+            <section class="card">
+                <div class="upload-zone" id="drop-zone">
+                    <input type="file" id="file-input" accept="image/*">
+                    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                    <h3>Sube tu foto microscópica</h3>
+                    <p>Arrastra o haz clic para buscar</p>
+                    <p style="font-size:0.85rem; margin-top:10px; background:rgba(167,139,250,0.08); padding:8px 10px; border-radius:8px; color:var(--text-secondary);">
+                        Requisito: primer plano del <b>cuero cabelludo</b> o del <b>tallo del cabello</b> con <b>zoom mínimo ~30x</b> (se deben ver poros, folículos u orificios foliculares, la raíz o fibras individuales). El resto de fotos se rechaza.
+                    </p>
+                </div>
+
+                <button id="camera-btn" class="secondary-btn" style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"></path><circle cx="12" cy="13" r="3"></circle></svg>
+                    Usar Cámara
+                </button>
+
+                <div id="camera-container" style="display:none;">
+                    <video id="video" autoplay playsinline style="cursor:pointer;" title="Toca para capturar"></video>
+                    <div style="display: flex; gap: 10px; padding: 15px; background: rgba(0,0,0,0.5);">
+                        <button id="cancel-camera-btn" class="secondary-btn" style="margin:0;">Cancelar</button>
+                    </div>
+                </div>
+
+                <img id="preview-img" src="" alt="Vista previa">
+
+                <div id="action-buttons" style="display: none; margin-top: 20px;">
+                    <div style="margin-bottom: 15px; padding: 12px; background: rgba(16, 185, 129, 0.08); border-radius: 10px; border: 1px solid rgba(16, 185, 129, 0.25);">
+                        <label style="font-size: 0.85rem; font-weight: 700; color: var(--accent-color); display: block; margin-bottom: 6px;">🔬 ¿Cómo se tomó esta foto?</label>
+                        <select id="symptom-zoom" class="symptom-zoom" style="width:100%;">
+                            <option value="">Selecciona...</option>
+                            <option value="si30">Con lente / lupa macro o microscópica de aumento ≥ 30×</option>
+                            <option value="no">Sin aumento real (solo zum digital / foto normal)</option>
+                        </select>
+                        <p style="font-size:0.75rem; color: var(--text-secondary); margin:6px 0 0 0;">Requisito obligatorio: solo se analizan tomas capilares con aumento real de al menos 30× (escala de poros, folículos y fibras individuales).</p>
+                    </div>
+
+                    <div style="margin-bottom: 15px; padding: 12px; background: rgba(167, 139, 250, 0.1); border-radius: 10px; border: 1px solid rgba(167, 139, 250, 0.2);">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                            <input type="checkbox" id="colored-hair-checkbox" style="width: 18px; height: 18px; accent-color: var(--accent-color);">
+                            <span style="font-size: 0.9rem; font-weight: 500;">¿Cabello teñido?</span>
+                        </label>
+                    </div>
+
+                    <div id="symptom-section" style="margin-bottom: 15px; padding: 12px; background: rgba(255,255,255,0.04); border-radius: 10px; border: 1px solid var(--border-color);">
+                        <div style="font-size: 0.85rem; font-weight: 700; margin-bottom: 10px; color: var(--accent-color);">Síntomas y contexto clínico</div>
+                        <div class="symptom-grid">
+                            <div class="symptom-field">
+                                <label>¿Nota pérdida de cabello?</label>
+                                <select id="symptom-hairloss">
+                                    <option value="">No indicado</option>
+                                    <option value="difusa">Caída difusa general</option>
+                                    <option value="areas">En zonas/parches concretos</option>
+                                    <option value="fronto">Entradas / coronilla (frontal-temoral)</option>
+                                    <option value="no">No</option>
+                                </select>
+                            </div>
+                            <div class="symptom-field">
+                                <label>Descamación (caspa)</label>
+                                <select id="symptom-dandruff">
+                                    <option value="">No indicado</option>
+                                    <option value="seca">Fina, blanca, seca (se desprende fácil)</option>
+                                    <option value="grasa">Amarillenta, adherente, con enrojecimiento</option>
+                                    <option value="placas">Placas gruesas nacaradas bien delimitadas</option>
+                                    <option value="no">No</option>
+                                </select>
+                            </div>
+                            <div class="symptom-field">
+                                <label>Cuero cabelludo graso</label>
+                                <select id="symptom-sebum">
+                                    <option value="">No indicado</option>
+                                    <option value="alto">Muy graso (sebo visible)</option>
+                                    <option value="medio">Algo graso</option>
+                                    <option value="seco">Ninguno / seco</option>
+                                </select>
+                            </div>
+                            <div class="symptom-field">
+                                <label>Picor / irritación</label>
+                                <select id="symptom-itch">
+                                    <option value="">No indicado</option>
+                                    <option value="alto">Picor e irritación frecuentes</option>
+                                    <option value="medio">Picor ocasional</option>
+                                    <option value="no">Ninguno</option>
+                                </select>
+                            </div>
+                            <div class="symptom-field">
+                                <label>Contexto / desencadenantes recientes</label>
+                                <select id="symptom-context">
+                                    <option value="">Ninguno</option>
+                                    <option value="postparto">Posparto (hace 2-3 meses)</option>
+                                    <option value="estres">Estrés / ansiedad elevados</option>
+                                    <option value="fiebre">Fiebre alta reciente (infección)</option>
+                                    <option value="medicacion">Medicación / tratamiento médico</option>
+                                    <option value="dieta">Cambio de dieta / déficit nutricional</option>
+                                </select>
+                            </div>
+                            <div class="symptom-field">
+                                <label>Historial del cabello</label>
+                                <select id="symptom-history">
+                                    <option value="">No indicado</option>
+                                    <option value="quimico">Procesos químicos frecuentes (tinte, alisado, decoloración)</option>
+                                    <option value="calor">Uso frecuente de calor (plancha, secador, rizador)</option>
+                                    <option value="traccion">Peinados de tracción (coletas, moños, trenzas)</option>
+                                    <option value="lavado">Lavado con agua muy caliente</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="analyze-btn" class="primary-btn" disabled>Iniciar Análisis AI</button>
+                    <button id="reset-btn" class="secondary-btn">Cambiar Imagen</button>
+                </div>
+            </section>
+
+            <section class="card">
+                <div id="status-badge" class="status-badge" style="display:none;">Listo</div>
+                <h2 style="margin: 0 0 20px 0;">Resultados del Diagnóstico</h2>
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-value" id="val-density">--</div>
+                        <div class="metric-label">Densidad (160-190)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="val-thickness">--</div>
+                        <div class="metric-label">Grosor (μm) (65-80)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="val-hydration">--</div>
+                        <div class="metric-label">Hidratación (55-75%)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="val-sebum">--</div>
+                        <div class="metric-label">Nivel Sebo (1-10)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="val-dandruff">--</div>
+                        <div class="metric-label">Nivel Caspa (1-10)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="val-erythema">--</div>
+                        <div class="metric-label">Nivel Eritema (1-10)</div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-value" id="val-follicle-sebum">--</div>
+                        <div class="metric-label">Sebo en folículos</div>
+                    </div>
+                </div>
+
+                <div id="recommendations-section" style="margin-top: 30px; display: none;">
+                    <h3 style="font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">Productos Maria Nila</h3>
+                    <div id="products-grid"></div>
+                </div>
+
+                <div id="treatments-section" style="margin-top: 30px; display: none;">
+                    <h3 style="font-size: 1.1rem; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; margin-bottom: 15px;">Tratamientos Olaplex</h3>
+                    <div id="treatments-grid"></div>
+                </div>
+
+                <div id="diag-summary" class="diag-summary" style="display: none;">
+                    <h4>📋 Interpretación tricológica</h4>
+                    <div id="diag-summary-text"></div>
+                </div>
+
+                <button id="guide-toggle" class="guide-toggle">📚 Guía rápida de Tricología</button>
+                <div id="guide-panel" style="display: none; margin-top: 12px;">
+                    <details class="guide-accordion">
+                        <summary>01 · El cabello: estructura y ciclo</summary>
+                        <div class="guide-body">
+                            <span class="guide-tag">Referencia normalidad</span>
+                            <p><b>Estructura:</b> Raíz (bulbo, papila dérmica) y tallo (médula ~21%, corteza ~70% —determina fuerza/elasticidad/textura— y cutícula ~9% —protectora; si se daña → poroso y opaco).</p>
+                            <ul>
+                                <li>Diámetro del tallo: <b>70–100 μm</b> · resistencia a rotura: <b>40–60 g</b></li>
+                                <li>Crecimiento: <b>1–1,5 cm/mes</b> · ciclo de vida 3–5 años · <b>100.000–150.000</b> cabellos</li>
+                                <li>Composición: 28% proteínas (queratina), 2% lípidos, 70% agua</li>
+                                <li>Fases: <b>Anágena</b> (crecimiento) → <b>Catágena</b> (2–3 sem) → <b>Telógena</b> (caída ~12–14%)</li>
+                            </ul>
+                        </div>
+                    </details>
+                    <details class="guide-accordion">
+                        <summary>02 · Caída del cabello y alopecia: cómo orientarla</summary>
+                        <div class="guide-body">
+                            <span class="guide-tag">Dato clave</span>
+                            <p><b>Alopecia Areata:</b> parches redondos con bordes bien definidos, sin descamación, sin cicatriz. Origen inmunológico → derivar a especialista, fuera del ámbito cosmético.</p>
+                            <p><b>Alopecia Difusa</b> (reversible, salvo cicatricial):</p>
+                            <ul>
+                                <li><b>Postraumática / tracción:</b> moños, coletas, trenzas → zonas frontal y parietal. Eliminar causa mecánica.</li>
+                                <li><b>Posparto / menopáusica:</b> aparece 2–3 meses tras el parto por caída de estrógenos; puede ser irreversible si no se trata.</li>
+                                <li><b>Postfebril:</b> fiebre &gt;39 °C &gt;15 días; pérdida ~2 meses después.</li>
+                                <li><b>Cicatricial:</b> folículos destruidos (quemaduras, infecciones) → irreversible. Derivar.</li>
+                            </ul>
+                            <p><b>Alopecia Androgenética (AGA):</b> la más común. Testosterona + 5-alfa-reductasa → <b>DHT</b> reduce el folículo progresivamente (patrones Hamilton 1942). Genética + hormonal. Tratamiento por fases y de larga duración.</p>
+                        </div>
+                    </details>
+                    <details class="guide-accordion">
+                        <summary>03 · Seborrea: 4 tipos (no confundir con sudor)</summary>
+                        <div class="guide-body">
+                            <span class="guide-tag">Dato clave</span>
+                            <ul>
+                                <li><b>01 Seborrea real:</b> piel seca, bulbo grasiento, cabello normal.</li>
+                                <li><b>02 En 2 capas:</b> piel seca, bulbo grasiento, <b>con pérdida</b>.</li>
+                                <li><b>03 En 4 capas:</b> piel grasa, bulbo grasiento, cabello normal.</li>
+                                <li><b>04 Aparente:</b> piel grasa, pero el interior del folículo está <b>sin sebo</b> (grasa externa). Identificar antes de tratar.</li>
+                            </ul>
+                            <p><b>Diferencial:</b> si no hay sebo interior en el folículo, es <b>sudor</b> (bromhidrosis/hiperhidrosis), no seborrea. Regular el sebo sin resecar: la resequedad puede provocar <i>más</i> grasa compensatoria.</p>
+                        </div>
+                    </details>
+                    <details class="guide-accordion">
+                        <summary>04 · Caspa y procesos descamativos (4 tipos)</summary>
+                        <div class="guide-body">
+                            <span class="guide-tag">Malassezia</span>
+                            <p>Levadura que metaboliza el sebo y puede causar irritación y caída acelerada.</p>
+                            <ul>
+                                <li><b>Pitiriasis simplex (caspa seca):</b> escamas blancas finas, cuero cabelludo seco/áspero, no inflamatoria.</li>
+                                <li><b>Pitiriasis esteatoides (caspa grasa):</b> placa <b>oro amarillento</b>, inflamación, <b>bordes bien definidos</b>.</li>
+                                <li><b>Dermatitis seborreica:</b> placas <b>rojas mal delimitadas</b> con escamas grasas; crónica (controlar, no curar). Zonas: cejas, nariz, orejas.</li>
+                                <li><b>Psoriasis:</b> placas gruesas <b>nacaradas</b> bien delimitadas; uñas con hoyuelos; autoinmune → dermatólogo.</li>
+                            </ul>
+                        </div>
+                    </details>
+                    <details class="guide-accordion">
+                        <summary>05 · Defectos del tallo</summary>
+                        <div class="guide-body">
+                            <span class="guide-tag">Adquirido vs estructural</span>
+                            <p><b>Adquiridos</b> (prevenibles): puntas abiertas (tricoptilosis), tricorrexis nodosa (nodos + "cepillos") — por calor, cepillado, químicos, fricción. Detener el daño y reconstruir superficie.</p>
+                            <p><b>Estructurales/genéticos</b> (derivar): moniletrix ("cuentas"), pili torti (retorcido 180°), tricorrexis invaginata ("bambú", síndrome de Netherton), tricotiodistrofia (bajo azufre), pili anulati (anillos), síndrome cabello peinable, pelo lanoso.</p>
+                        </div>
+                    </details>
+                    <details class="guide-accordion">
+                        <summary>06 · Tricoscopia y tricograma: qué se evalúa</summary>
+                        <div class="guide-body">
+                            <span class="guide-tag">Método diagnóstico</span>
+                            <ul>
+                                <li><b>Tricoscopia:</b> dermatoscopia del cuero cabelludo (10–30×). No invasiva. Evalúa superficie, densidad aparente, grosor de tallos, orificios foliculares, patrones vasculares.</li>
+                                <li><b>Tricograma:</b> examen microscópico de pelos arrancados (semiinvasivo, instantánea del ciclo).</li>
+                                <li>Guía para: AGA, alopecia areata, cicatricial, dermatitis seborreica, psoriasis y cambios del tallo.</li>
+                                <li><b>Usar antes de elegir producto</b> y <b>durante</b> la rutina para ver cambios.</li>
+                            </ul>
+                        </div>
+                    </details>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        const MARIA_NILA_PRODUCTS = {
+            headHairHealShampoo: { name: "Head & Hair Heal Shampoo", desc: "Calma cuero cabelludo sensible con aloe vera y piroctona olamina.", img: "https://marianila.com/cdn/shop/files/13650-packshot.jpg", url: "https://marianila.com/products/head-hair-heal-shampoo-350-ml", category: "scalp" },
+            headHairHealConditioner: { name: "Head & Hair Heal Conditioner", desc: "Acondicionador calmante para el cuero cabelludo.", img: "https://marianila.com/cdn/shop/files/13651-packshot.jpg", url: "https://marianila.com/products/head-hair-heal-conditioner-300-ml", category: "scalp" },
+            headHairHealMasque: { name: "Head & Hair Heal Masque", desc: "Mascarilla calmante con aloe vera para cuero cabelludo sensible.", img: "https://marianila.com/cdn/shop/files/13652-packshot.jpg", url: "https://marianila.com/products/head-hair-heal-masque-250-ml", category: "scalp" },
+            headHairHealSoothingSerum: { name: "Head & Hair Heal Serum", desc: "Serum calmante para el cuero cabelludo con aloe vera.", img: "https://marianila.com/cdn/shop/files/13653-packshot.jpg", url: "https://marianila.com/products/head-hair-heal-soothing-serum-150-ml", category: "scalp" },
+            headHairHealScalpScrub: { name: "Head & Hair Heal Scalp Scrub", desc: "Exfoliante fisico para cuero cabelludo sensible con sales marinas.", img: "https://marianila.com/cdn/shop/files/13655-packshot.jpg", url: "https://marianila.com/products/head-hair-heal-scalp-scrub-200-ml", category: "scalp" },
+            headHairHealScalpTonic: { name: "Head & Hair Heal Scalp Tonic", desc: "Tonico calmante para reducir irritacion y picazon del cuero cabelludo.", img: "https://marianila.com/cdn/shop/files/13656-packshot.jpg", url: "https://marianila.com/products/head-hair-heal-scalp-tonic-150-ml", category: "scalp" },
+            trueSoftShampoo: { name: "True Soft Shampoo", desc: "Hidratacion profunda con aceite de argan para cabello seco.", img: "https://marianila.com/cdn/shop/files/3630-packshot.jpg", url: "https://marianila.com/products/true-soft-shampoo-350-ml", category: "dry" },
+            trueSoftConditioner: { name: "True Soft Conditioner", desc: "Acondicionador hidratante con aceite de argan.", img: "https://marianila.com/cdn/shop/files/3631-packshot.jpg", url: "https://marianila.com/products/true-soft-conditioner-300-ml", category: "dry" },
+            trueSoftMasque: { name: "True Soft Masque", desc: "Mascarilla nutritiva para cabello seco con aceite de argan.", img: "https://marianila.com/cdn/shop/files/3632-packshot.jpg", url: "https://marianila.com/products/true-soft-masque-250-ml", category: "dry" },
+            trueSoftArganOil: { name: "True Soft Argan Oil", desc: "Aceite de argan para hidratacion.", img: "https://marianila.com/cdn/shop/files/3637-packshot.jpg", url: "https://marianila.com/products/true-soft-argan-oil-100-ml", category: "dry" },
+            trueSoftBoosterMasque: { name: "True Soft Booster Masque", desc: "Mascarilla intensiva para cabello muy seco.", img: "https://marianila.com/cdn/shop/files/3633-packshot.jpg", url: "https://marianila.com/products/true-soft-booster-masque-250-ml", category: "dry" },
+            trueSoftLeaveInCream: { name: "True Soft Leave In Cream", desc: "Crema sin enjuague hidratante con aceite de argan para cabello seco.", img: "https://marianila.com/cdn/shop/files/3635-packshot.jpg", url: "https://marianila.com/products/true-soft-leave-in-cream-100-ml", category: "dry" },
+            trueSoftHairPrimer: { name: "True Soft Hair Primer", desc: "Pre-shampoo hidratante que facilita el desenredado y protege.", img: "https://marianila.com/cdn/shop/files/3636-packshot.jpg", url: "https://marianila.com/products/true-soft-hair-primer-150-ml", category: "dry" },
+            pureVolumeShampoo: { name: "Pure Volume Shampoo", desc: "Voluminizador con provitamina B5 para cabello fino.", img: "https://marianila.com/cdn/shop/files/3610-packshot.jpg", url: "https://marianila.com/products/pure-volume-shampoo-350-ml", category: "fine" },
+            pureVolumeConditioner: { name: "Pure Volume Conditioner", desc: "Acondicionador voluminizador ligero.", img: "https://marianila.com/cdn/shop/files/3611-packshot.jpg", url: "https://marianila.com/products/pure-volume-conditioner-300-ml", category: "fine" },
+            pureVolumeMasque: { name: "Pure Volume Masque", desc: "Mascarilla voluminizadora con provitamina B5.", img: "https://marianila.com/cdn/shop/files/3612-packshot.jpg", url: "https://marianila.com/products/pure-volume-masque-250-ml", category: "fine" },
+            pureVolumeMousse: { name: "Pure Volume Mousse", desc: "Espuma nutritiva y voluminizadora para cabello fino.", img: "https://marianila.com/cdn/shop/files/3613-packshot.jpg", url: "https://marianila.com/products/pure-volume-mousse-300-ml", category: "fine" },
+            pureVolumeLeaveInCream: { name: "Pure Volume Leave In Cream", desc: "Crema ligera sin enjuague para dar cuerpo al cabello fino.", img: "https://marianila.com/cdn/shop/files/3614-packshot.jpg", url: "https://marianila.com/products/pure-volume-leave-in-cream-100-ml", category: "fine" },
+            luminousColourShampoo: { name: "Luminous Colour Shampoo", desc: "Preserva color con extracto de Granada.", img: "https://marianila.com/cdn/shop/files/3625-packshot.jpg", url: "https://marianila.com/products/luminous-colour-shampoo-350-ml", category: "colored" },
+            luminousColourConditioner: { name: "Luminous Colour Conditioner", desc: "Acondicionador preservador de color.", img: "https://marianila.com/cdn/shop/files/3626-packshot.jpg", url: "https://marianila.com/products/luminous-colour-conditioner-300-ml", category: "colored" },
+            luminousColourMasque: { name: "Luminous Colour Masque", desc: "Mascarilla protectora del color con extracto de granada.", img: "https://marianila.com/cdn/shop/files/3627-packshot.jpg", url: "https://marianila.com/products/luminous-colour-masque-250-ml", category: "colored" },
+            luminousColourLeaveInCream: { name: "Luminous Colour Leave In Cream", desc: "Crema sin enjuague que sella el color y aporta brillo.", img: "https://marianila.com/cdn/shop/files/3628-packshot.jpg", url: "https://marianila.com/products/luminous-colour-leave-in-cream-100-ml", category: "colored" },
+            luminousColourToneFinishSpray: { name: "Luminous Colour Tone Finish Spray", desc: "Spray fijador que mantiene el color vibrante y aporta brillo.", img: "https://marianila.com/cdn/shop/files/3629-packshot.jpg", url: "https://marianila.com/products/luminous-colour-tone-finish-spray-150-ml", category: "colored" },
+            purifyingCleanseShampoo: { name: "Purifying Cleanse Shampoo", desc: "Champu purificante para cuero cabelludo graso.", img: "https://marianila.com/cdn/shop/files/3615-packshot.jpg", url: "https://marianila.com/products/purifying-cleanse-shampoo-350-ml", category: "oily" },
+            purifyingCleanseExfoliatingSerum: { name: "Purifying Cleansing Serum", desc: "Serum exfoliante detox para el cuero cabelludo.", img: "https://marianila.com/cdn/shop/files/3616-packshot.jpg", url: "https://marianila.com/products/purifying-cleanse-exfoliating-serum-150-ml", category: "oily" },
+            purifyingCleanseDetoxMasque: { name: "Purifying Cleanse Detox Masque", desc: "Mascarilla detox purificante para cuero cabelludo graso.", img: "https://marianila.com/cdn/shop/files/3617-packshot.jpg", url: "https://marianila.com/products/purifying-cleanse-detox-masque-250-ml", category: "oily" },
+            structureRepairShampoo: { name: "Structure Repair Shampoo", desc: "Repara cabello dañado con keratina.", img: "https://marianila.com/cdn/shop/files/3600-packshot.jpg", url: "https://marianila.com/products/structure-repair-shampoo-350-ml", category: "damaged" },
+            structureRepairConditioner: { name: "Structure Repair Conditioner", desc: "Acondicionador reparador con keratina.", img: "https://marianila.com/cdn/shop/files/3601-packshot.jpg", url: "https://marianila.com/products/structure-repair-conditioner-300-ml", category: "damaged" },
+            structureRepairMasque: { name: "Structure Repair Masque", desc: "Mascarilla reparadora intensiva con keratina.", img: "https://marianila.com/cdn/shop/files/3602-packshot.jpg", url: "https://marianila.com/products/structure-repair-masque-250-ml", category: "damaged" },
+            structureRepairLeaveInCream: { name: "Structure Repair Leave In Cream", desc: "Crema sin enjuague reparadora para cabello dañado.", img: "https://marianila.com/cdn/shop/files/3603-packshot.jpg", url: "https://marianila.com/products/structure-repair-leave-in-cream-100-ml", category: "damaged" },
+            bondBuilder: { name: "Bond Builder", desc: "Reparador de enlaces capilares intensivo.", img: "https://marianila.com/cdn/shop/files/3604-packshot.jpg", url: "https://marianila.com/products/bond-builder-100-ml", category: "damaged" },
+            structureRepairBondingBooster: { name: "Structure Repair Bonding Booster", desc: "Potenciador de union que refuerza enlaces capilares en tratamientos quimicos.", img: "https://marianila.com/cdn/shop/files/3605-packshot.jpg", url: "https://marianila.com/products/structure-repair-bonding-booster-100-ml", category: "damaged" },
+            sheerSilverShampoo: { name: "Sheer Silver Shampoo", desc: "Pigmentos violeta que neutralizan tonos dorados en rubios.", img: "https://marianila.com/cdn/shop/files/3640-packshot.jpg", url: "https://marianila.com/products/sheer-silver-shampoo-350-ml", category: "blonde" },
+            sheerSilverConditioner: { name: "Sheer Silver Conditioner", desc: "Acondicionador con pigmentos violeta para rubios.", img: "https://marianila.com/cdn/shop/files/3641-packshot.jpg", url: "https://marianila.com/products/sheer-silver-conditioner-300-ml", category: "blonde" },
+            sheerSilverMasque: { name: "Sheer Silver Masque", desc: "Mascarilla con pigmentos violeta para neutralizar tonos.", img: "https://marianila.com/cdn/shop/files/3642-packshot.jpg", url: "https://marianila.com/products/sheer-silver-masque-250-ml", category: "blonde" },
+            sheerSilverBoosterMasque: { name: "Sheer Silver Booster Masque", desc: "Mascarilla intensiva con pigmentos violeta.", img: "https://marianila.com/cdn/shop/files/3643-packshot.jpg", url: "https://marianila.com/products/sheer-silver-booster-masque-250-ml", category: "blonde" },
+            sheerSilverToneFixerSpray: { name: "Sheer Silver Tone Fixer Spray", desc: "Spray fijador con pigmentos violeta para neutralizar tonos amarillos entre lavados.", img: "https://marianila.com/cdn/shop/files/3645-packshot.jpg", url: "https://marianila.com/products/sheer-silver-tone-fixer-spray-150-ml", category: "blonde" },
+            coilsCurlsCoWash: { name: "Coils & Curls Co-Wash", desc: "Limpieza suave sin sulfatos para rizos.", img: "https://marianila.com/cdn/shop/files/3670-packshot.jpg", url: "https://marianila.com/products/coils-curls-co-wash", category: "curly" },
+            coilsCurlsOilInCream: { name: "Coils & Curls Oil In Cream", desc: "Crema leave-in definidora de rizos con manteca de karite.", img: "https://marianila.com/cdn/shop/files/3671-packshot.jpg", url: "https://marianila.com/products/coils-curls-oil-in-cream", category: "curly" },
+            coilsCurlsFinishingTreatmentMasque: { name: "Coils & Curls Finishing Masque", desc: "Mascarilla nutritiva para definir y suavizar rizos.", img: "https://marianila.com/cdn/shop/files/3672-packshot.jpg", url: "https://marianila.com/products/coils-curls-finishing-treatment-masque", category: "curly" },
+            coilsCurlsWeightlessCurlDefiner: { name: "Weightless Curl Definer", desc: "Gel definidor de rizos sin peso con aloe vera.", img: "https://marianila.com/cdn/shop/files/3673-packshot.jpg", url: "https://marianila.com/products/coils-curls-weightless-curl-definer", category: "curly" },
+            coilsCurlsLusciousCurlDefiner: { name: "Luscious Curl Definer", desc: "Gel rico que define rizos con medio agarre.", img: "https://marianila.com/cdn/shop/files/3674-packshot.jpg", url: "https://marianila.com/products/coils-curls-luscious-curl-definer", category: "curly" },
+            coilsCurlsPrimer: { name: "Coils & Curls Primer", desc: "Pre-shampoo y acondicionador sin enjuague para rizos definidos.", img: "https://marianila.com/cdn/shop/files/3675-packshot.jpg", url: "https://marianila.com/products/coils-curls-primer", category: "curly" },
+            coilsCurlsCurlCream: { name: "Coils & Curls Curl Cream", desc: "Crema definidora de rizos con medio agarre y brillo.", img: "https://marianila.com/cdn/shop/files/3676-packshot.jpg", url: "https://marianila.com/products/coils-curls-curl-cream", category: "curly" }
+        };
+
+        const OLAPLEX_TREATMENTS = {
+            treatmentPremium: { name: "Tratamiento Premium Olaplex", desc: "Régenera puentes de disulfuro. Protocolo: 1) Broad Spectrum Chelating (3 min). 2) Olaplex N°1 (5 min). 3) Olaplex N°2 (3 min). 4) Champú N°4 (1 min). 5) Mascarilla N°5 (3 min)." },
+            treatmentExpress: { name: "Tratamiento Olaplex Express", desc: "Tratamiento 3 veces más fuerte, suave y elástico en 3 min. Paso 1: Prechampu. Paso 2: Olaplex N°3 Plus de raíces a puntas." }
+        };
+
+        let currentImgData = null;
+        const elements = {
+            fileInput: document.getElementById('file-input'),
+            dropZone: document.getElementById('drop-zone'),
+            cameraBtn: document.getElementById('camera-btn'),
+            cameraContainer: document.getElementById('camera-container'),
+            video: document.getElementById('video'),
+            cancelCameraBtn: document.getElementById('cancel-camera-btn'),
+            previewImg: document.getElementById('preview-img'),
+            actionButtons: document.getElementById('action-buttons'),
+            analyzeBtn: document.getElementById('analyze-btn'),
+            statusBadge: document.getElementById('status-badge'),
+            coloredHair: document.getElementById('colored-hair-checkbox'),
+            guideToggle: document.getElementById('guide-toggle'),
+            guidePanel: document.getElementById('guide-panel'),
+        };
+
+        elements.guideToggle.onclick = () => {
+            const shown = elements.guidePanel.style.display !== 'none';
+            elements.guidePanel.style.display = shown ? 'none' : 'block';
+            elements.guideToggle.textContent = shown
+                ? '📚 Guía rápida de Tricología'
+                : '📚 Ocultar Guía rápida de Tricología';
+        };
+
+        function collectSymptoms() {
+            const pick = id => document.getElementById(id)?.value || '';
+            return {
+                hairLoss: pick('symptom-hairloss'),
+                dandruff: pick('symptom-dandruff'),
+                sebumSymptom: pick('symptom-sebum'),
+                itch: pick('symptom-itch'),
+                context: pick('symptom-context'),
+                history: pick('symptom-history'),
+                zoom: pick('symptom-zoom'),
+            };
+        }
+
+        function clearSymptoms() {
+            ['symptom-hairloss','symptom-dandruff','symptom-sebum','symptom-itch','symptom-context','symptom-history','symptom-zoom'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+        }
+
+        const refNormal = { density: 160, thickness: 70, sebum: 'Medio', dandruff: 'Normal', erythema: 'Normal' };
+
+        elements.fileInput.onchange = function(e) {
+            const file = e.target.files[0];
+            if (file) handleFile(file);
+        };
+
+        elements.cameraBtn.onclick = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                elements.video.srcObject = stream;
+                elements.cameraContainer.style.display = 'block';
+                elements.dropZone.style.display = 'none';
+                elements.cameraBtn.style.display = 'none';
+            } catch (err) { alert('No se pudo acceder a la cámara'); }
+        };
+
+        elements.cancelCameraBtn.onclick = stopCamera;
+
+        function stopCamera() {
+            if (elements.video.srcObject) elements.video.srcObject.getTracks().forEach(t => t.stop());
+            elements.cameraContainer.style.display = 'none';
+            elements.dropZone.style.display = 'block';
+            elements.cameraBtn.style.display = 'flex';
+        }
+
+        elements.video.onclick = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = elements.video.videoWidth;
+            canvas.height = elements.video.videoHeight;
+            canvas.getContext('2d').drawImage(elements.video, 0, 0);
+            const data = canvas.toDataURL('image/jpeg', 0.9);
+            showPreview(data);
+            stopCamera();
+        };
+
+        function handleFile(file) {
+            const reader = new FileReader();
+            reader.onload = e => showPreview(e.target.result);
+            reader.readAsDataURL(file);
+        }
+
+        function showPreview(data) {
+            const img = new Image();
+            img.onload = () => {
+                if (img.width < 100 || img.height < 100) {
+                    alert('La imagen es muy pequeña.');
+                    return;
+                }
+                currentImgData = data;
+                elements.previewImg.src = data;
+                elements.previewImg.style.display = 'block';
+                elements.dropZone.style.display = 'none';
+                elements.cameraBtn.style.display = 'none';
+                elements.actionButtons.style.display = 'block';
+            };
+            img.src = data;
+        }
+
+        document.getElementById('reset-btn').onclick = () => {
+            currentImgData = null;
+            elements.previewImg.src = '';
+            elements.previewImg.style.display = 'none';
+            elements.dropZone.style.display = 'block';
+            elements.cameraBtn.style.display = 'flex';
+            elements.actionButtons.style.display = 'none';
+            elements.statusBadge.style.display = 'none';
+            elements.fileInput.value = '';
+            
+            // Clear results
+            ['val-density', 'val-thickness', 'val-hydration', 'val-sebum', 'val-dandruff', 'val-erythema', 'val-follicle-sebum'].forEach(id => {
+                document.getElementById(id).textContent = '--';
+            });
+            document.getElementById('recommendations-section').style.display = 'none';
+            document.getElementById('treatments-section').style.display = 'none';
+            document.getElementById('diag-summary').style.display = 'none';
+            clearSymptoms();
+            elements.coloredHair.checked = false;
+        };
+
+        elements.analyzeBtn.onclick = () => {
+            elements.analyzeBtn.disabled = true;
+            elements.statusBadge.style.display = 'inline-block';
+            elements.statusBadge.textContent = 'Analizando tejidos...';
+            elements.statusBadge.style.background = '#f59e0b';
+            
+            setTimeout(() => {
+                if (!currentImgData) {
+                    alert('Por favor sube una imagen primero');
+                    elements.analyzeBtn.disabled = false;
+                    elements.statusBadge.style.display = 'none';
+                    return;
+                }
+                
+                const img = new Image();
+                img.onload = () => {
+                    // VALIDACIÓN ESTRICTA
+                    if (!validateImageQuality(img)) {
+                        alert('⚠️ Imagen rechazada.\n\nLa foto debe ser una toma real y a color de cuero cabelludo o cabello (no dibujos, capturas de pantalla, ni paisajes).');
+                        elements.analyzeBtn.disabled = false;
+                        elements.statusBadge.style.display = 'none';
+                        elements.statusBadge.textContent = 'Imagen rechazada';
+                        elements.statusBadge.style.background = '#ef4444';
+                        return;
+                    }
+
+                    const zoomDeclared = document.getElementById('symptom-zoom')?.value || '';
+                    if (zoomDeclared !== 'si30') {
+                        alert('⚠️ Foto rechazada: aumento insuficiente.\n\nDebes confirmar que la toma se hizo con lente/lupa macro o microscópica de aumento real ≥ 30×.\n\n• El zum digital del móvil NO equivale a aumento óptico.\n• A 30× o más deben distinguirse poros, folículos u orificios foliculares, la raíz del cabello o fibras capilares individuales.\n\nSelecciona la opción correcta en "¿Cómo se tomó esta foto?", acércate y vuelve a capturar.');
+                        elements.analyzeBtn.disabled = false;
+                        elements.statusBadge.style.display = 'none';
+                        elements.statusBadge.textContent = 'Aumento no confirmado';
+                        elements.statusBadge.style.background = '#ef4444';
+                        return;
+                    }
+
+                    if (!assessScalpHairMagnification(img).ok) {
+                        alert('⚠️ Foto rechazada: la imagen no muestra un primer plano capilar con aumento ≥ 30×.\n\nAun indicando que usaste aumento, la foto no presenta la escala esperada (fibra gruesa tipo mancha, zonas lisas/desenfocadas o sin micro-textura).\n\n• Acércate hasta ver poros, folículos, raíz o fibras individuales.\n• Enfoca bien y evita fotos a distancia.');
+                        elements.analyzeBtn.disabled = false;
+                        elements.statusBadge.style.display = 'none';
+                        elements.statusBadge.textContent = 'Primer plano no detectado';
+                        elements.statusBadge.style.background = '#ef4444';
+                        return;
+                    }
+
+                    const density = detectHairDensity(img);
+                    const thickness = detectHairThickness(img);
+                    const { hydration, sebumLevel } = detectHydrationAndSebum(img);
+                    const { value: dandruffValue, label: dandruffLabel } = detectDandruffLevel(img);
+                    const erythemaRaw = detectErythemaLevel(img);
+                    const breakage = detectBreakage(img);
+                    const follicleSebum = detectFollicleSebum(img);
+                    const overallSebum = combineSebum(sebumLevel, follicleSebum);
+                    const sebumLabel = overallSebum.label;
+
+                    let erythemaLevel = 'Normal';
+                    if (erythemaRaw > 0 && erythemaRaw <= 3) erythemaLevel = 'Bajo';
+                    if (erythemaRaw > 3 && erythemaRaw <= 7) erythemaLevel = 'Medio';
+                    if (erythemaRaw > 7) erythemaLevel = 'Alto';
+
+                    const symptoms = collectSymptoms();
+
+                    document.getElementById('val-density').textContent = density;
+                    document.getElementById('val-thickness').textContent = thickness + ' μm';
+                    document.getElementById('val-hydration').textContent = hydration + '%';
+                    document.getElementById('val-sebum').textContent = sebumLabel;
+                    document.getElementById('val-sebum').title = `Superficie: ${overallSebum.surface}/10 · Folicular: ${overallSebum.follicle}/10`;
+                    document.getElementById('val-dandruff').textContent = dandruffLabel;
+                    document.getElementById('val-erythema').textContent = erythemaLevel;
+                    document.getElementById('val-follicle-sebum').textContent = follicleSebum.label;
+
+                    const results = {
+                        density, thickness, hydration,
+                        sebum: sebumLabel,
+                        dandruff: dandruffLabel,
+                        erythema: erythemaLevel,
+                        breakage,
+                        follicleSebum,
+                        isColored: elements.coloredHair.checked,
+                        symptoms
+                    };
+
+                    renderRecommendations(results);
+                    renderTrichologicalSummary(results);
+
+                    // Notificar a la app contenedora (Android) para sincronizar resultados al historial del cliente.
+                    try {
+                        results.interpretation = (document.getElementById('diag-summary-text') ? document.getElementById('diag-summary-text').innerText : '');
+                        // Incluir la foto analizada para incorporarla a la ficha del cliente
+                        if (currentImgData) results.photoData = currentImgData;
+                        if (window.parent && window.parent !== window && typeof window.parent.onDiagnosisResults === 'function') {
+                            window.parent.onDiagnosisResults(results);
+                        } else if (window.parent && window.parent !== window) {
+                            window.parent.postMessage({ type: 'diagnosis_results', results: results }, '*');
+                        } else {
+                            alert('No se pudo conectar con la agenda (sin padre).');
+                        }
+                    } catch (e) { console.warn('onDiagnosisResults notify failed', e); alert('Error al notificar: ' + e.message); }
+
+                    elements.statusBadge.textContent = '✓ Análisis completado';
+                    elements.statusBadge.style.background = '#10b981';
+                    elements.analyzeBtn.disabled = false;
+
+                    // AUTO-SYNC TO PARENT
+                    if (window.parent !== window) {
+                        window.parent.postMessage({
+                            type: 'diagnosis_photo',
+                            photoData: currentImgData,
+                            results: results
+                        }, '*');
+                    }
+                };
+                img.src = currentImgData;
+            }, 500);
+        };
+
+        function validateImageQuality(img) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const size = 150;
+            canvas.width = size; canvas.height = size;
+            ctx.drawImage(img, 0, 0, size, size);
+            const imageData = ctx.getImageData(0, 0, size, size).data;
+            
+            let rSum = 0, gSum = 0, bSum = 0;
+            const n = imageData.length / 4;
+            const grays = new Float32Array(n);
+            
+            for (let i = 0; i < n; i++) {
+                const r = imageData[i*4], g = imageData[i*4+1], b = imageData[i*4+2];
+                rSum += r; gSum += g; bSum += b;
+                grays[i] = 0.299 * r + 0.587 * g + 0.114 * b;
+            }
+            
+            const rAvg = rSum / n, gAvg = gSum / n, bAvg = bSum / n;
+            const avgGray = grays.reduce((a, b) => a + b, 0) / n;
+
+            // Filtro de Color (relajado): acepta fotos reales incluso sin tono cálido dominante
+            const isBiological = (rAvg > 20) && (gAvg > 15) && (bAvg > 10) && (rAvg + gAvg + bAvg) > 60;
+            if (!isBiological) return false;
+
+            // Filtro de Uniformidad: Rechazar solo capturas/planos completamente uniformes
+            let variance = 0;
+            for (let i = 0; i < n; i++) {
+                variance += (grays[i] - avgGray) * (grays[i] - avgGray);
+            }
+            variance /= n;
+            if (variance < 25) return false;
+
+            // Filtro de Textura (relajado): exige algo de detalle pero tolera fotos microscópicas
+            let edges = 0;
+            for (let y = 0; y < size - 1; y++) {
+                for (let x = 0; x < size - 1; x++) {
+                    const idx = y * size + x;
+                    const diff = Math.abs(grays[idx] - grays[idx + 1]);
+                    if (diff > 25) edges++;
+                }
+            }
+            const edgeDensity = edges / (size * size);
+            if (edgeDensity < 0.005 || edgeDensity > 0.9) return false;
+
+            return true;
+        }
+
+        // Comprueba que la toma es un primer plano de cuero cabelludo/cabello
+        // con aumento mínimo ~30x. Heurística estricta anti-falsos-positivos:
+        //   A) Textura micro presente de forma UNIFORME en el encuadre (un macro
+        //      real no tiene zonas lisas ni borrosas grandes).
+        //   B) Morfología de "fibra fina" (estructuras oscuras finas, no manchas
+        //      gruesas tipo masa de cabello -> rechaza fotos lejanas/retratos).
+        //   C) Folículos/poros aislados (sello del cuero cabelludo a 30x).
+        function assessScalpHairMagnification(img) {
+            const size = 200;
+            const N = size * size;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = size; canvas.height = size;
+            ctx.drawImage(img, 0, 0, size, size);
+            const d = ctx.getImageData(0, 0, size, size).data;
+            const gray = new Float32Array(N);
+            for (let i = 0; i < N; i++) {
+                gray[i] = 0.299 * d[i*4] + 0.587 * d[i*4+1] + 0.114 * d[i*4+2];
+            }
+
+            // ---- A) Micro-detalle (Sobel por teselas) + zonas lisas ----
+            const TILE = 40;
+            const HARD_DETAIL = 12100; // gradiente > 110 : borde duro, típico de macro
+            const FLAT = 900;           // gradiente < 30 : zona lisa/desenfocada
+            let highDetail = 0, total = 0, tileMax = 0, flatPx = 0, detailedTiles = 0, nTiles = 0;
+            for (let ty = 0; ty < size; ty += TILE) {
+                for (let tx = 0; tx < size; tx += TILE) {
+                    const y0 = Math.min(ty + TILE, size - 1);
+                    const x0 = Math.min(tx + TILE, size - 1);
+                    let th = 0, tN = 0;
+                    for (let y = ty + 1; y < y0; y++) {
+                        for (let x = tx + 1; x < x0; x++) {
+                            const i = y * size + x;
+                            const gx = (gray[i-size-1] + 2*gray[i-size] + gray[i-size+1])
+                                     - (gray[i+size-1] + 2*gray[i+size] + gray[i+size+1]);
+                            const gy = (gray[i-size-1] + 2*gray[i-1] + gray[i+1-size])
+                                     - (gray[i+size-1] + 2*gray[i+1] + gray[i+1+size]);
+                            const m2 = gx*gx + gy*gy;
+                            if (m2 > HARD_DETAIL) th++;
+                            if (m2 < FLAT) flatPx++;
+                            tN++;
+                        }
+                    }
+                    if (tN > 0) {
+                        nTiles++;
+                        if (th / tN > tileMax) tileMax = th / tN;
+                        if (th / tN >= 0.15) detailedTiles++;
+                        total += tN;
+                        highDetail += th;
+                    }
+                }
+            }
+            const detailCoverage = total ? highDetail / total : 0;
+            const flatCoverage = total ? flatPx / total : 1;
+            const detailedTileRatio = nTiles ? detailedTiles / nTiles : 0;
+
+            // ---- B) Morfología fibra-fina vs mancha (distancia por filas/columnas) ----
+            const dark = new Uint8Array(N);
+            for (let i = 0; i < N; i++) dark[i] = gray[i] < 120 ? 1 : 0;
+            const lr = new Uint16Array(N), rr = new Uint16Array(N);
+            const tb = new Uint16Array(N), bt = new Uint16Array(N);
+            for (let y = 0; y < size; y++) {
+                let run = 0;
+                for (let x = 0; x < size; x++) { const i = y * size + x; run = dark[i] ? run + 1 : 0; lr[i] = run; }
+                run = 0;
+                for (let x = size - 1; x >= 0; x--) { const i = y * size + x; run = dark[i] ? run + 1 : 0; rr[i] = run; }
+            }
+            for (let x = 0; x < size; x++) {
+                let run = 0;
+                for (let y = 0; y < size; y++) { const i = y * size + x; run = dark[i] ? run + 1 : 0; tb[i] = run; }
+                run = 0;
+                for (let y = size - 1; y >= 0; y--) { const i = y * size + x; run = dark[i] ? run + 1 : 0; bt[i] = run; }
+            }
+            let thinCross = 0, blobPx = 0;
+            for (let i = 0; i < N; i++) {
+                if (!dark[i]) continue;
+                const dH = Math.min(lr[i], rr[i]);  // grosor horizontal de la estructura
+                const dV = Math.min(tb[i], bt[i]);  // grosor vertical de la estructura
+                const minCross = Math.min(dH, dV);  // grosor de la sección
+                if (minCross <= 8) thinCross++;      // fibra fina / tallo individual
+                if (dH > 30 && dV > 30) blobPx++;    // mancha gruesa (masa de cabello lejana)
+            }
+            const thinCrossArea = thinCross / N;
+            const blobArea = blobPx / N;
+
+            // ---- C) Folículos / puntos oscuros aislados (poro) ----
+            let follicles = 0;
+            for (let y = 2; y < size - 2; y++) {
+                for (let x = 2; x < size - 2; x++) {
+                    const i = y * size + x;
+                    const g = gray[i];
+                    if (g < 128
+                        && gray[i-1] > g + 20 && gray[i+1] > g + 20
+                        && gray[i-size] > g + 20 && gray[i+size] > g + 20) {
+                        follicles++;
+                    }
+                }
+            }
+
+            if (flatCoverage > 0.60) {
+                return report(false, 'zonas lisas/desenfocadas');
+            }
+
+            // Textura micro real y uniforme por todo el encuadre
+            const textureOk = detailCoverage >= 0.12 && detailedTileRatio >= 0.60 && flatCoverage <= 0.55;
+            // Morfología: fibras finas visibles SIN manchas gruesas dominantes
+            const hasFiber = thinCrossArea >= 0.020 && blobArea <= 0.20;
+            const noBigBlob = blobArea <= 0.25;
+            // Cuero cabelludo con poca melena: aceptar por folículos + textura fina
+            const hasFollicles = follicles >= 60;
+
+            const ok = textureOk
+                && noBigBlob
+                && (hasFiber || (hasFollicles && flatCoverage <= 0.45));
+
+            return report(ok, ok ? '' : (textureOk ? 'fibras insuficientes' : 'textura insuficiente'));
+
+            function report(ok, why) {
+                console.log('[zoom30x]', {
+                    detailCoverage: +detailCoverage.toFixed(3),
+                    detailedTileRatio: +detailedTileRatio.toFixed(2),
+                    flatCoverage: +flatCoverage.toFixed(3),
+                    tileMax: +tileMax.toFixed(3),
+                    thinCrossArea: +thinCrossArea.toFixed(4),
+                    blobArea: +blobArea.toFixed(3),
+                    follicles, ok, why
+                });
+                return { ok, why, detailCoverage, detailedTileRatio, flatCoverage, tileMax, thinCrossArea, blobArea, follicles };
+            }
+        }
+
+        function detectErythemaLevel(img) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 100; canvas.height = 100;
+            ctx.drawImage(img, 0, 0, 100, 100);
+            const data = ctx.getImageData(0, 0, 100, 100).data;
+            let erythemaPixels = 0, skinPixels = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i], g = data[i+1], b = data[i+2];
+                if (r > 95 && g > 40 && b > 20 && r > b && r > g * 0.8) skinPixels++;
+                if (r > g + 30 && r > b + 30 && r > 120) erythemaPixels++;
+            }
+            return skinPixels === 0 ? 0 : Math.min(10, Math.round((erythemaPixels / skinPixels) * 10));
+        }
+
+        function detectHairDensity(img) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 100; canvas.height = 100;
+            ctx.drawImage(img, 0, 0, 100, 100);
+            const data = ctx.getImageData(0, 0, 100, 100).data;
+            let hairPixels = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i], g = data[i+1], b = data[i+2];
+                const br = (r + g + b) / 3;
+                if (br < 100) hairPixels++;
+            }
+            return Math.min(280, Math.max(80, Math.floor((hairPixels / 10000) * 300 + 100)));
+        }
+
+        function detectHairThickness(img) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 80; canvas.height = 80;
+            ctx.drawImage(img, 0, 0, 80, 80);
+            const data = ctx.getImageData(0, 0, 80, 80).data;
+            let darkEdges = 0;
+            for (let y = 0; y < 80; y++) {
+                for (let x = 1; x < 80; x++) {
+                    const i = (y * 80 + x) * 4;
+                    const prevI = (y * 80 + (x-1)) * 4;
+                    if (Math.abs(data[i] - data[prevI]) > 50) darkEdges++;
+                }
+            }
+            return Math.min(120, Math.max(40, Math.floor(90 - (darkEdges / 20))));
+        }
+
+        function detectHydrationAndSebum(img) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 80; canvas.height = 80;
+            ctx.drawImage(img, 0, 0, 80, 80);
+            const data = ctx.getImageData(0, 0, 80, 80).data;
+            let shiny = 0, dry = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i], g = data[i+1], b = data[i+2];
+                const br = (r + g + b) / 3;
+                // Brillo especular puro o gotita ambar (sebo) brillante
+                if ((br > 240 && r > 220) || (br >= 150 && br < 250 && (r - b) >= 18 && (r - g) >= 2)) shiny++;
+                if (br < 100) dry++;
+            }
+            const sebum = Math.min(10, Math.floor((shiny / 6400) * 15 + 2));
+            return { hydration: 60, sebumLevel: sebum, sebumLabel: sebum > 7 ? 'Alto' : (sebum < 3 ? 'Bajo' : 'Medio') };
+        }
+
+        // Fusiona el sebo de la superficie (brillo) con el sebo DENTRO de los folículos
+        // en un único "Nivel de Sebo" coherente: el nivel general nunca resulta más
+        // bajo que lo que indican los folículos (evita contradicciones).
+        function combineSebum(surfaceLevel, fs) {
+            let follicleLevel = 0;
+            if (fs && fs.ok) follicleLevel = Math.min(10, Math.round(fs.ratio * 10));
+            const merged = Math.max(surfaceLevel || 0, follicleLevel);
+            let label = 'Bajo';
+            if (merged >= 8) label = 'Alto';
+            else if (merged >= 4) label = 'Medio';
+            return { surface: surfaceLevel || 0, follicle: follicleLevel, level: merged, label };
+        }
+
+        function detectDandruffLevel(img) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 100; canvas.height = 100;
+            ctx.drawImage(img, 0, 0, 100, 100);
+            const data = ctx.getImageData(0, 0, 100, 100).data;
+            let dandruff = 0;
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i] > 250 && data[i+1] > 250 && data[i+2] > 250) dandruff++;
+            }
+            const val = Math.min(10, Math.round((dandruff / 10000) * 100 * 0.14));
+            return { value: val, label: val > 7 ? 'Alto' : (val < 3 ? 'Normal' : 'Medio') };
+        }
+
+        function detectBreakage(img) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = 100; canvas.height = 100;
+            ctx.drawImage(img, 0, 0, 100, 100);
+            const data = ctx.getImageData(0, 0, 100, 100).data;
+            let thinBright = 0, tinyFrag = 0;
+            for (let y = 0; y < 100; y++) {
+                for (let x = 0; x < 100; x++) {
+                    const i = (y * 100 + x) * 4;
+                    const r = data[i], g = data[i+1], b = data[i+2];
+                    const br = (r + g + b) / 3;
+                    if (br > 200 && br < 245) thinBright++;
+                    if (br < 60) tinyFrag++;
+                }
+            }
+            const ratio = tinyFrag === 0 ? 0 : thinBright / 10000;
+            let level = 'Normal';
+            if (ratio > 0.25) level = 'Alto';
+            else if (ratio > 0.12) level = 'Medio';
+            return { level, ratio: Math.round(ratio * 100) };
+        }
+
+        // Detecta sebo DENTRO de los folículos (orificios foliculares) en una toma
+        // microscópica: un folículo con sebo muestra una gotita brillante/ámbar
+        // (reflejo especular) en el poro; uno vacío aparece oscuro y limpio.
+        // Matiz tricológico: si hay grasa superficial pero folículos vacíos → seborrea
+        // "aparente" (sudor/limpieza), no seborrea real.
+        function detectFollicleSebum(img) {
+            const size = 260;
+            const N = size * size;
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = size; canvas.height = size;
+            ctx.drawImage(img, 0, 0, size, size);
+            const data = ctx.getImageData(0, 0, size, size).data;
+            const R = new Uint8Array(N), G = new Uint8Array(N), B = new Uint8Array(N), L = new Float32Array(N);
+            for (let i = 0; i < N; i++) {
+                R[i] = data[i*4]; G[i] = data[i*4+1]; B[i] = data[i*4+2];
+                L[i] = 0.299 * R[i] + 0.587 * G[i] + 0.114 * B[i];
+            }
+
+            // Mascara de poro: pixel oscuro rodeado de piel mas clara (orificio folicular)
+            const pore = new Uint8Array(N);
+            for (let y = 2; y < size - 2; y++) {
+                for (let x = 2; x < size - 2; x++) {
+                    const i = y * size + x;
+                    if (L[i] >= 125) continue;
+                    let brighter = 0;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            if (dx === 0 && dy === 0) continue;
+                            const j = (y + dy) * size + (x + dx);
+                            if (L[j] > L[i] + 18) brighter++;
+                        }
+                    }
+                    if (brighter >= 6) pore[i] = 1;
+                }
+            }
+
+            // Agrupar poros conectados (8-vecinos) en folículos
+            const seen = new Uint8Array(N);
+            const follicles = [];
+            for (let i = 0; i < N; i++) {
+                if (!pore[i] || seen[i]) continue;
+                const stack = [i];
+                seen[i] = 1;
+                let minX = size, maxX = -1, minY = size, maxY = -1, count = 0;
+                while (stack.length) {
+                    const p = stack.pop();
+                    count++;
+                    const px = p % size, py = (p / size) | 0;
+                    if (px < minX) minX = px; if (px > maxX) maxX = px;
+                    if (py < minY) minY = py; if (py > maxY) maxY = py;
+                    for (let dy = -1; dy <= 1; dy++) {
+                        for (let dx = -1; dx <= 1; dx++) {
+                            if (dx === 0 && dy === 0) continue;
+                            const nx = px + dx, ny = py + dy;
+                            if (nx < 0 || nx >= size || ny < 0 || ny >= size) continue;
+                            const j = ny * size + nx;
+                            if (pore[j] && !seen[j]) { seen[j] = 1; stack.push(j); }
+                        }
+                    }
+                }
+                const w = maxX - minX + 1, h = maxY - minY + 1;
+                if (count >= 3 && count <= 500 && w <= 16 && h <= 16) {
+                    follicles.push({ minX: Math.max(0, minX - 4), maxX: Math.min(size - 1, maxX + 4), minY: Math.max(0, minY - 4), maxY: Math.min(size - 1, maxY + 4) });
+                }
+            }
+
+            // Analizar cada folículo: gotita brillante/ambar dentro o en el borde
+            let withSebum = 0;
+            for (const f of follicles) {
+                let glossy = 0, amber = 0, warmBright = 0;
+                for (let y = f.minY; y <= f.maxY; y++) {
+                    for (let x = f.minX; x <= f.maxX; x++) {
+                        const i = y * size + x;
+                        const r = R[i], g = G[i], b = B[i];
+                        const l = L[i];
+                        if (l >= 200) glossy++;
+                        if (l >= 250 || (l >= 140 && l < 250 && (r - b) >= 18 && (r - g) >= 2)) amber++;
+                        if (l >= 170 && (r - b) >= 12 && (r - g) >= 0) warmBright++;
+                    }
+                }
+                if (glossy >= 3 || amber >= 2 || warmBright >= 4) withSebum++;
+            }
+
+            const total = follicles.length;
+            let label = 'Sin sebo visible';
+            if (total < 5) {
+                console.log('[follicle-sebum]', { total, withSebum, label: 'n/a' });
+                return { ok: false, total, withSebum, ratio: 0, label: 'No evaluable' };
+            }
+            const ratio = withSebum / total;
+            if (ratio >= 0.50) label = 'Alto';
+            else if (ratio >= 0.30) label = 'Moderado';
+            else if (ratio >= 0.12) label = 'Bajo';
+
+            console.log('[follicle-sebum]', { total, withSebum, ratio: +ratio.toFixed(2), label });
+            return { ok: true, total, withSebum, ratio, label };
+        }
+
+        function renderTrichologicalSummary(d) {
+            const box = document.getElementById('diag-summary');
+            const txt = document.getElementById('diag-summary-text');
+            if (!box || !txt) return;
+            const s = d.symptoms || {};
+            const lines = [];
+
+            lines.push(`<p><b>Cabello:</b> el análisis sugiere una densidad de <b>${d.density}</b> (referencia 160–190) y un grosor de <b>${d.thickness} μm</b> (referencia 65–80).`);
+
+            if (d.breakage && d.breakage.level !== 'Normal') {
+                const causeHint = s.history === 'quimico' ? ' (consistente con procesos químicos frecuentes)'
+                    : s.history === 'calor' ? ' (consistente con uso frecuente de calor)'
+                    : s.history === 'traccion' ? ' (consistente con peinados de tracción)'
+                    : s.history === 'lavado' ? ' (posible agua demasiado caliente)' : '';
+                lines.push(`<p><b>Rotura / miniaturización:</b> se detecta <b>${d.breakage.level.toLowerCase()}</b> — tallos finos o debilitados y/o puntas rotas (tricorrexis/tricoptilosis adquiridas). ${s.history ? 'El historial indica: ' + s.history + '.' : 'Conviene revisar calor, cepillado, químicos y fricción.'}${causeHint}</p>`);
+            }
+
+            const effSebum = s.sebumSymptom || (d.sebum || '').toLowerCase();
+            if (d.follicleSebum && d.follicleSebum.ok && d.follicleSebum.label !== 'No evaluable') {
+                const fs = d.follicleSebum;
+                if (fs.label !== 'Sin sebo visible') {
+                    lines.push(`<p><b>Sebo en folículos:</b> en <b>${fs.withSebum} de ${fs.total}</b> orificios foliculares se observa una gotita brillante/ámbar (sebo real dentro del folículo) → orienta a <b>seborrea oleosa real</b>. Regulación de grasa con purificantes sin resecar.</p>`);
+                } else if (d.sebum === 'Alto' || d.sebum === 'Medio' || effSebum === 'alto') {
+                    lines.push(`<p><b>Sebo en folículos:</b> los folículos se ven <b>vacíos/limpios</b> (${fs.withSebum} de ${fs.total} con sebo) pese a la grasa superficial → consistente con <b>seborrea aparente</b> o sudor, no seborrea real. El cuero cabelludo compensa con más grasa al resecarlo; regular con suavidad.</p>`);
+                } else {
+                    lines.push(`<p><b>Sebo en folículos:</b> los orificios foliculares se ven limpios (${fs.withSebum} de ${fs.total} con sebo), sin acumulación evidente.</p>`);
+                }
+            }
+            if (effSebum === 'alto' || d.sebum === 'Alto' || d.sebum === 'Medio' && effSebum === '') {
+                lines.push(`<p><b>Cuero cabelludo graso (seborrea):</b> hay grasa visible. Recuerda el diferencial: si el interior del folículo está sin sebo, podría ser <b>seborrea aparente</b> o incluso sudor, no seborrea real. Regular sin resecar (la sequedad genera más grasa compensatoria).</p>`);
+            }
+            if (s.sebumSymptom === 'seco' && d.sebum !== 'Alto') {
+                lines.push(`<p><b>Sequedad:</b> el cliente indica cuero cabelludo seco. Evitar agua &gt;37 °C y champús agresivos.</p>`);
+            }
+
+            if (s.dandruff === 'grasa' || (d.dandruff === 'Medio' && s.dandruff === 'grasa')) {
+                lines.push(`<p><b>Caspa grasa (pitiriasis esteatoides):</b> escamas amarillentas adherentes con bordes definidos. Controlar grasa + anticaspa, mantener constancia.</p>`);
+            } else if (s.dandruff === 'seca' || (d.dandruff === 'Medio' && s.dandruff === 'seca')) {
+                lines.push(`<p><b>Caspa seca (pitiriasis simplex):</b> escamas finas blancas. Purificar + champú anticaspa suave e hidratar.</p>`);
+            } else if (d.dandruff === 'Alto') {
+                lines.push(`<p><b>Descamación elevada detectada:</b> valorar si es caspa seca o grasa (según el aspecto y la adherencia de las escamas).</p>`);
+            }
+            if (s.dandruff === 'placas') {
+                lines.push(`<p><b>⚠ Placas con escamas nacaradas bien delimitadas:</b> orienta a <b>psoriasis</b> (autoinmune). Requiere valoración dermatológica; la tricología solo da soporte.</p>`);
+            }
+
+            if (d.erythema === 'Alto' || d.erythema === 'Medio') {
+                lines.push(`<p><b>Enrojecimiento (eritema ${d.erythema.toLowerCase()}):</b> puede acompañar a dermatitis seborreica o irritación. Si hay placas rojas mal delimitadas con escamas grasas, orienta a <b>dermatitis seborreica</b> (controlable, no curable).</p>`);
+            }
+
+            if (s.hairLoss === 'areas') {
+                lines.push(`<p><b>Caída en zonas/parches con bordes definidos:</b> orienta a <b>alopecia areata</b> (inmunológica) → derivar a especialista, fuera del ámbito cosmético.</p>`);
+            } else if (s.hairLoss === 'fronto') {
+                lines.push(`<p><b>Caída frontal/temoral (entradas, coronilla):</b> patrón típico de <b>alopecia androgenética</b> (DHT). Tratamiento por fases y de larga duración para mantener el folículo activo.</p>`);
+            } else if (s.hairLoss === 'difusa') {
+                if (s.context === 'postparto') lines.push(`<p><b>Caída difusa posparto:</b> aparece 2–3 meses tras el parto por caída de estrógenos. Puede volverse irreversible si no se trata; reforzar folículo y suplementación.</p>`);
+                else if (s.context === 'fiebre') lines.push(`<p><b>Caída difusa postfebril:</b> transitoria, aparece ~2 meses tras fiebre/infección. Limpieza suave + tratamiento tópico.</p>`);
+                else if (s.context === 'estres') lines.push(`<p><b>Caída difusa:</b> el estrés puede exacerbar el efluvio. Tratar folículo y manejar el factor nervioso.</p>`);
+                else lines.push(`<p><b>Caída difusa:</b> se pierde más de lo que nace. Descarta causas mecánicas/químicas y valora contexto hormonal o nutricional.</p>`);
+            }
+
+            if (d.hydration < 50) {
+                lines.push(`<p><b>Hidratación baja (${d.hydration}%):</b> fibra seca → refuerza la hidratación (rutina True Soft) y protege la cutícula.</p>`);
+            }
+
+            txt.innerHTML = lines.length
+                ? lines.join('')
+                : '<p>Sin hallazgos relevantes frente a los rangos de normalidad. Mantener una rutina de mantenimiento y revisión periódica.</p>';
+            box.style.display = 'block';
+        }
+
+        function renderRecommendations(diagnosis) {
+            const grid = document.getElementById('products-grid');
+            const treatGrid = document.getElementById('treatments-grid');
+            const { density, thickness, hydration, sebum, isColored, breakage, symptoms } = diagnosis;
+            const s = symptoms || {};
+
+            const recommended = [];
+
+            // Cuero cabelludo graso / seborrea
+            if (sebum === 'Alto' || s.sebumSymptom === 'alto') {
+                recommended.push(MARIA_NILA_PRODUCTS.purifyingCleanseShampoo);
+                recommended.push(MARIA_NILA_PRODUCTS.purifyingCleanseExfoliatingSerum);
+                recommended.push(MARIA_NILA_PRODUCTS.purifyingCleanseDetoxMasque);
+            }
+
+            // Caspa
+            if (s.dandruff === 'seca' || s.dandruff === 'grasa' || s.dandruff === 'placas' || diagnosis.dandruff === 'Alto') {
+                recommended.push(MARIA_NILA_PRODUCTS.headHairHealShampoo);
+                recommended.push(MARIA_NILA_PRODUCTS.headHairHealScalpTonic);
+            }
+
+            // Cabello seco
+            if (hydration < 50) {
+                recommended.push(MARIA_NILA_PRODUCTS.trueSoftShampoo);
+                recommended.push(MARIA_NILA_PRODUCTS.trueSoftMasque);
+                recommended.push(MARIA_NILA_PRODUCTS.trueSoftArganOil);
+            }
+
+            // Cabello fino / densidad baja
+            if (density < 150) {
+                recommended.push(MARIA_NILA_PRODUCTS.pureVolumeShampoo);
+                recommended.push(MARIA_NILA_PRODUCTS.pureVolumeMasque);
+            }
+
+            // Cabello dañado / rotura
+            if (breakage && breakage.level !== 'Normal' || thickness < 65 || s.history === 'quimico' || s.history === 'calor') {
+                recommended.push(MARIA_NILA_PRODUCTS.structureRepairShampoo);
+                recommended.push(MARIA_NILA_PRODUCTS.structureRepairMasque);
+                recommended.push(MARIA_NILA_PRODUCTS.bondBuilder);
+            }
+
+            // Cabello sensible / eritema
+            if (diagnosis.erythema === 'Alto' || diagnosis.erythema === 'Medio' || s.itch === 'alto') {
+                recommended.push(MARIA_NILA_PRODUCTS.headHairHealShampoo);
+                recommended.push(MARIA_NILA_PRODUCTS.headHairHealSoothingSerum);
+            }
+
+            // Cabello teñido
+            if (isColored) {
+                recommended.push(MARIA_NILA_PRODUCTS.luminousColourShampoo);
+                recommended.push(MARIA_NILA_PRODUCTS.luminousColourMasque);
+            }
+
+            const seen = new Set();
+            const unique = recommended.filter(p => p && !seen.has(p.name) && seen.add(p.name));
+            grid.innerHTML = unique.length
+                ? unique.map(renderProd).join('')
+                : '<p>No hay recomendaciones específicas.</p>';
+            document.getElementById('recommendations-section').style.display = 'block';
+
+            // Elección de tratamiento Olaplex según daño/rotura
+            let treatments = [];
+            if (breakage && breakage.level !== 'Normal' || thickness < 60 || hydration < 45) {
+                treatments.push(OLAPLEX_TREATMENTS.treatmentPremium);
+                treatments.push(OLAPLEX_TREATMENTS.treatmentExpress);
+            } else {
+                treatments.push(OLAPLEX_TREATMENTS.treatmentExpress);
+            }
+            treatGrid.innerHTML = treatments.map(renderTreat).join('');
+            document.getElementById('treatments-section').style.display = 'block';
+        }
+
+        function renderProd(p) {
+            return `<div class="product-card"><img src="${p.img}" class="product-img"><div class="product-info"><strong>${p.name}</strong><p>${p.desc}</p></div></div>`;
+        }
+        function renderTreat(t) {
+            return `<div class="product-card" style="border-left:3px solid #10b981"><div style="font-size:24px">💊</div><div class="product-info"><strong>${t.name}</strong><p>${t.desc}</p></div></div>`;
+        }
+    </script>
+    <script>
+    (function () {
+        const sel = document.getElementById('client-select');
+        const search = document.getElementById('client-search');
+        const btn = document.getElementById('analyze-btn');
+        let allClients = [];
+        function label(c) { return (c.name || '') + (c.surname ? ' ' + c.surname : '') + (c.phone ? ' · ' + c.phone : ''); }
+        function populate(filter) {
+            if (!sel) return;
+            const q = (filter || '').trim().toLowerCase();
+            sel.innerHTML = '<option value="">— Selecciona un cliente —</option>';
+            allClients.forEach(c => {
+                const lbl = label(c);
+                if (q && lbl.toLowerCase().indexOf(q) === -1 && (c.phone||'').toLowerCase().indexOf(q) === -1) return;
+                const opt = document.createElement('option');
+                opt.value = c.id;
+                opt.textContent = lbl;
+                sel.appendChild(opt);
+            });
+            btn.disabled = (sel.value === '');
+        }
+        function loadClients() {
+            try {
+                if (window.parent && window.parent !== window && window.parent.data && Array.isArray(window.parent.data.clients)) {
+                    allClients = window.parent.data.clients.filter(c => !c._deleted);
+                }
+            } catch (e) { allClients = []; }
+            populate(search ? search.value : '');
+        }
+        if (sel) {
+            sel.addEventListener('change', () => { btn.disabled = (sel.value === ''); });
+            if (search) {
+                search.addEventListener('input', () => { populate(search.value); });
+            }
+            loadClients();
+            setTimeout(loadClients, 500);
+            setTimeout(loadClients, 1500);
+
+            // Nuevo cliente rápido
+            const btnNew = document.getElementById('btn-new-client');
+            const form = document.getElementById('new-client-form');
+            const btnSave = document.getElementById('nc-save');
+            const btnCancel = document.getElementById('nc-cancel');
+            if (btnNew && form) {
+                btnNew.addEventListener('click', () => { form.style.display = form.style.display === 'none' ? 'block' : 'none'; });
+            }
+            if (btnCancel && form) {
+                btnCancel.addEventListener('click', () => { form.style.display = 'none'; });
+            }
+            if (btnSave) {
+                btnSave.addEventListener('click', () => {
+                    const name = (document.getElementById('nc-name').value || '').trim();
+                    if (!name) { alert('El nombre es obligatorio'); return; }
+                    const surname = (document.getElementById('nc-surname').value || '').trim();
+                    const phone = (document.getElementById('nc-phone').value || '').trim();
+                    const email = (document.getElementById('nc-email').value || '').trim();
+                    const parent = window.parent;
+                    if (!parent || parent === window || !parent.data || !Array.isArray(parent.data.clients)) {
+                        alert('No se puede crear el cliente: sin conexión con la agenda.');
+                        return;
+                    }
+                    const newC = {
+                        id: (typeof parent.id === 'function') ? parent.id() : (Date.now().toString(36) + Math.random().toString(36).substr(2,4)),
+                        name: name,
+                        apellidos: surname,
+                        phone: phone,
+                        email: email,
+                        nif: '', address: '', city: '', province: '', zip: '',
+                        notes: '', punctuality: '',
+                        historialSalud: '', historialTratamientos: '', historialCapilar: '',
+                        visits: 0, totalSpent: 0, created: new Date().toISOString(),
+                        _modified: Date.now(), _deleted: false
+                    };
+                    parent.data.clients.push(newC);
+                    if (typeof parent.saveKey === 'function') parent.saveKey('clients');
+                    if (typeof parent.syncPush === 'function') parent.syncPush();
+                    if (typeof parent.renderClients === 'function') try { parent.renderClients(); } catch (e) {}
+                    allClients.push(newC);
+                    populate(search ? search.value : '');
+                    sel.value = newC.id;
+                    btn.disabled = false;
+                    form.style.display = 'none';
+                    ['nc-name','nc-surname','nc-phone','nc-email'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+                });
+            }
+        }
+        if (!window.parent || window.parent === window) {
+            const p = sel ? sel.parentElement : null;
+            if (p) p.insertAdjacentHTML('beforeend', '<p style="color:#f59e0b;font-size:0.8rem;margin-top:6px;">Abre el diagnóstico desde la app Agenda para asociarlo a un cliente.</p>');
+            if (btn) btn.disabled = true;
+        }
+    })();
+    </script>
+</body>
+</html>

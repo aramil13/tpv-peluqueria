@@ -193,6 +193,39 @@ tr:hover td { background: #f8f9fa; }
 .alert-success { background: #d4efdf; color: #1a6e3a; border: 1px solid #a9dfbf; }
 .alert-danger { background: #fadbd8; color: #a93226; border: 1px solid #f5b7b1; }
 @media (max-width: 1024px) { .pos-container { grid-template-columns: 1fr; } }
+/* --- Fotos de cliente: zona responsive (movil y tablet) --- */
+.client-photos-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.client-photo-card { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: var(--bg); }
+.client-photo-img { display: block; width: 100%; height: 130px; object-fit: cover; cursor: pointer; }
+.client-photo-del {
+  position: absolute; top: 5px; right: 5px; z-index: 3;
+  width: 30px; height: 30px; padding: 0; border-radius: 50%;
+  border: 1px solid rgba(255,255,255,.55); background: rgba(0,0,0,.62); color: #fff;
+  font-size: 19px; line-height: 1; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+}
+.client-photo-del:hover { background: rgba(0,0,0,.82); }
+.client-photo-del:active { background: var(--danger); }
+.client-photo-meta { padding: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.client-photo-meta select {
+  flex: 1 1 90px; min-width: 0; padding: 4px 6px; font-size: 12px;
+  background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px;
+}
+.client-photo-meta span {
+  flex: 1 1 90px; min-width: 0; font-size: 12px; color: var(--text); padding: 2px 6px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (min-width: 900px) {
+  .client-photos-grid { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+  .client-photo-img { height: 170px; }
+  .client-photo-del { width: 34px; height: 34px; font-size: 22px; }
+}
+@media (max-width: 768px) {
+  .client-photos-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 6px; }
+  .client-photo-img { height: 100px; }
+  .client-photo-del { width: 26px; height: 26px; font-size: 16px; }
+}
 @media (max-width: 768px) {
   .sidebar { width: 60px; }
   .sidebar-header h1, .sidebar-header small, .nav-item span { display: none; }
@@ -325,7 +358,7 @@ tr:hover td { background: #f8f9fa; }
     <div class="section" id="sec-clients">
       <div class="card">
         <div class="card-header"><h3>Gestión de Clientes</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('clients')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('clients')">📤 Exportar</button><button class="btn btn-primary" onclick="clearClientForm();openModal('clientModal')">+ Nuevo Cliente</button></div></div>
-        <div class="search-bar"><input type="text" id="searchClient" placeholder="Buscar por nombre, teléfono o email..." oninput="renderClients()"></div>
+        <div class="search-bar" style="display:flex;gap:8px;align-items:center;"><input type="text" id="searchClient" placeholder="Buscar por nombre, teléfono o email..." oninput="renderClients()" style="flex:1;"><button id="btnFilterDiag" class="btn btn-secondary btn-sm" onclick="toggleDiagFilter()" style="white-space:nowrap;">Con diagnóstico (0)</button></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>NIF/CIF</th><th>Teléfono</th><th>Población</th><th>Visitas</th><th>Gasto Total</th><th>Acciones</th></tr></thead><tbody id="clientsTable"></tbody></table></div>
       </div>
     </div>
@@ -531,6 +564,15 @@ tr:hover td { background: #f8f9fa; }
     <div class="form-group"><label>Historial de Salud y Seguridad</label><textarea id="clientHistorialSalud" placeholder="Alergias, condiciones médicas, consentimientos informados..." rows="3"></textarea></div>
     <div class="form-group"><label>Historial de Tratamientos</label><textarea id="clientHistorialTratamientos" placeholder="Registro de visitas, servicios realizados, estilista encargado..." rows="3"></textarea></div>
     <div class="form-group"><label>Historial Técnico y Capilar</label><textarea id="clientHistorialCapilar" placeholder="Diagnóstico capilar, fórmulas de color, tratamientos químicos previos..." rows="3"></textarea></div>
+    <div class="form-group" style="margin-top:8px;"><label>Fotos del cliente</label>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
+        <input type="file" id="clientPhotoFile" accept="image/*" style="display:none;" onchange="addClientPhoto(this)">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('clientPhotoFile').click()">Añadir foto</button>
+        <select id="clientPhotoType" style="width:auto;padding:4px 8px;font-size:12px;"><option value="before">Antes</option><option value="after">Después</option></select>
+        <input type="date" id="clientPhotoDate" style="width:auto;padding:4px 8px;font-size:12px;">
+      </div>
+      <div id="clientPhotosGallery" class="client-photos-grid"></div>
+    </div>
     <div id="clientStats" style="margin:10px 0;padding:10px;background:var(--bg);border-radius:6px;display:none;"><strong style="font-size:13px;">Estadísticas</strong><div id="clientStatsContent" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:6px;font-size:12px;"></div></div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="printPoliticaConfidencialidad()" style="background:#6c757d;color:#fff;margin-right:auto;">Politica de confidencialidad</button><button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button><button class="btn btn-primary" onclick="saveClient()">Guardar</button></div>
     <input type="hidden" id="clientEditId">
@@ -2124,14 +2166,19 @@ document.addEventListener('keydown', function(e) {
 })();
 
 // ============ CLIENTS ============
+function hasDiag(c) { if (!c || !c.historialCapilar) return false; const t = String(c.historialCapilar).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); return t.indexOf('diagnostico capilar') !== -1; }
+let diagFilterOn = false;
+function toggleDiagFilter() { diagFilterOn = !diagFilterOn; const btn = document.getElementById('btnFilterDiag'); if (btn) btn.classList.toggle('btn-primary', diagFilterOn); updateDiagFilterCount(); renderClients(); }
+function updateDiagFilterCount() { const n = (data.clients||[]).filter(c => !c._deleted && hasDiag(c)).length; const btn = document.getElementById('btnFilterDiag'); if (btn) btn.textContent = 'Con diagnóstico (' + n + ')'; }
 function renderClients() {
   const q = (document.getElementById('searchClient').value||'').toLowerCase();
   const tbody = document.getElementById('clientsTable');
-  const list = data.clients.filter(c => !c._deleted && (fullName(c)+' '+c.phone+' '+c.email).toLowerCase().includes(q))
+  const list = data.clients.filter(c => !c._deleted && (fullName(c)+' '+c.phone+' '+c.email).toLowerCase().includes(q) && (!diagFilterOn || hasDiag(c)))
     .sort((a,b) => a.name.localeCompare(b.name));
+  updateDiagFilterCount();
   if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay clientes</td></tr>'; return; }
   tbody.innerHTML = list.map(c => `<tr>
-    <td><strong>${esc(fullName(c))}</strong></td>
+    <td><strong>${esc(fullName(c))}</strong>${(c.photos&&c.photos.length)?' 📷':''}</td>
     <td>${esc(c.nif||'-')}</td>
     <td>${esc(c.phone||'-')}</td>
     <td>${esc(c.city||'-')}</td>
@@ -2165,6 +2212,7 @@ function saveClient() {
     historialTratamientos: document.getElementById('clientHistorialTratamientos').value.trim(),
     historialCapilar: document.getElementById('clientHistorialCapilar').value.trim(),
     punctuality: document.getElementById('clientPunctuality').value,
+    photos: clientPhotosWorking.slice(),
     _modified: Date.now(),
     _deleted: false
   };
@@ -2191,13 +2239,13 @@ function saveClient() {
         existing.historialTratamientos = obj.historialTratamientos;
         existing.historialCapilar = obj.historialCapilar;
         existing._modified = Date.now();
-        saveKey('clients'); clearClientForm(); closeModal('clientModal'); renderClients(); syncPush();
+        saveKey('clients'); clearClientForm(); closeModal('clientModal'); renderClients(); syncPush(); updateDiagFilterCount();
         return;
       }
     }
     data.clients.push(obj);
   }
-  saveKey('clients'); clearClientForm(); closeModal('clientModal'); renderClients(); syncPush();
+  saveKey('clients'); clearClientForm(); closeModal('clientModal'); renderClients(); syncPush(); updateDiagFilterCount();
 }
 
 function editClient(id) {
@@ -2219,6 +2267,8 @@ function editClient(id) {
   document.getElementById('clientHistorialTratamientos').value = c.historialTratamientos||'';
   document.getElementById('clientHistorialCapilar').value = c.historialCapilar||'';
   document.getElementById('clientPunctuality').value = c.punctuality||'';
+  clientPhotosWorking = (c.photos || []).slice();
+  renderClientPhotos();
   document.getElementById('clientModalTitle').textContent = 'Editar Cliente';
   const appointments = data.appointments.filter(a => a.clientId === id);
   const totalApps = appointments.length;
@@ -2246,11 +2296,53 @@ function deleteClient(id) {
   saveKey('clients'); saveKey('appointments'); renderClients(); renderAgenda(); syncPush();
 }
 
+let clientPhotosWorking = [];
+function renderClientPhotos() {
+  const g = document.getElementById('clientPhotosGallery'); if (!g) return;
+  if (!clientPhotosWorking.length) { g.innerHTML = '<div style="color:var(--text-light);font-size:12px;">Sin fotos</div>'; return; }
+  g.innerHTML = clientPhotosWorking.map((p,i) => `<div class="client-photo-card">
+    <img class="client-photo-img" src="${p.dataUrl}" onclick="viewClientPhoto(${i})">
+    <button type="button" class="client-photo-del" onclick="deleteClientPhoto(${i})" title="Eliminar foto" aria-label="Eliminar foto">&times;</button>
+    <div class="client-photo-meta">
+      <select onchange="clientPhotosWorking[${i}].type=this.value">
+        <option value="before" ${p.type==='before'?'selected':''}>Antes</option>
+        <option value="after" ${p.type==='after'?'selected':''}>Después</option>
+      </select>
+      <span>${esc(p.date||'')}</span>
+    </div>
+  </div>`).join('');
+}
+function addClientPhoto(input) {
+  const file = input && input.files && input.files[0]; if (!file) return;
+  if (file.size > 4*1024*1024) { alert('La foto supera 4 MB'); input.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const type = (document.getElementById('clientPhotoType')||{}).value || 'before';
+    const date = (document.getElementById('clientPhotoDate')||{}).value || new Date().toISOString().slice(0,10);
+    clientPhotosWorking.push({ id: 'ph_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), dataUrl: e.target.result, type, date, created: new Date().toISOString() });
+    renderClientPhotos();
+    if (document.getElementById('clientPhotoNotes')) document.getElementById('clientPhotoNotes').value = '';
+    input.value = '';
+  };
+  reader.readAsDataURL(file);
+}
+function deleteClientPhoto(idx) {
+  if (!confirm('¿Eliminar esta foto?')) return;
+  clientPhotosWorking.splice(idx,1);
+  renderClientPhotos();
+}
+function viewClientPhoto(idx) {
+  const p = clientPhotosWorking[idx]; if (!p) return;
+  const w = window.open('', '_blank'); if (w) { w.document.write('<img src="'+p.dataUrl+'" style="max-width:100%;height:auto;">'); }
+}
+
 function clearClientForm() {
   ['clientEditId','clientName','clientSurname','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNotes','clientHistorialSalud','clientHistorialTratamientos','clientHistorialCapilar','clientPassword'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('clientPunctuality').value = '';
   document.getElementById('clientStats').style.display = 'none';
   document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
+  clientPhotosWorking = [];
+  renderClientPhotos();
 }
 
 function togglePW(inputId, el) {
