@@ -595,6 +595,7 @@ try {
     # OJO: el programa de Access NO usa Clientes.Observaciones (esta vacio); las observaciones
     # de clientes viven en la tabla ObserClientes (CodCli + NumObservacion secuencial, una fila
     # por apunte). Se concatenan en orden cronologico separadas por salto de linea.
+    # Cada apunte se prefija con el empleado que lo firmo: "[Maria del Mar Paredes] texto".
     # Se guarda una copia oculta (_obsAccess) del ultimo texto traido: si Access no ha cambiado
     # desde entonces, no se toca historialTratamientos (asi las ediciones hechas en el TPV no se
     # pierden); si Access cambia (apunte nuevo/editado/borrado), manda Access y se sobrescribe.
@@ -604,17 +605,41 @@ try {
         $jsonClientMap = @{}
         foreach ($jc in @($json.clients)) { if ($jc.id) { $jsonClientMap[$jc.id] = $jc } }
 
+        # Mapa CodEmpleado -> "Nombre 1erApellido" para prefijar cada apunte del historial.
+        $empNameMap = @{}
+        try {
+            $cmdEmp = $conn.CreateCommand()
+            $cmdEmp.CommandText = "SELECT Codigo, Nombre, Apellidos FROM Empleados"
+            $er = $cmdEmp.ExecuteReader()
+            while ($er.Read()) {
+                if ($er['Codigo'] -eq [System.DBNull]::Value) { continue }
+                $empCod = [int]$er['Codigo']
+                $nom = if ($er['Nombre'] -and $er['Nombre'] -ne [System.DBNull]::Value) { $er['Nombre'].ToString().Trim() } else { '' }
+                $ape = if ($er['Apellidos'] -and $er['Apellidos'] -ne [System.DBNull]::Value) { $er['Apellidos'].ToString().Trim() } else { '' }
+                $firstApe = if ($ape) { ($ape -split '\s+')[0] } else { '' }
+                $label = if ($nom -and $firstApe) { "$nom $firstApe" } elseif ($nom) { $nom } elseif ($firstApe) { $firstApe } else { '' }
+                if ($label) { $empNameMap[$empCod] = $label }
+            }
+            $er.Close()
+        } catch {
+            Write-Host "WARN: Empleados read skipped: $($_.Exception.Message)"
+        }
+
         # Observaciones por cliente desde ObserClientes, ordenadas por NumObservacion (cronologico)
         $obsByClient = @{}
         try {
             $cmdObs = $conn.CreateCommand()
-            $cmdObs.CommandText = "SELECT CodCli, Observacion FROM ObserClientes ORDER BY CodCli, NumObservacion, Fecha"
+            $cmdObs.CommandText = "SELECT CodCli, Empleado, Observacion FROM ObserClientes ORDER BY CodCli, NumObservacion, Fecha"
             $or = $cmdObs.ExecuteReader()
             while ($or.Read()) {
                 if ($or['CodCli'] -eq [System.DBNull]::Value) { continue }
                 $codCli = [int]$or['CodCli']
                 $txt = if ($or['Observacion'] -and $or['Observacion'] -ne [System.DBNull]::Value) { $or['Observacion'].ToString().Trim() } else { '' }
                 if (-not $txt) { continue }
+                $empCod = 0
+                if ($or['Empleado'] -and $or['Empleado'] -ne [System.DBNull]::Value) { try { $empCod = [int]$or['Empleado'] } catch { $empCod = 0 } }
+                $empLabel = if ($empCod -gt 0 -and $empNameMap.ContainsKey($empCod)) { $empNameMap[$empCod] } else { '' }
+                if ($empLabel) { $txt = "[$empLabel] $txt" }
                 if (-not $obsByClient.ContainsKey($codCli)) { $obsByClient[$codCli] = New-Object System.Collections.Generic.List[string] }
                 $obsByClient[$codCli].Add($txt)
             }
