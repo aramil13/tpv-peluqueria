@@ -18,6 +18,20 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js')
     }
   });
+
+  // Permitir webcam/microfono para "Sacar foto" de clientes (getUserMedia).
+  // Sin esto Electron deniega la peticion y la camara no arranca.
+  const ses = mainWindow.webContents.session;
+  ses.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission === 'media' || permission === 'videoCapture' || permission === 'audioCapture') {
+      return callback(true);
+    }
+    callback(false);
+  });
+  ses.setPermissionCheckHandler((webContents, permission) => {
+    return permission === 'media' || permission === 'videoCapture' || permission === 'audioCapture';
+  });
+
   mainWindow.loadFile('electron-app.html');
   mainWindow.on('closed', () => { mainWindow = null; });
 }

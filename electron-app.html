@@ -206,6 +206,18 @@ tr:hover td { background: #f8f9fa; }
 }
 .client-photo-del:hover { background: rgba(0,0,0,.82); }
 .client-photo-del:active { background: var(--danger); }
+
+/* --- Camara para sacar fotos de cliente --- */
+.client-camera-overlay { z-index: 1300; }
+.client-camera-box { width: 100%; max-width: 760px; background: #000; border-radius: 12px; overflow: hidden; }
+.client-camera-video { display: block; width: 100%; max-height: 68vh; object-fit: contain; background: #000; }
+.client-camera-bar { display: flex; gap: 12px; align-items: center; justify-content: center; padding: 12px; background: #141414; flex-wrap: wrap; }
+.client-camera-bar .btn { flex: 0 0 auto; }
+.client-camera-shutter {
+  width: 76px; height: 76px; border-radius: 50%; background: #fff;
+  border: 5px solid #8a8a8a; cursor: pointer; padding: 0; flex: 0 0 auto;
+}
+.client-camera-shutter:active { background: #d8d8d8; }
 .client-photo-meta { padding: 6px; display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .client-photo-meta select {
   flex: 1 1 90px; min-width: 0; padding: 4px 6px; font-size: 12px;
@@ -567,7 +579,9 @@ tr:hover td { background: #f8f9fa; }
     <div class="form-group" style="margin-top:8px;"><label>Fotos del cliente</label>
       <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px;">
         <input type="file" id="clientPhotoFile" accept="image/*" style="display:none;" onchange="addClientPhoto(this)">
-        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('clientPhotoFile').click()">Añadir foto</button>
+        <input type="file" id="clientPhotoCameraFile" accept="image/*" capture="environment" style="display:none;" onchange="addClientPhoto(this)">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('clientPhotoFile').click()">🖼️ Añadir foto</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openClientCamera()">📷 Sacar foto</button>
         <select id="clientPhotoType" style="width:auto;padding:4px 8px;font-size:12px;"><option value="before">Antes</option><option value="after">Después</option></select>
         <input type="date" id="clientPhotoDate" style="width:auto;padding:4px 8px;font-size:12px;">
       </div>
@@ -576,6 +590,20 @@ tr:hover td { background: #f8f9fa; }
     <div id="clientStats" style="margin:10px 0;padding:10px;background:var(--bg);border-radius:6px;display:none;"><strong style="font-size:13px;">Estadísticas</strong><div id="clientStatsContent" style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-top:6px;font-size:12px;"></div></div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="printPoliticaConfidencialidad()" style="background:#6c757d;color:#fff;margin-right:auto;">Politica de confidencialidad</button><button class="btn btn-secondary" onclick="closeModal('clientModal')">Cancelar</button><button class="btn btn-primary" onclick="saveClient()">Guardar</button></div>
     <input type="hidden" id="clientEditId">
+  </div>
+</div>
+
+<!-- CAMARA PARA FOTOS DE CLIENTE -->
+<div class="modal client-camera-overlay" id="clientCameraModal">
+  <div class="modal-content" style="max-width:760px;padding:12px;">
+    <div class="client-camera-box">
+      <video id="clientCameraVideo" class="client-camera-video" autoplay playsinline muted></video>
+      <div class="client-camera-bar">
+        <button type="button" class="btn btn-secondary" onclick="closeClientCamera()">Cancelar</button>
+        <button type="button" class="client-camera-shutter" onclick="captureClientPhoto()" title="Capturar foto" aria-label="Capturar foto"></button>
+        <button type="button" class="btn btn-secondary" id="clientCameraSwitchBtn" onclick="switchClientCamera()" style="display:none;">🔄 Cambiar cámara</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -2123,7 +2151,12 @@ updateClock(); setInterval(updateClock, 1000);
 
 // ============ MODALS ============
 function openModal(id) {
-  document.querySelectorAll('.modal.show').forEach(m => { if (m.id !== id) m.classList.remove('show'); });
+  document.querySelectorAll('.modal.show').forEach(m => {
+    if (m.id !== id) {
+      m.classList.remove('show');
+      if (m.id === 'clientCameraModal' && typeof closeClientCamera === 'function') closeClientCamera();
+    }
+  });
   document.getElementById(id).classList.add('show');
   setTimeout(() => {
     const m = document.getElementById(id);
@@ -2135,6 +2168,7 @@ function openModal(id) {
 function closeModal(id) {
   document.getElementById(id).classList.remove('show');
   if (id === 'appointmentModal') editingBlockNum = null;
+  if (id === 'clientModal' && typeof closeClientCamera === 'function') closeClientCamera();
 }
 function toggleSettingsMaximize() {
   const content = document.querySelector('#settingsModal .modal-content');
@@ -2329,6 +2363,88 @@ function addClientPhoto(input) {
 function deleteClientPhoto(idx) {
   if (!confirm('¿Eliminar esta foto?')) return;
   clientPhotosWorking.splice(idx,1);
+  renderClientPhotos();
+}
+
+// ============ CAMARA PARA FOTOS DE CLIENTE ============
+let clientCameraStream = null;
+let clientCameraFacing = 'environment';
+
+async function openClientCamera() {
+  const modal = document.getElementById('clientCameraModal');
+  if (!modal) return;
+  // No usar openModal(): cerraria el modal de cliente que debe seguir abierto debajo
+  modal.classList.add('show');
+  await startClientCamera();
+}
+
+async function startClientCamera() {
+  const video = document.getElementById('clientCameraVideo');
+  if (!video) return;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    closeClientCamera();
+    fallbackToNativeCamera();
+    return;
+  }
+  stopClientCameraStream();
+  try {
+    clientCameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: clientCameraFacing, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    });
+    video.srcObject = clientCameraStream;
+    video.setAttribute('playsinline', '');
+    const p = video.play();
+    if (p && p.catch) p.catch(() => {});
+    try {
+      const devs = await navigator.mediaDevices.enumerateDevices();
+      const cams = devs.filter(d => d.kind === 'videoinput');
+      const sw = document.getElementById('clientCameraSwitchBtn');
+      if (sw) sw.style.display = cams.length > 1 ? '' : 'none';
+    } catch (e) { /* sin listado de camaras: no mostrar boton */ }
+  } catch (err) {
+    closeClientCamera();
+    fallbackToNativeCamera();
+  }
+}
+
+function fallbackToNativeCamera() {
+  const file = document.getElementById('clientPhotoCameraFile');
+  if (file) { try { file.click(); } catch (e) {} }
+}
+
+function stopClientCameraStream() {
+  if (clientCameraStream) {
+    try { clientCameraStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+    clientCameraStream = null;
+  }
+}
+
+function closeClientCamera() {
+  stopClientCameraStream();
+  const video = document.getElementById('clientCameraVideo');
+  if (video) video.srcObject = null;
+  const modal = document.getElementById('clientCameraModal');
+  if (modal) modal.classList.remove('show');
+}
+
+async function switchClientCamera() {
+  clientCameraFacing = (clientCameraFacing === 'environment') ? 'user' : 'environment';
+  await startClientCamera();
+}
+
+function captureClientPhoto() {
+  const video = document.getElementById('clientCameraVideo');
+  if (!video || !video.videoWidth || !video.videoHeight) { alert('La cámara no está lista'); return; }
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+  const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+  const type = (document.getElementById('clientPhotoType')||{}).value || 'before';
+  const date = (document.getElementById('clientPhotoDate')||{}).value || new Date().toISOString().slice(0,10);
+  clientPhotosWorking.push({ id: 'ph_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), dataUrl, type, date, created: new Date().toISOString() });
+  closeClientCamera();
   renderClientPhotos();
 }
 function viewClientPhoto(idx) {
