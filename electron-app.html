@@ -531,7 +531,12 @@ body:has(#sec-timecontrol.active) .main { min-width: 0; }
           </select>
         </div>
         <div class="alphabet-filter" id="serviceAlphabetFilter"></div>
-        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Sección</th><th>Duración</th><th>Precio</th><th>Bloque</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="servicesTable"></tbody></table></div>
+        <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="number" id="serviceIncreasePct" placeholder="% aumento" min="0" step="0.01" style="width:120px;">
+          <button class="btn btn-primary btn-sm" onclick="applyServiceIncrease()">📈 Aumentar precio a seleccionados</button>
+          <button class="btn btn-secondary btn-sm" onclick="toggleAllServiceSelect()">Seleccionar todos</button>
+        </div>
+        <div style="overflow-x:auto;"><table><thead><tr><th><input type="checkbox" onclick="toggleAllServiceSelect(this.checked)"></th><th>Nombre</th><th>Sección</th><th>Duración</th><th>Precio</th><th>Último aumento</th><th>Bloque</th><th>Descripción</th><th>Acciones</th></tr></thead><tbody id="servicesTable"></tbody></table></div>
       </div>
     </div>
 
@@ -563,7 +568,12 @@ body:has(#sec-timecontrol.active) .main { min-width: 0; }
           </select>
         </div>
         <div class="alphabet-filter" id="productAlphabetFilter"></div>
-        <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Proveedor</th><th>Precio Venta</th><th>Stock</th><th>Stock Mín.</th><th>Estado</th><th>Web</th><th>Acciones</th></tr></thead><tbody id="productsTable"></tbody></table></div>
+        <div style="margin:8px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+          <input type="number" id="productIncreasePct" placeholder="% aumento" min="0" step="0.01" style="width:120px;">
+          <button class="btn btn-primary btn-sm" onclick="applyProductIncrease()">📈 Aumentar precio a seleccionados</button>
+          <button class="btn btn-secondary btn-sm" onclick="toggleAllProductSelect()">Seleccionar todos</button>
+        </div>
+        <div style="overflow-x:auto;"><table><thead><tr><th><input type="checkbox" onclick="toggleAllProductSelect(this.checked)"></th><th>Nombre</th><th>Proveedor</th><th>Precio Venta</th><th>Último aumento</th><th>Stock</th><th>Stock Mín.</th><th>Estado</th><th>Web</th><th>Acciones</th></tr></thead><tbody id="productsTable"></tbody></table></div>
       </div>
     </div>
 
@@ -3820,17 +3830,22 @@ function renderServices() {
     if (sectionFilter && s.sectionId !== sectionFilter) return false;
     return true;
   }).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No hay servicios</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No hay servicios</td></tr>'; return; }
   tbody.innerHTML = list.map(s => {
     const sec = data.sections.find(x => x.id === s.sectionId);
     const sc = sec && sec.color ? sec.color : null;
     const bg = sc ? hexToRgba(sc, 0.06) : '';
     const bloqueBadge = s.bloque === 'bloque1' ? '<span style="background:#27ae60;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">Bloque 1</span>' : (s.bloque === 'bloque2' ? '<span style="background:#f39c12;color:#fff;padding:2px 8px;border-radius:10px;font-size:11px;">Bloque 2</span>' : '-');
+    const hist = Array.isArray(s.priceHistory) && s.priceHistory.length ? s.priceHistory[s.priceHistory.length-1] : null;
+    const histTxt = hist ? `${cur(hist.oldPrice)} → ${cur(hist.newPrice)} (+${hist.percent}% ${hist.date})` : '-';
+    const histAll = Array.isArray(s.priceHistory) && s.priceHistory.length ? s.priceHistory.map(h => `${h.date}: ${cur(h.oldPrice)} → ${cur(h.newPrice)} (+${h.percent}%)`).join(' | ') : '';
     return `<tr style="${bg ? 'background:'+bg+';' : ''}">
+    <td><input type="checkbox" class="svc-select" value="${s.id}"></td>
     <td><strong>${esc(s.name)}</strong></td>
     <td>${sc ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${sc};margin-right:6px;vertical-align:middle;"></span><span style="color:${sc};font-weight:500;">${esc(sec.name)}</span>` : '-'}</td>
     <td>${s.duration||'-'} min</td>
     <td><strong>${cur(s.price)}</strong></td>
+    <td style="font-size:11px;" title="${esc(histAll)}">${histTxt}</td>
     <td>${bloqueBadge}</td>
     <td>${esc(s.desc||'-')}</td>
     <td><div class="btn-group">
@@ -3889,6 +3904,30 @@ function deleteService(id) {
   saveKey('services'); saveKey('projects'); renderServices(); renderProjects(); syncPush();
 }
 
+function toggleAllServiceSelect(checked) {
+  document.querySelectorAll('.svc-select').forEach(cb => { cb.checked = (checked === undefined ? !cb.checked : checked); });
+}
+
+function applyServiceIncrease() {
+  const pct = parseFloat(document.getElementById('serviceIncreasePct').value);
+  if (isNaN(pct) || pct <= 0) { alert('Introduce un porcentaje válido mayor que 0.'); return; }
+  const ids = Array.from(document.querySelectorAll('.svc-select:checked')).map(cb => cb.value);
+  if (!ids.length) { alert('Selecciona al menos un servicio.'); return; }
+  if (!confirm('¿Aumentar el precio un ' + pct + '% a ' + ids.length + ' servicio(s)?')) return;
+  const date = new Date().toLocaleDateString('es-ES');
+  ids.forEach(id => {
+    const s = data.services.find(x => x.id === id);
+    if (!s || s._deleted) return;
+    const oldPrice = Number(s.price) || 0;
+    const newPrice = Math.round(oldPrice * (1 + pct/100) * 100) / 100;
+    if (!Array.isArray(s.priceHistory)) s.priceHistory = [];
+    s.priceHistory.push({ date: date, percent: pct, oldPrice: oldPrice, newPrice: newPrice });
+    s.price = newPrice;
+    s._modified = Date.now();
+  });
+  saveKey('services'); renderServices(); syncPush();
+  alert('Aumento aplicado correctamente.');
+}
 function clearServiceForm() {
   ['serviceEditId','serviceName','servicePrice','serviceDuration','serviceDesc'].forEach(id => document.getElementById(id).value='');
   document.getElementById('serviceSection').value = '';
@@ -4200,7 +4239,7 @@ function renderProducts() {
     if (providerFilter && p.providerId !== providerFilter) return false;
     return true;
   }).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
-  if (!list.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No hay productos</td></tr>'; return; }
+  if (!list.length) { tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No hay productos</td></tr>'; return; }
   tbody.innerHTML = list.map(p => {
     const isArchived = p._deleted;
     const stock = p.stock||0;
@@ -4213,10 +4252,15 @@ function renderProducts() {
       ? 'background:#d5f5e3;color:#1a6e3a;border:1px solid #a9dfbf;'
       : 'background:#f5f5f5;color:#999;border:1px solid #ddd;';
     const webLabel = p.showOnWeb ? '🌐 En Web' : '🔒 Oculto';
+    const hist = Array.isArray(p.priceHistory) && p.priceHistory.length ? p.priceHistory[p.priceHistory.length-1] : null;
+    const histTxt = hist ? `${cur(hist.oldPrice)} → ${cur(hist.newPrice)} (+${hist.percent}% ${hist.date})` : '-';
+    const histAll = Array.isArray(p.priceHistory) && p.priceHistory.length ? p.priceHistory.map(h => `${h.date}: ${cur(h.oldPrice)} → ${cur(h.newPrice)} (+${h.percent}%)`).join(' | ') : '';
     return `<tr style="${bg ? 'background:'+bg+';' : ''}${isArchived ? 'opacity:0.6;' : ''}">
+      <td><input type="checkbox" class="prod-select" value="${p.id}"></td>
       <td><strong>${esc(p.name)}${isArchived ? ' <span style="color:#999;font-weight:400;font-size:11px;">(archivado)</span>' : ''}</strong></td>
       <td>${pc ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${pc};margin-right:6px;vertical-align:middle;"></span><span style="color:${pc};font-weight:500;">${esc(prov.name)}</span>` : '-'}</td>
       <td><strong>${cur(p.price)}</strong></td>
+      <td style="font-size:11px;" title="${esc(histAll)}">${histTxt}</td>
       <td class="${low?'stock-low':''}">${stock}</td>
       <td>${min}</td>
       <td>${low ? '<span class="badge badge-danger">Stock Bajo</span>' : '<span class="badge badge-success">Ok</span>'}</td>
@@ -4281,6 +4325,30 @@ function deleteProduct(id) {
   saveKey('products'); renderProducts(); renderWarehouse(); syncPush();
 }
 
+function toggleAllProductSelect(checked) {
+  document.querySelectorAll('.prod-select').forEach(cb => { cb.checked = (checked === undefined ? !cb.checked : checked); });
+}
+
+function applyProductIncrease() {
+  const pct = parseFloat(document.getElementById('productIncreasePct').value);
+  if (isNaN(pct) || pct <= 0) { alert('Introduce un porcentaje válido mayor que 0.'); return; }
+  const ids = Array.from(document.querySelectorAll('.prod-select:checked')).map(cb => cb.value);
+  if (!ids.length) { alert('Selecciona al menos un producto.'); return; }
+  if (!confirm('¿Aumentar el precio un ' + pct + '% a ' + ids.length + ' producto(s)?')) return;
+  const date = new Date().toLocaleDateString('es-ES');
+  ids.forEach(id => {
+    const p = data.products.find(x => x.id === id);
+    if (!p || p._deleted) return;
+    const oldPrice = Number(p.price) || 0;
+    const newPrice = Math.round(oldPrice * (1 + pct/100) * 100) / 100;
+    if (!Array.isArray(p.priceHistory)) p.priceHistory = [];
+    p.priceHistory.push({ date: date, percent: pct, oldPrice: oldPrice, newPrice: newPrice });
+    p.price = newPrice;
+    p._modified = Date.now();
+  });
+  saveKey('products'); renderProducts(); syncPush();
+  alert('Aumento aplicado correctamente.');
+}
 function toggleProductWeb(id, val) {
   const p = data.products.find(x => x.id === id);
   if (!p) return;
