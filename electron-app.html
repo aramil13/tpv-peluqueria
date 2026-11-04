@@ -701,7 +701,7 @@ body:has(#sec-timecontrol.active) .main { min-width: 0; }
       <div class="form-group"><label>Código Postal</label><input type="text" id="clientZip" placeholder="28001"></div>
       <div class="form-group"><label>Teléfono</label><input type="text" id="clientPhone" placeholder="Teléfono"></div>
       <div class="form-group"><label>Email</label><input type="email" id="clientEmail" placeholder="email@ejemplo.com"></div>
-      <div class="form-group" style="position:relative;"><label>Contraseña (para reservas online)</label>
+      <div class="form-group"><label>UID Tarjeta NFC</label><input type="text" id="clientNfcUid" placeholder="Pasa la tarjeta para capturar UID" style="text-transform:uppercase;"></div>      <div class="form-group" style="position:relative;"><label>Contraseña (para reservas online)</label>
         <input type="password" id="clientPassword" placeholder="Mínimo 6 caracteres" style="padding-right:72px;" autocomplete="off">
         <span class="pw-toggle" onclick="togglePW('clientPassword',this)">👁</span>
         <button class="btn btn-sm" type="button" onclick="genClientPW()" style="position:absolute;right:4px;top:30px;padding:3px 6px;font-size:11px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;">Generar</button>
@@ -903,7 +903,7 @@ body:has(#sec-timecontrol.active) .main { min-width: 0; }
       <div class="form-group"><label>Apellidos</label><input type="text" id="employeeSurname" placeholder="Apellidos"></div>
       <div class="form-group"><label>Teléfono</label><input type="text" id="employeePhone" placeholder="Teléfono"></div>
       <div class="form-group"><label>Email</label><input type="email" id="employeeEmail" placeholder="email@ejemplo.com"></div>
-      <div class="form-group"><label>Rol</label><select id="employeeRole"><option value="Peluquera">Peluquera</option><option value="Esteticista">Esteticista</option><option value="Otro">Otro</option></select></div>
+      <div class="form-group"><label>UID Tarjeta NFC</label><input type="text" id="employeeNfcUid" placeholder="Pasa la tarjeta para capturar UID" style="text-transform:uppercase;"></div>      <div class="form-group"><label>Rol</label><select id="employeeRole"><option value="Peluquera">Peluquera</option><option value="Esteticista">Esteticista</option><option value="Otro">Otro</option></select></div>
     </div>
     <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('employeeModal')">Cancelar</button><button class="btn btn-primary" onclick="saveEmployee()">Guardar</button></div>
     <input type="hidden" id="employeeEditId">
@@ -2481,6 +2481,7 @@ function saveClient() {
     historialSalud: document.getElementById('clientHistorialSalud').value.trim(),
     historialTratamientos: document.getElementById('clientHistorialTratamientos').value.trim(),
     historialCapilar: document.getElementById('clientHistorialCapilar').value.trim(),
+    nfcUid: (document.getElementById('clientNfcUid') ? document.getElementById('clientNfcUid').value.trim().toUpperCase().replace(/\s+/g,'') : ''),
     punctuality: document.getElementById('clientPunctuality').value,
     photos: clientPhotosWorking.slice(),
     _modified: Date.now(),
@@ -2508,6 +2509,7 @@ function saveClient() {
         existing.historialSalud = obj.historialSalud;
         existing.historialTratamientos = obj.historialTratamientos;
         existing.historialCapilar = obj.historialCapilar;
+        existing.nfcUid = obj.nfcUid;
         existing._modified = Date.now();
         saveKey('clients'); clearClientForm(); closeModal('clientModal'); renderClients(); syncPush(); updateDiagFilterCount();
         return;
@@ -2536,6 +2538,7 @@ function editClient(id) {
   document.getElementById('clientHistorialSalud').value = c.historialSalud||'';
   document.getElementById('clientHistorialTratamientos').value = c.historialTratamientos||'';
   document.getElementById('clientHistorialCapilar').value = c.historialCapilar||'';
+  if (document.getElementById('clientNfcUid')) document.getElementById('clientNfcUid').value = c.nfcUid||'';
   document.getElementById('clientPunctuality').value = c.punctuality||'';
   clientPhotosWorking = (c.photos || []).slice();
   renderClientPhotos();
@@ -2689,7 +2692,7 @@ function viewClientPhoto(idx) {
 }
 
 function clearClientForm() {
-  ['clientEditId','clientName','clientSurname','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNotes','clientHistorialSalud','clientHistorialTratamientos','clientHistorialCapilar','clientPassword'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  ['clientEditId','clientName','clientSurname','clientNif','clientAddress','clientCity','clientProvince','clientZip','clientPhone','clientEmail','clientNfcUid','clientNotes','clientHistorialSalud','clientHistorialTratamientos','clientHistorialCapilar','clientPassword'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
   document.getElementById('clientPunctuality').value = '';
   document.getElementById('clientStats').style.display = 'none';
   document.getElementById('clientModalTitle').textContent = 'Nuevo Cliente';
@@ -2756,6 +2759,7 @@ function saveEmployee() {
   const obj = {
     name, apellidos: document.getElementById('employeeSurname').value.trim(), phone: document.getElementById('employeePhone').value.trim(),
     email: document.getElementById('employeeEmail').value.trim(),
+    nfcUid: (document.getElementById('employeeNfcUid') ? document.getElementById('employeeNfcUid').value.trim().toUpperCase().replace(/\s+/g,'') : ''),
     role: document.getElementById('employeeRole').value,
     _modified: Date.now(),
     _deleted: false
@@ -2777,6 +2781,7 @@ function editEmployee(id) {
   document.getElementById('employeeSurname').value = e.apellidos||'';
   document.getElementById('employeePhone').value = e.phone||'';
   document.getElementById('employeeEmail').value = e.email||'';
+  if (document.getElementById('employeeNfcUid')) document.getElementById('employeeNfcUid').value = e.nfcUid||'';
   document.getElementById('employeeRole').value = e.role||'Peluquera';
   document.getElementById('employeeModalTitle').textContent = 'Editar Empleado';
   openModal('employeeModal');
@@ -2795,6 +2800,7 @@ function clearEmployeeForm() {
   document.getElementById('employeeSurname').value = '';
   document.getElementById('employeePhone').value = '';
   document.getElementById('employeeEmail').value = '';
+  if (document.getElementById('employeeNfcUid')) document.getElementById('employeeNfcUid').value = '';
   document.getElementById('employeeRole').value = 'Peluquera';
   document.getElementById('employeeModalTitle').textContent = 'Nuevo Empleado';
 }
@@ -7405,14 +7411,112 @@ function initAlphabetFilters() {
   }
 }
 
-// ============ GLOBAL BARCODE SCANNER ============
+// ============ NFC CARD (USB reader) + BARCODE SCANNER ============
 let barcodeBuf = '';
 let barcodeTimer = null;
+let nfcBuf = '';
+let nfcTimer = null;
+
+function nfcNormalize(uid) { return (uid||'').toString().trim().toUpperCase().replace(/\s+/g,''); }
+
+function findNfcOwner(uid) {
+  uid = nfcNormalize(uid);
+  if (!uid) return null;
+  const c = (data.clients||[]).find(x => !x._deleted && nfcNormalize(x.nfcUid) === uid);
+  if (c) return { type: 'client', obj: c };
+  const e = (data.employees||[]).find(x => !x._deleted && nfcNormalize(x.nfcUid) === uid);
+  if (e) return { type: 'employee', obj: e };
+  return null;
+}
+
+function nfcToast(msg) {
+  let t = document.getElementById('nfcToast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'nfcToast';
+    t.style.cssText = 'position:fixed;top:20px;right:20px;background:#2c3e50;color:#fff;padding:12px 18px;border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.3);z-index:9999;font-size:14px;opacity:0;transition:opacity .3s;max-width:320px;';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(function() { t.style.opacity = '0'; }, 3500);
+}
+
+function handleNfcRead(uid) {
+  const owner = findNfcOwner(uid);
+  if (!owner) { nfcToast('Tarjeta no registrada: ' + nfcNormalize(uid)); return false; }
+  if (owner.type === 'client') {
+    nfcToast('Cliente: ' + (typeof fullName === 'function' ? fullName(owner.obj) : owner.obj.name));
+    if (typeof editClient === 'function') editClient(owner.obj.id);
+    return true;
+  }
+  // Empleado: fichar entrada/salida automáticamente
+  const emp = owner.obj;
+  const today = (typeof tcToday === 'function') ? tcToday() : null;
+  const now = (typeof tcNowHM === 'function') ? tcNowHM() : '';
+  let rec = (typeof tcGetClockRecord === 'function') ? tcGetClockRecord(emp.id, today) : null;
+  let msg = '';
+  if (!rec || !rec.clockIn || rec.clockOut) {
+    // Fichar entrada (reabrir jornada cerrada sin confirmación)
+    if (rec && rec.clockOut) {
+      rec.clockIn = now;
+      rec.clockOut = '';
+      rec.breaks = [];
+    } else if (rec) {
+      rec.clockIn = now;
+    } else {
+      rec = { id: 'tc_' + emp.id + '_' + today, employeeId: emp.id, date: today, clockIn: now, clockOut: '', breaks: [], note: '', _modified: Date.now(), _deleted: false };
+      if (!Array.isArray(data.timeClock)) data.timeClock = [];
+      data.timeClock.push(rec);
+    }
+    msg = 'Entrada fichada ' + now;
+  } else {
+    // Fichar salida
+    const active = (typeof tcActiveBreak === 'function') ? tcActiveBreak(rec) : null;
+    if (active) active.end = now;
+    rec.clockOut = now;
+    msg = 'Salida fichada ' + now;
+  }
+  rec._modified = Date.now();
+  rec._deleted = false;
+  if (typeof saveKey === 'function') saveKey('timeClock');
+  if (typeof syncPush === 'function') syncPush();
+  if (typeof renderClockStatus === 'function') renderClockStatus();
+  if (typeof renderTeamClock === 'function') renderTeamClock();
+  if (typeof renderClockHistory === 'function') renderClockHistory();
+  if (typeof renderSummary === 'function') renderSummary();
+  const sel = document.getElementById('tcClockEmployee');
+  if (sel) sel.value = emp.id;
+  const nav = document.querySelector('.nav-item[data-section="timecontrol"]');
+  if (nav) nav.click();
+  nfcToast((typeof fullName === 'function' ? fullName(emp) : emp.name) + ': ' + msg);
+  return true;
+}
+
 document.addEventListener('keydown', function(e) {
+  // No capturar mientras se escribe en un campo
+  const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') {
+    nfcBuf = ''; barcodeBuf = '';
+    return;
+  }
+
   const posPage = document.getElementById('sec-pos') && document.getElementById('sec-pos').classList.contains('active');
-  if (!posPage) { barcodeBuf = ''; return; }
+
   if (e.key === 'Enter') {
-    if (barcodeBuf.length >= 3) {
+    // Prioridad NFC
+    if (nfcBuf.length >= 3) {
+      const uid = nfcBuf;
+      nfcBuf = '';
+      clearTimeout(nfcTimer);
+      if (handleNfcRead(uid)) { e.preventDefault(); return; }
+    }
+    nfcBuf = '';
+    clearTimeout(nfcTimer);
+
+    // Barcode productos en POS
+    if (posPage && barcodeBuf.length >= 3) {
       const bc = barcodeBuf;
       barcodeBuf = '';
       clearTimeout(barcodeTimer);
@@ -7428,13 +7532,28 @@ document.addEventListener('keydown', function(e) {
     barcodeBuf = '';
     return;
   }
-  if (e.key.length === 1 && /^\d$/.test(e.key)) {
-    barcodeBuf += e.key;
-    clearTimeout(barcodeTimer);
-    barcodeTimer = setTimeout(function() { barcodeBuf = ''; }, 200);
-  } else if (barcodeBuf.length > 0) {
-    barcodeBuf = '';
-    clearTimeout(barcodeTimer);
+
+  if (e.key.length === 1) {
+    // Acumular para NFC (alfanumérico)
+    if (/^[A-Za-z0-9]$/.test(e.key)) {
+      nfcBuf += e.key;
+      clearTimeout(nfcTimer);
+      nfcTimer = setTimeout(function() { nfcBuf = ''; }, 200);
+    } else {
+      if (nfcBuf.length > 0) { nfcBuf = ''; clearTimeout(nfcTimer); }
+    }
+    // Barcode solo dígitos (solo en POS)
+    if (posPage && /^\d$/.test(e.key)) {
+      barcodeBuf += e.key;
+      clearTimeout(barcodeTimer);
+      barcodeTimer = setTimeout(function() { barcodeBuf = ''; }, 200);
+    } else if (barcodeBuf.length > 0 && !/^\d$/.test(e.key)) {
+      barcodeBuf = '';
+      clearTimeout(barcodeTimer);
+    }
+  } else {
+    if (nfcBuf.length > 0) { nfcBuf = ''; clearTimeout(nfcTimer); }
+    if (barcodeBuf.length > 0) { barcodeBuf = ''; clearTimeout(barcodeTimer); }
   }
 }, true);
 
