@@ -249,6 +249,39 @@ tr:hover td { background: #f8f9fa; }
   .content { padding: 15px; }
   .topbar { padding: 10px 15px; }
 }
+
+/* --- Control de horario y fichajes --- */
+.tc-clock-big { font-size: 56px; font-weight: 700; color: var(--primary); letter-spacing: 2px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tc-clock-date { font-size: 13px; color: var(--text-light); text-transform: capitalize; margin-bottom: 2px; }
+.tc-status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600; }
+.tc-status-none { background: #f2f3f4; color: #5d6d7e; }
+.tc-status-working { background: #d5f5e3; color: #1a6e3a; }
+.tc-status-break { background: #fdebd0; color: #935d0a; }
+.tc-status-done { background: #d6eaf8; color: #1a5276; }
+.tc-metric { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
+.tc-metric .tc-metric-label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-light); }
+.tc-metric .tc-metric-value { font-size: 15px; font-weight: 600; margin-top: 2px; }
+.tc-employee-card { border: 1px solid var(--border); border-radius: 10px; padding: 10px; cursor: pointer; transition: all .15s; background: var(--card); }
+.tc-employee-card:hover { border-color: var(--primary-light); box-shadow: 0 2px 8px rgba(0,0,0,.08); }
+.tc-employee-card.tc-selected { border-color: var(--primary); box-shadow: 0 0 0 2px rgba(108,52,131,.12); }
+.tc-template-row { display: grid; grid-template-columns: 120px repeat(4, 1fr); gap: 8px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); }
+.tc-template-head { font-size: 11px; text-transform: uppercase; letter-spacing: .4px; color: var(--text-light); font-weight: 600; }
+.tc-template-row input[type="time"] { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 13px; background: #fff; }
+.tc-template-row input[type="time"]:disabled { background: var(--bg); color: var(--text-light); }
+.tc-schedule-today td { background: #fdf6e3 !important; }
+.tc-diff-pos { color: var(--success); font-weight: 600; }
+.tc-diff-neg { color: var(--danger); font-weight: 600; }
+.tc-mini-btn { padding: 4px 8px; font-size: 11px; }
+.tc-clock-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.tc-clock-layout > * { min-width: 0; }
+.tc-action-grid, .tc-team-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tc-team-grid > * { min-width: 0; }
+body:has(#sec-timecontrol.active) .main { min-width: 0; }
+@media (max-width: 768px) {
+  .tc-clock-big { font-size: 38px; }
+  .tc-template-row { min-width: 620px; }
+  .tc-employee-card { padding: 8px; }
+}
 </style>
 </head>
 <body>
@@ -263,6 +296,7 @@ tr:hover td { background: #f8f9fa; }
     <div class="nav-item" data-section="pos"><span class="icon">🛒</span><span>Punto de Venta</span></div>
     <div class="nav-item" data-section="clients"><span class="icon">👥</span><span>Clientes</span></div>
     <div class="nav-item" data-section="employees"><span class="icon">🧑‍💼</span><span>Empleados</span></div>
+    <div class="nav-item" data-section="timecontrol"><span class="icon">⏱️</span><span>CONTROL DE HORARIO</span></div>
     <div class="nav-item" data-section="services"><span class="icon">✂️</span><span>Servicios</span></div>
     <div class="nav-item" data-section="sections"><span class="icon">📂</span><span>Secciones</span></div>
     <div class="nav-item" data-section="projects"><span class="icon">🏷️</span><span>Ofertas</span></div>
@@ -381,6 +415,108 @@ tr:hover td { background: #f8f9fa; }
         <div class="card-header"><h3>Gestión de Empleados</h3><div style="display:flex;gap:8px;"><button class="btn btn-secondary btn-sm" onclick="importData('employees')">📥 Importar</button><button class="btn btn-secondary btn-sm" onclick="exportData('employees')">📤 Exportar</button><button class="btn btn-primary" onclick="clearEmployeeForm();openModal('employeeModal')">+ Nuevo Empleado</button></div></div>
         <div class="search-bar"><input type="text" id="searchEmployee" placeholder="Buscar por nombre, teléfono o email..." oninput="renderEmployees()"></div>
         <div style="overflow-x:auto;"><table><thead><tr><th>Nombre</th><th>Teléfono</th><th>Email</th><th>Rol</th><th>Acciones</th></tr></thead><tbody id="employeesTable"></tbody></table></div>
+      </div>
+    </div>
+
+    <!-- CONTROL DE HORARIO -->
+    <div class="section" id="sec-timecontrol">
+      <div class="card" style="padding-bottom:0;">
+        <div class="card-header" style="margin-bottom:0;padding-bottom:0;border-bottom:none;flex-wrap:wrap;gap:10px;">
+          <h3>⏱️ Control de Horario</h3>
+          <div class="tabs" style="margin-bottom:0;border-bottom:none;">
+            <div class="tab tc-tab active" id="tcTabSchedules" onclick="setTimeControlTab('schedules',this)">📅 Horarios</div>
+            <div class="tab tc-tab" id="tcTabClock" onclick="setTimeControlTab('clock',this)">⏱️ Fichajes</div>
+            <div class="tab tc-tab" id="tcTabSummary" onclick="setTimeControlTab('summary',this)">📊 Resumen</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- HORARIOS -->
+      <div id="tcPanelSchedules">
+        <div class="card">
+          <div class="card-header" style="flex-wrap:wrap;gap:8px;">
+            <h3>Horarios anuales por empleado</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <select id="scheduleYear" onchange="renderScheduleTable()" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></select>
+              <button class="btn btn-secondary btn-sm" onclick="openScheduleTemplateModal()">🗓️ Plantilla semanal</button>
+              <button class="btn btn-primary" onclick="generateYearSchedules()">⚡ Generar año</button>
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;">
+            <select id="scheduleEmployeeFilter" onchange="renderScheduleTable()" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></select>
+            <select id="scheduleMonthFilter" onchange="renderScheduleTable()" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></select>
+            <button class="btn btn-secondary btn-sm" onclick="openScheduleDayModal()">＋ Añadir día</button>
+            <button class="btn btn-secondary btn-sm" onclick="exportScheduleCsv()">📤 Exportar horarios</button>
+            <span style="font-size:12px;color:var(--text-light);margin-left:auto;">Los cambios manuales se conservan al regenerar</span>
+          </div>
+          <div id="scheduleStats" class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:15px;"></div>
+          <div id="scheduleTableWrap" style="overflow-x:auto;"></div>
+        </div>
+      </div>
+
+      <!-- FICHAJES -->
+      <div id="tcPanelClock" style="display:none;">
+        <div class="card">
+          <div class="card-header" style="flex-wrap:wrap;gap:8px;">
+            <h3>⏱️ Fichaje de entrada y salida</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <select id="tcClockEmployee" onchange="renderClockStatus();renderTeamClock()" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></select>
+              <button class="btn btn-secondary btn-sm" onclick="openTimeClockEditor()">＋ Fichaje manual</button>
+            </div>
+          </div>
+          <div class="grid-2 tc-clock-layout">
+            <div style="text-align:center;padding:14px;background:var(--bg);border-radius:12px;">
+              <div id="tcLiveDate" class="tc-clock-date"></div>
+              <div id="tcLiveClock" class="tc-clock-big">--:--:--</div>
+              <div id="tcClockStatusBadge" style="margin:10px 0 14px;"></div>
+              <div class="tc-action-grid" style="text-align:left;">
+                <div class="tc-metric"><div class="tc-metric-label">Horario previsto</div><div class="tc-metric-value" id="tcScheduled">-</div></div>
+                <div class="tc-metric"><div class="tc-metric-label">Entrada</div><div class="tc-metric-value" id="tcClockIn">--:--</div></div>
+                <div class="tc-metric"><div class="tc-metric-label">Salida</div><div class="tc-metric-value" id="tcClockOut">--:--</div></div>
+                <div class="tc-metric"><div class="tc-metric-label">Tiempo trabajado</div><div class="tc-metric-value" id="tcWorked">0h</div></div>
+              </div>
+              <div id="tcBreaks" style="font-size:12px;color:var(--text-light);margin-top:8px;"></div>
+              <div id="tcDifference" style="font-size:12px;margin-top:4px;"></div>
+              <div class="tc-action-grid" style="margin-top:14px;">
+                <button id="tcBtnIn" class="btn btn-success" onclick="clockAction('in')">🟢 Fichar entrada</button>
+                <button id="tcBtnBreakStart" class="btn btn-warning" onclick="clockAction('breakStart')">☕ Iniciar pausa</button>
+                <button id="tcBtnBreakEnd" class="btn btn-secondary" onclick="clockAction('breakEnd')">▶️ Fin de pausa</button>
+                <button id="tcBtnOut" class="btn btn-danger" onclick="clockAction('out')">🔴 Fichar salida</button>
+              </div>
+            </div>
+            <div>
+              <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Estado del equipo hoy</div>
+              <div id="tcTeamStatus" class="tc-team-grid"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" style="flex-wrap:wrap;gap:8px;">
+            <h3>Historial de fichajes</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <input type="month" id="tcHistoryMonth" onchange="renderClockHistory()" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;">
+              <select id="tcHistoryEmployee" onchange="renderClockHistory()" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></select>
+              <button class="btn btn-secondary btn-sm" onclick="exportTimeClockCsv()">📤 Exportar fichajes</button>
+            </div>
+          </div>
+          <div id="tcHistoryTable" style="overflow-x:auto;"></div>
+        </div>
+      </div>
+
+      <!-- RESUMEN -->
+      <div id="tcPanelSummary" style="display:none;">
+        <div class="card">
+          <div class="card-header" style="flex-wrap:wrap;gap:8px;">
+            <h3>Resumen anual de horas</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <select id="tcSummaryYear" onchange="renderSummary()" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></select>
+              <select id="tcSummaryEmployee" onchange="renderSummary()" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></select>
+              <button class="btn btn-secondary btn-sm" onclick="exportSummaryCsv()">📤 Exportar resumen</button>
+            </div>
+          </div>
+          <div id="tcSummaryTable" style="overflow-x:auto;"></div>
+        </div>
       </div>
     </div>
 
@@ -937,6 +1073,86 @@ tr:hover td { background: #f8f9fa; }
   </div>
 </div>
 
+<!-- MODAL: PLANTILLA SEMANAL DE HORARIO -->
+<div class="modal" id="scheduleTemplateModal">
+  <div class="modal-content" style="max-width:820px;">
+    <div class="modal-header"><h3>🗓️ Plantilla semanal de horario</h3><button class="modal-close" onclick="closeModal('scheduleTemplateModal')">&times;</button></div>
+    <div class="form-group"><label>Empleado *</label><select id="templateEmployee" onchange="renderTemplateRows()"></select></div>
+    <div style="font-size:12px;color:var(--text-light);margin-bottom:10px;">Define la semana tipo del empleado. Después podrás generar todos los días laborables del año con esta plantilla.</div>
+    <div style="overflow-x:auto;">
+      <div id="templateRows" style="min-width:620px;"></div>
+    </div>
+    <div class="modal-footer" style="flex-direction:row;justify-content:flex-end;">
+      <button class="btn btn-secondary" onclick="closeModal('scheduleTemplateModal')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveScheduleTemplate()">💾 Guardar plantilla</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: DÍA DE HORARIO -->
+<div class="modal" id="scheduleDayModal">
+  <div class="modal-content" style="max-width:560px;">
+    <div class="modal-header"><h3 id="scheduleDayModalTitle">Editar día de horario</h3><button class="modal-close" onclick="closeModal('scheduleDayModal')">&times;</button></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Empleado *</label><select id="scheduleDayEmployee"></select></div>
+      <div class="form-group"><label>Fecha *</label><input type="date" id="scheduleDayDate"></div>
+    </div>
+    <div class="form-group"><label>Estado</label>
+      <select id="scheduleDayStatus" onchange="toggleScheduleDayTimes()">
+        <option value="work">Laborable</option>
+        <option value="off">Descanso</option>
+        <option value="vacation">Vacaciones</option>
+        <option value="holiday">Festivo</option>
+        <option value="sick">Baja</option>
+      </select>
+    </div>
+    <div class="grid-2">
+      <div class="form-group"><label>Entrada</label><input type="time" id="scheduleDayStart"></div>
+      <div class="form-group"><label>Salida</label><input type="time" id="scheduleDayEnd"></div>
+      <div class="form-group"><label>Pausa desde</label><input type="time" id="scheduleDayBreakStart"></div>
+      <div class="form-group"><label>Pausa hasta</label><input type="time" id="scheduleDayBreakEnd"></div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="scheduleDayNote" placeholder="Observaciones de este día..." style="min-height:50px;"></textarea></div>
+    <div class="modal-footer" style="flex-direction:row;justify-content:space-between;">
+      <button class="btn btn-danger" id="scheduleDayDeleteBtn" onclick="deleteScheduleDayFromModal()" style="display:none;">🗑️ Eliminar</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary" onclick="closeModal('scheduleDayModal')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveScheduleDay()">Guardar</button>
+      </div>
+    </div>
+    <input type="hidden" id="scheduleDayEditId">
+  </div>
+</div>
+
+<!-- MODAL: FICHAJE MANUAL -->
+<div class="modal" id="timeClockEditModal">
+  <div class="modal-content" style="max-width:600px;">
+    <div class="modal-header"><h3 id="timeClockModalTitle">Editar fichaje</h3><button class="modal-close" onclick="closeModal('timeClockEditModal')">&times;</button></div>
+    <div class="grid-2">
+      <div class="form-group"><label>Empleado *</label><select id="tcEditEmployee"></select></div>
+      <div class="form-group"><label>Fecha *</label><input type="date" id="tcEditDate"></div>
+      <div class="form-group"><label>Entrada</label><input type="time" id="tcEditIn"></div>
+      <div class="form-group"><label>Salida</label><input type="time" id="tcEditOut"></div>
+    </div>
+    <div style="font-size:12px;font-weight:600;color:var(--text-light);margin:4px 0 8px;">Pausas</div>
+    <div class="grid-2">
+      <div class="form-group"><label>Pausa 1 desde</label><input type="time" id="tcEditBreak1Start"></div>
+      <div class="form-group"><label>Pausa 1 hasta</label><input type="time" id="tcEditBreak1End"></div>
+      <div class="form-group"><label>Pausa 2 desde</label><input type="time" id="tcEditBreak2Start"></div>
+      <div class="form-group"><label>Pausa 2 hasta</label><input type="time" id="tcEditBreak2End"></div>
+    </div>
+    <div class="form-group"><label>Notas</label><textarea id="tcEditNote" placeholder="Observaciones..." style="min-height:50px;"></textarea></div>
+    <div class="modal-footer" style="flex-direction:row;justify-content:space-between;">
+      <button class="btn btn-danger" id="tcEditDeleteBtn" onclick="deleteTimeClockFromModal()" style="display:none;">🗑️ Eliminar</button>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-secondary" onclick="closeModal('timeClockEditModal')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveTimeClockRecord()">Guardar</button>
+      </div>
+    </div>
+    <input type="hidden" id="tcEditId">
+  </div>
+</div>
+
 <script>
 // ============ DATA LAYER ============
 const DB = {
@@ -964,6 +1180,9 @@ let data = {
   appointments: DB.get('appointments', []),
   sales: DB.get('sales', []),
   movements: DB.get('movements', []),
+  scheduleTemplates: DB.get('scheduleTemplates', []),
+  scheduleDays: DB.get('scheduleDays', []),
+  timeClock: DB.get('timeClock', []),
   ivaRate: DB.get('ivaRate', 21),
   ticketBackups: DB.get('ticketBackups', []),
   invoiceBackups: DB.get('invoiceBackups', []),
@@ -995,8 +1214,9 @@ let data = {
 }
 
 // Ensure all list fields are arrays (fix localStorage corruption)
-const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','movements'];
+const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','movements','scheduleTemplates','scheduleDays','timeClock'];
 ARRAY_KEYS.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
+tcDedupeControlData();
 
 // Past appointments are purged automatically on TPV start (cleanOldAppointments).
 
@@ -1835,6 +2055,9 @@ function syncPush() {
     projects: Array.isArray(data.projects) ? data.projects : [],
     providers: Array.isArray(data.providers) ? data.providers : [],
     sales: Array.isArray(data.sales) ? data.sales : [],
+    scheduleTemplates: Array.isArray(data.scheduleTemplates) ? data.scheduleTemplates : [],
+    scheduleDays: Array.isArray(data.scheduleDays) ? data.scheduleDays : [],
+    timeClock: Array.isArray(data.timeClock) ? data.timeClock : [],
     settings: data.settings || {}
   });
   const headers = { 'Content-Type': 'application/json' };
@@ -1963,6 +2186,10 @@ function applyRemoteData(remote, source) {
   if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
   if (Array.isArray(remote.projects) && remote.projects.length > 0) data.projects = [...remote.projects];
   if (Array.isArray(remote.providers) && remote.providers.length > 0) data.providers = [...remote.providers];
+  ['scheduleTemplates', 'scheduleDays', 'timeClock'].forEach(k => {
+    if (Array.isArray(remote[k])) mergeRemote(k, remote[k]);
+  });
+  tcDedupeControlData();
 }
 
 function syncPull() {
@@ -1993,7 +2220,7 @@ function syncPull() {
     try {
       saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
       saveKey('clients'); saveKey('projects'); saveKey('providers'); saveKey('appointments');
-      saveKey('sales');
+      saveKey('sales'); saveKey('scheduleTemplates'); saveKey('scheduleDays'); saveKey('timeClock');
     } catch(e) { console.error('SAVE ERROR:', e); }
 
     const active = document.querySelector('.nav-item.active');
@@ -2004,6 +2231,7 @@ function syncPull() {
       else if (sec === 'services') renderServices();
       else if (sec === 'sections') renderSections();
       else if (sec === 'employees') renderEmployees();
+      else if (sec === 'timecontrol') renderTimeControl();
       else if (sec === 'products') { renderProducts(); renderWarehouse(); }
       else if (sec === 'projects') renderProjects();
       else if (sec === 'dashboard') renderDashboard();
@@ -2089,6 +2317,10 @@ function syncWebNow() {
       products: Array.isArray(data.products) ? data.products : [],
       projects: Array.isArray(data.projects) ? data.projects : [],
       providers: Array.isArray(data.providers) ? data.providers : [],
+      sales: Array.isArray(data.sales) ? data.sales : [],
+      scheduleTemplates: Array.isArray(data.scheduleTemplates) ? data.scheduleTemplates : [],
+      scheduleDays: Array.isArray(data.scheduleDays) ? data.scheduleDays : [],
+      timeClock: Array.isArray(data.timeClock) ? data.timeClock : [],
       settings: data.settings || {}
     })
   }).then(async r => {
@@ -2117,10 +2349,11 @@ document.querySelectorAll('.nav-item').forEach(el => {
       dashboard:'PANEL DE CONTROL', pos:'Punto de Venta', clients:'Clientes', services:'Servicios',
       sections:'Secciones', projects:'Pack de Servicios', products:'Productos',
       providers:'Proveedores', warehouse:'Almacén', agenda:'Agenda', employees:'Empleados',
+      timecontrol:'CONTROL DE HORARIO',
       'pending-confirmations':'Confirmaciones Pendientes', reminders:'Recordatorios WhatsApp', reports:'Listados'
     };
     const t = titles[this.dataset.section]||'';
-    const subs = {pos:'Terminal de cobro', clients:'Gestión de clientes', employees:'Gestión de empleados', services:'Servicios y tratamientos',
+    const subs = {pos:'Terminal de cobro', clients:'Gestión de clientes', employees:'Gestión de empleados', timecontrol:'Horarios anuales y fichaje de empleados', services:'Servicios y tratamientos',
       sections:'Categorías de servicios', projects:'Packs de servicios', products:'Productos para la venta',
       providers:'Proveedores de productos', warehouse:'Control de inventario',
       agenda:'Gestión de citas', 'pending-confirmations':'Citas pendientes de confirmar por el salón', reminders:'Citas próximas para enviar recordatorio', reports:'Informes y estadísticas'};
@@ -2129,6 +2362,7 @@ document.querySelectorAll('.nav-item').forEach(el => {
     if (this.dataset.section === 'pos') { renderPosSectionTabs(); renderPosItems(); updateTicket(); }
     if (this.dataset.section === 'clients') renderClients();
     if (this.dataset.section === 'employees') renderEmployees();
+    if (this.dataset.section === 'timecontrol') renderTimeControl();
     if (this.dataset.section === 'services') renderServices();
     if (this.dataset.section === 'sections') renderSections();
     if (this.dataset.section === 'projects') renderProjects();
@@ -2146,6 +2380,8 @@ document.querySelectorAll('.nav-item').forEach(el => {
 function updateClock() {
   const d = new Date();
   document.getElementById('clock').textContent = d.toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long',year:'numeric'})+' | '+d.toLocaleTimeString('es-ES');
+  const tcLive = document.getElementById('tcLiveClock');
+  if (tcLive) tcLive.textContent = d.toLocaleTimeString('es-ES');
 }
 updateClock(); setInterval(updateClock, 1000);
 
@@ -2561,6 +2797,938 @@ function clearEmployeeForm() {
   document.getElementById('employeeEmail').value = '';
   document.getElementById('employeeRole').value = 'Peluquera';
   document.getElementById('employeeModalTitle').textContent = 'Nuevo Empleado';
+}
+
+// ============ CONTROL DE HORARIO ============
+const TC_WEEKDAYS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+const TC_MONTHS = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const TC_STATUS = {
+  work:     { label: 'Laborable', cls: 'badge-success' },
+  off:      { label: 'Descanso',  cls: 'badge-warning' },
+  vacation: { label: 'Vacaciones',cls: 'badge-info' },
+  holiday:  { label: 'Festivo',   cls: 'badge-warning' },
+  sick:     { label: 'Baja',      cls: 'badge-danger' }
+};
+let timeControlTab = 'schedules';
+
+function tcPad(n) { return String(n).padStart(2, '0'); }
+function tcToday() { return madridDateStr(); }
+function tcNowHM() {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Madrid', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(new Date());
+  const h = (parts.find(p => p.type === 'hour') || {}).value || '00';
+  const m = (parts.find(p => p.type === 'minute') || {}).value || '00';
+  return h + ':' + m;
+}
+function tcDate(year, month, day) { return year + '-' + tcPad(month) + '-' + tcPad(day); }
+function tcWeekday(dateStr) { return new Date(dateStr + 'T12:00:00').getDay(); }
+function tcYearDates(year) {
+  const out = [];
+  for (let m = 1; m <= 12; m++) {
+    const dim = new Date(year, m, 0).getDate();
+    for (let d = 1; d <= dim; d++) out.push(tcDate(year, m, d));
+  }
+  return out;
+}
+function tcParseHM(v) {
+  if (!v) return null;
+  const p = String(v).split(':');
+  const h = parseInt(p[0], 10), m = parseInt(p[1], 10);
+  if (isNaN(h)) return null;
+  return h * 60 + (isNaN(m) ? 0 : m);
+}
+function tcFmtHM(min) { if (min == null) return '-'; return tcPad(Math.floor(min / 60) % 24) + ':' + tcPad(min % 60); }
+function tcFmtDuration(min) {
+  min = Math.max(0, Math.round(min || 0));
+  const h = Math.floor(min / 60), m = min % 60;
+  return h + 'h' + (m ? ' ' + tcPad(m) + 'm' : '');
+}
+function tcFmtDiff(min) {
+  if (min == null) return '';
+  const sign = min > 0 ? '+' : (min < 0 ? '-' : '');
+  return sign + tcFmtDuration(Math.abs(min));
+}
+function tcActiveEmployees() {
+  return (data.employees || []).filter(e => e && !e._deleted).sort((a, b) => fullName(a).localeCompare(fullName(b)));
+}
+function tcEmployeeName(empId) {
+  const e = (data.employees || []).find(x => x && x.id === empId);
+  return e ? fullName(e) : 'Empleado eliminado';
+}
+
+// Unifica duplicados que puedan llegar por sync: una plantilla por empleado+día,
+// un horario por empleado+fecha y un fichaje por empleado+fecha.
+function tcDedupeControlData() {
+  ['scheduleTemplates', 'scheduleDays', 'timeClock'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
+  const keepLatest = (arr, keyFn) => {
+    const map = new Map();
+    (arr || []).forEach(item => {
+      if (!item || typeof item !== 'object') return;
+      const key = keyFn(item);
+      const prev = map.get(key);
+      if (!prev || (item._modified || 0) >= (prev._modified || 0)) map.set(key, item);
+    });
+    return Array.from(map.values());
+  };
+  data.scheduleTemplates = keepLatest(data.scheduleTemplates, t => String(t.employeeId) + '|' + String(t.weekday));
+  data.scheduleDays = keepLatest(data.scheduleDays, d => String(d.employeeId) + '|' + String(d.date));
+  data.timeClock = keepLatest(data.timeClock, r => String(r.employeeId) + '|' + String(r.date));
+}
+
+function tcGetTemplate(empId) {
+  const saved = (data.scheduleTemplates || []).filter(t => t && !t._deleted && t.employeeId === empId);
+  return [0,1,2,3,4,5,6].map(wd => {
+    const existing = saved.find(t => Number(t.weekday) === wd);
+    if (existing) return Object.assign({}, existing);
+    const oh = data.settings && data.settings.openingHours ? data.settings.openingHours[wd] : null;
+    const enabled = oh ? oh.closed !== true : (wd >= 1 && wd <= 6);
+    return {
+      employeeId: empId,
+      weekday: wd,
+      enabled,
+      start: (oh && (oh.morningOpen || oh.open)) || '09:00',
+      end: (oh && (oh.afternoonClose || oh.close)) || '20:00',
+      breakStart: (oh && oh.morningClose) || '',
+      breakEnd: (oh && oh.afternoonOpen) || ''
+    };
+  });
+}
+function tcGetScheduleDay(empId, date) {
+  return (data.scheduleDays || []).find(d => d && !d._deleted && d.employeeId === empId && d.date === date) || null;
+}
+function tcGetClockRecord(empId, date) {
+  return (data.timeClock || []).find(r => r && !r._deleted && r.employeeId === empId && r.date === date) || null;
+}
+function tcScheduleMinutes(entry) {
+  if (!entry || entry.status !== 'work') return 0;
+  const s = tcParseHM(entry.start), e = tcParseHM(entry.end);
+  if (s == null || e == null || e <= s) return 0;
+  let total = e - s;
+  const bs = tcParseHM(entry.breakStart), be = tcParseHM(entry.breakEnd);
+  if (bs != null && be != null && be > bs && bs >= s && be <= e) total -= (be - bs);
+  return Math.max(0, total);
+}
+function tcActiveBreak(rec) {
+  if (!rec || !Array.isArray(rec.breaks)) return null;
+  for (let i = rec.breaks.length - 1; i >= 0; i--) {
+    if (rec.breaks[i] && rec.breaks[i].start && !rec.breaks[i].end) return rec.breaks[i];
+  }
+  return null;
+}
+function tcRecordMinutes(rec, live) {
+  if (!rec || !rec.clockIn) return 0;
+  const inM = tcParseHM(rec.clockIn);
+  let outM = tcParseHM(rec.clockOut);
+  if (inM == null) return 0;
+  if (outM == null) {
+    if (!live) return 0;
+    outM = tcParseHM(tcNowHM());
+  }
+  if (outM == null) return 0;
+  if (outM < inM) outM += 24 * 60;
+  let total = outM - inM;
+  (rec.breaks || []).forEach(b => {
+    if (!b || !b.start) return;
+    const bs = tcParseHM(b.start);
+    let be = tcParseHM(b.end);
+    if (bs == null) return;
+    if (be == null) {
+      if (!live) return;
+      be = tcParseHM(tcNowHM());
+    }
+    if (be == null) return;
+    if (be < bs) be += 24 * 60;
+    total -= Math.max(0, be - bs);
+  });
+  return Math.max(0, total);
+}
+function tcStatusInfo(rec) {
+  if (!rec || !rec.clockIn) return { key: 'none', label: 'Sin fichar', cls: 'tc-status-none' };
+  if (rec.clockOut) return { key: 'done', label: 'Jornada finalizada', cls: 'tc-status-done' };
+  if (tcActiveBreak(rec)) return { key: 'break', label: 'En pausa', cls: 'tc-status-break' };
+  return { key: 'working', label: 'Trabajando', cls: 'tc-status-working' };
+}
+function tcBreakSummary(rec) {
+  if (!rec || !Array.isArray(rec.breaks) || !rec.breaks.length) return '-';
+  return rec.breaks.filter(b => b && b.start).map(b => b.start + '-' + (b.end || '...')).join(', ');
+}
+function tcSetBtn(id, enabled) {
+  const b = document.getElementById(id);
+  if (!b) return;
+  b.disabled = !enabled;
+  b.style.opacity = enabled ? '1' : '.5';
+  b.style.cursor = enabled ? 'pointer' : 'not-allowed';
+}
+function tcDownloadCsv(filename, rows) {
+  const csv = rows.map(row => row.map(v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"').join(';')).join('\r\n');
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+}
+
+// ---- Navegación y pestañas ----
+function renderTimeControl() {
+  populateScheduleFilters();
+  populateClockFilters();
+  populateSummaryFilters();
+  setTimeControlTab(timeControlTab, document.getElementById(
+    timeControlTab === 'clock' ? 'tcTabClock' : timeControlTab === 'summary' ? 'tcTabSummary' : 'tcTabSchedules'
+  ));
+}
+function setTimeControlTab(tab, el) {
+  timeControlTab = tab;
+  document.querySelectorAll('#sec-timecontrol .tc-tab').forEach(t => t.classList.remove('active'));
+  if (el) el.classList.add('active');
+  document.getElementById('tcPanelSchedules').style.display = tab === 'schedules' ? 'block' : 'none';
+  document.getElementById('tcPanelClock').style.display = tab === 'clock' ? 'block' : 'none';
+  document.getElementById('tcPanelSummary').style.display = tab === 'summary' ? 'block' : 'none';
+  if (tab === 'schedules') renderScheduleTable();
+  if (tab === 'clock') { renderClockStatus(); renderTeamClock(); renderClockHistory(); }
+  if (tab === 'summary') renderSummary();
+}
+
+// ---- Filtros ----
+function populateScheduleFilters() {
+  const yearSel = document.getElementById('scheduleYear');
+  const empSel = document.getElementById('scheduleEmployeeFilter');
+  const monthSel = document.getElementById('scheduleMonthFilter');
+  if (!yearSel || !empSel || !monthSel) return;
+
+  const currentYear = new Date().getFullYear();
+  const years = new Set();
+  for (let y = currentYear - 2; y <= currentYear + 2; y++) years.add(y);
+  (data.scheduleDays || []).forEach(d => {
+    const y = parseInt((d.date || '').slice(0, 4), 10);
+    if (y) years.add(y);
+  });
+  const prevYear = yearSel.value;
+  yearSel.innerHTML = Array.from(years).sort((a, b) => a - b).map(y => `<option value="${y}">${y}</option>`).join('');
+  yearSel.value = prevYear && years.has(Number(prevYear)) ? prevYear : String(currentYear);
+
+  const prevEmp = empSel.value;
+  empSel.innerHTML = '<option value="">Todos los empleados</option>' + tcActiveEmployees()
+    .map(e => `<option value="${e.id}">${esc(fullName(e))}</option>`).join('');
+  empSel.value = Array.from(empSel.options).some(o => o.value === prevEmp) ? prevEmp : '';
+
+  if (!monthSel.dataset.init) {
+    monthSel.innerHTML = '<option value="">Todo el año</option>' + TC_MONTHS.map((m, i) => `<option value="${tcPad(i + 1)}">${m}</option>`).join('');
+    monthSel.value = String(new Date().getMonth() + 1);
+    monthSel.dataset.init = '1';
+  }
+}
+function populateClockFilters() {
+  const clockSel = document.getElementById('tcClockEmployee');
+  const histSel = document.getElementById('tcHistoryEmployee');
+  const monthEl = document.getElementById('tcHistoryMonth');
+  if (!clockSel || !histSel || !monthEl) return;
+  const emps = tcActiveEmployees();
+
+  const prevClock = clockSel.value;
+  clockSel.innerHTML = emps.map(e => `<option value="${e.id}">${esc(fullName(e))}</option>`).join('');
+  if (prevClock && emps.some(e => e.id === prevClock)) clockSel.value = prevClock;
+  else if (emps.length) clockSel.value = emps[0].id;
+
+  const prevHist = histSel.value;
+  histSel.innerHTML = '<option value="">Todos los empleados</option>' + emps.map(e => `<option value="${e.id}">${esc(fullName(e))}</option>`).join('');
+  histSel.value = Array.from(histSel.options).some(o => o.value === prevHist) ? prevHist : '';
+
+  if (!monthEl.value) monthEl.value = tcToday().slice(0, 7);
+}
+function populateSummaryFilters() {
+  const yearSel = document.getElementById('tcSummaryYear');
+  const empSel = document.getElementById('tcSummaryEmployee');
+  if (!yearSel || !empSel) return;
+  const currentYear = new Date().getFullYear();
+  const years = new Set();
+  for (let y = currentYear - 2; y <= currentYear + 2; y++) years.add(y);
+  (data.scheduleDays || []).forEach(d => {
+    const y = parseInt((d.date || '').slice(0, 4), 10);
+    if (y) years.add(y);
+  });
+  const prevYear = yearSel.value;
+  yearSel.innerHTML = Array.from(years).sort((a, b) => a - b).map(y => `<option value="${y}">${y}</option>`).join('');
+  yearSel.value = prevYear && years.has(Number(prevYear)) ? prevYear : String(currentYear);
+
+  const prevEmp = empSel.value;
+  empSel.innerHTML = '<option value="">Todos los empleados</option>' + tcActiveEmployees()
+    .map(e => `<option value="${e.id}">${esc(fullName(e))}</option>`).join('');
+  empSel.value = Array.from(empSel.options).some(o => o.value === prevEmp) ? prevEmp : '';
+}
+
+// ---- Horarios ----
+function renderScheduleStats(list, empId) {
+  const el = document.getElementById('scheduleStats');
+  if (!el) return;
+  const workDays = list.filter(d => d.status === 'work');
+  const planned = workDays.reduce((s, d) => s + tcScheduleMinutes(d), 0);
+  const emps = new Set(list.map(d => d.employeeId));
+  const dates = new Set(list.map(d => d.date));
+  const clockCount = (data.timeClock || []).filter(r => !r._deleted && dates.has(r.date) && (!empId || r.employeeId === empId)).length;
+  el.innerHTML = `
+    <div class="stat-card"><div class="stat-number">${emps.size}</div><div class="stat-label">Empleados</div></div>
+    <div class="stat-card"><div class="stat-number">${workDays.length}</div><div class="stat-label">Días laborables</div></div>
+    <div class="stat-card"><div class="stat-number">${tcFmtDuration(planned)}</div><div class="stat-label">Horas previstas</div></div>
+    <div class="stat-card"><div class="stat-number">${clockCount}</div><div class="stat-label">Fichajes</div></div>`;
+}
+function renderScheduleTable() {
+  const yearSel = document.getElementById('scheduleYear');
+  const monthSel = document.getElementById('scheduleMonthFilter');
+  const empSel = document.getElementById('scheduleEmployeeFilter');
+  const wrap = document.getElementById('scheduleTableWrap');
+  if (!yearSel || !monthSel || !empSel || !wrap) return;
+  const year = parseInt(yearSel.value || new Date().getFullYear(), 10);
+  const month = monthSel.value || '';
+  const empId = empSel.value || '';
+  let list = (data.scheduleDays || []).filter(d => d && !d._deleted && (d.date || '').slice(0, 4) === String(year));
+  if (empId) list = list.filter(d => d.employeeId === empId);
+  if (month) list = list.filter(d => d.date.slice(5, 7) === month);
+  list.sort((a, b) => a.date.localeCompare(b.date) || tcEmployeeName(a.employeeId).localeCompare(tcEmployeeName(b.employeeId)));
+  renderScheduleStats(list, empId);
+
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">🗓️</div><p>No hay horarios para este filtro.</p><p style="font-size:12px;margin-top:6px;">Configura la <strong>plantilla semanal</strong> de cada empleado y pulsa <strong>Generar año</strong>.</p></div>';
+    return;
+  }
+
+  const today = tcToday();
+  wrap.innerHTML = `<table><thead><tr><th>Fecha</th><th>Día</th><th>Empleado</th><th>Horario</th><th>Pausa</th><th>Horas</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>` +
+    list.map(d => {
+      const st = TC_STATUS[d.status] || TC_STATUS.off;
+      const mins = tcScheduleMinutes(d);
+      const isToday = d.date === today;
+      const dateObj = new Date(d.date + 'T12:00:00');
+      const fecha = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      const breakTxt = d.status === 'work' && d.breakStart && d.breakEnd ? d.breakStart + ' - ' + d.breakEnd : '-';
+      const horario = d.status === 'work' ? (d.start || '?') + ' - ' + (d.end || '?') : '-';
+      return `<tr class="${isToday ? 'tc-schedule-today' : ''}">
+        <td>${fecha}${isToday ? ' <span class="badge badge-warning" style="font-size:10px;">Hoy</span>' : ''}</td>
+        <td>${TC_WEEKDAYS[dateObj.getDay()]}</td>
+        <td><strong>${esc(tcEmployeeName(d.employeeId))}</strong></td>
+        <td>${horario}</td>
+        <td>${breakTxt}</td>
+        <td>${mins ? tcFmtDuration(mins) : '-'}</td>
+        <td><span class="badge ${st.cls}">${st.label}</span></td>
+        <td><div class="btn-group">
+          <button class="btn btn-primary btn-sm" onclick="openScheduleDayModal('${d.id}')" title="Editar">✏️</button>
+          <button class="btn btn-secondary btn-sm" onclick="quickSetScheduleStatus('${d.id}','${d.status === 'vacation' ? 'work' : 'vacation'}')" title="${d.status === 'vacation' ? 'Quitar vacaciones' : 'Marcar vacaciones'}">${d.status === 'vacation' ? '↩️' : '🏖️'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteScheduleDay('${d.id}')" title="Eliminar">🗑️</button>
+        </div></td>
+      </tr>`;
+    }).join('') + '</tbody></table>';
+}
+
+function openScheduleTemplateModal() {
+  const emps = tcActiveEmployees();
+  if (!emps.length) { alert('Primero crea al menos un empleado en el apartado Empleados.'); return; }
+  const filter = document.getElementById('scheduleEmployeeFilter');
+  const target = (filter && filter.value) || emps[0].id;
+  const sel = document.getElementById('templateEmployee');
+  sel.innerHTML = emps.map(e => `<option value="${e.id}">${esc(fullName(e))}</option>`).join('');
+  sel.value = target;
+  renderTemplateRows();
+  openModal('scheduleTemplateModal');
+}
+function renderTemplateRows() {
+  const empId = document.getElementById('templateEmployee').value;
+  const wrap = document.getElementById('templateRows');
+  if (!empId) { wrap.innerHTML = ''; return; }
+  const tpl = tcGetTemplate(empId);
+  wrap.innerHTML = `<div class="tc-template-row tc-template-head"><div>Día</div><div>Entrada</div><div>Salida</div><div>Pausa desde</div><div>Pausa hasta</div></div>` +
+    tpl.map((t, wd) => `<div class="tc-template-row" data-weekday="${wd}">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer;">
+        <input type="checkbox" class="tc-tpl-enabled" ${t.enabled ? 'checked' : ''} onchange="tcToggleTemplateRow(this)" style="width:auto;"> ${TC_WEEKDAYS[wd]}
+      </label>
+      <input type="time" class="tc-tpl-start" value="${t.start || ''}" ${t.enabled ? '' : 'disabled'}>
+      <input type="time" class="tc-tpl-end" value="${t.end || ''}" ${t.enabled ? '' : 'disabled'}>
+      <input type="time" class="tc-tpl-break-start" value="${t.breakStart || ''}" ${t.enabled ? '' : 'disabled'}>
+      <input type="time" class="tc-tpl-break-end" value="${t.breakEnd || ''}" ${t.enabled ? '' : 'disabled'}>
+    </div>`).join('');
+}
+function tcToggleTemplateRow(cb) {
+  const row = cb.closest('.tc-template-row');
+  if (!row) return;
+  row.querySelectorAll('input[type="time"]').forEach(inp => { inp.disabled = !cb.checked; });
+}
+function saveScheduleTemplate() {
+  const empId = document.getElementById('templateEmployee').value;
+  if (!empId) { alert('Selecciona un empleado.'); return; }
+  const rows = document.querySelectorAll('#templateRows .tc-template-row[data-weekday]');
+  rows.forEach(row => {
+    const wd = parseInt(row.dataset.weekday, 10);
+    const enabled = row.querySelector('.tc-tpl-enabled').checked;
+    const start = row.querySelector('.tc-tpl-start').value;
+    const end = row.querySelector('.tc-tpl-end').value;
+    const breakStart = row.querySelector('.tc-tpl-break-start').value;
+    const breakEnd = row.querySelector('.tc-tpl-break-end').value;
+    let t = (data.scheduleTemplates || []).find(x => x && !x._deleted && x.employeeId === empId && Number(x.weekday) === wd);
+    if (!t) {
+      t = { id: 'st_' + empId + '_' + wd, employeeId: empId, weekday: wd };
+      data.scheduleTemplates.push(t);
+    }
+    Object.assign(t, {
+      enabled, start, end, breakStart, breakEnd,
+      _modified: Date.now(), _deleted: false
+    });
+  });
+  saveKey('scheduleTemplates');
+  syncPush();
+  closeModal('scheduleTemplateModal');
+  renderScheduleTable();
+  const year = document.getElementById('scheduleYear').value || new Date().getFullYear();
+  if (confirm('Plantilla guardada. ¿Quieres generar ahora los horarios del año ' + year + ' para este empleado?\n\nSe conservarán los días editados manualmente.')) {
+    generateYearSchedules(true, empId);
+  }
+}
+
+function generateYearSchedules(skipConfirm, onlyEmpId) {
+  const year = parseInt((document.getElementById('scheduleYear') || {}).value || new Date().getFullYear(), 10);
+  const empFilter = (document.getElementById('scheduleEmployeeFilter') || {}).value || '';
+  let employees = tcActiveEmployees();
+  if (onlyEmpId) employees = employees.filter(e => e.id === onlyEmpId);
+  else if (empFilter) employees = employees.filter(e => e.id === empFilter);
+  if (!employees.length) { alert('No hay empleados para generar horarios.'); return; }
+  if (!skipConfirm) {
+    const scope = onlyEmpId ? tcEmployeeName(onlyEmpId) : empFilter ? tcEmployeeName(empFilter) : 'todos los empleados';
+    if (!confirm('¿Generar los horarios laborables del año ' + year + ' para ' + scope + '?\n\nSe actualizarán los días generados desde la plantilla. Los días editados manualmente se conservan.')) return;
+  }
+
+  const dates = tcYearDates(year);
+  let created = 0, updated = 0, removed = 0, preserved = 0;
+  employees.forEach(emp => {
+    const tpl = tcGetTemplate(emp.id);
+    const byDate = new Map();
+    (data.scheduleDays || []).filter(d => d && d.employeeId === emp.id && (d.date || '').slice(0, 4) === String(year))
+      .forEach(d => {
+        const prev = byDate.get(d.date);
+        if (!prev || (d._modified || 0) >= (prev._modified || 0)) byDate.set(d.date, d);
+      });
+    dates.forEach(date => {
+      const t = tpl[tcWeekday(date)];
+      const ex = byDate.get(date);
+      if (ex && ex.source === 'manual') { preserved++; return; }
+      if (t && t.enabled) {
+        if (ex) {
+          Object.assign(ex, {
+            status: 'work', start: t.start, end: t.end,
+            breakStart: t.breakStart || '', breakEnd: t.breakEnd || '',
+            source: 'template', _deleted: false, _modified: Date.now()
+          });
+          updated++;
+        } else {
+          data.scheduleDays.push({
+            id: 'sd_' + emp.id + '_' + date, employeeId: emp.id, date,
+            status: 'work', start: t.start, end: t.end,
+            breakStart: t.breakStart || '', breakEnd: t.breakEnd || '',
+            source: 'template', note: '', _modified: Date.now(), _deleted: false
+          });
+          created++;
+        }
+      } else if (ex && !ex._deleted) {
+        ex._deleted = true;
+        ex._modified = Date.now();
+        removed++;
+      }
+    });
+  });
+  saveKey('scheduleDays');
+  syncPush();
+  renderScheduleTable();
+  renderSummary();
+  alert('✅ Horarios generados para ' + year + '.\n\nCreados: ' + created + '\nActualizados: ' + updated + (removed ? '\nEliminados por descanso: ' + removed : '') + '\nConservados manualmente: ' + preserved);
+}
+
+function openScheduleDayModal(id) {
+  const emps = tcActiveEmployees();
+  if (!emps.length) { alert('Primero crea al menos un empleado.'); return; }
+  const sel = document.getElementById('scheduleDayEmployee');
+  sel.innerHTML = emps.map(e => `<option value="${e.id}">${esc(fullName(e))}</option>`).join('');
+  const edit = id ? (data.scheduleDays || []).find(d => d.id === id && !d._deleted) : null;
+  const dateEl = document.getElementById('scheduleDayDate');
+  const statusEl = document.getElementById('scheduleDayStatus');
+  const startEl = document.getElementById('scheduleDayStart');
+  const endEl = document.getElementById('scheduleDayEnd');
+  const bsEl = document.getElementById('scheduleDayBreakStart');
+  const beEl = document.getElementById('scheduleDayBreakEnd');
+  const noteEl = document.getElementById('scheduleDayNote');
+  document.getElementById('scheduleDayEditId').value = edit ? edit.id : '';
+
+  if (edit) {
+    sel.value = edit.employeeId;
+    dateEl.value = edit.date;
+    statusEl.value = edit.status || 'work';
+    startEl.value = edit.start || '';
+    endEl.value = edit.end || '';
+    bsEl.value = edit.breakStart || '';
+    beEl.value = edit.breakEnd || '';
+    noteEl.value = edit.note || '';
+    document.getElementById('scheduleDayDeleteBtn').style.display = 'inline-flex';
+    document.getElementById('scheduleDayModalTitle').textContent = 'Editar día de horario';
+    sel.disabled = true;
+    dateEl.disabled = true;
+  } else {
+    const filter = document.getElementById('scheduleEmployeeFilter');
+    const empId = (filter && filter.value) || emps[0].id;
+    const date = tcToday();
+    const tpl = tcGetTemplate(empId);
+    const t = tpl[tcWeekday(date)] || {};
+    sel.value = empId;
+    dateEl.value = date;
+    statusEl.value = t.enabled === false ? 'off' : 'work';
+    startEl.value = t.start || '';
+    endEl.value = t.end || '';
+    bsEl.value = t.breakStart || '';
+    beEl.value = t.breakEnd || '';
+    noteEl.value = '';
+    document.getElementById('scheduleDayDeleteBtn').style.display = 'none';
+    document.getElementById('scheduleDayModalTitle').textContent = 'Añadir día de horario';
+    sel.disabled = false;
+    dateEl.disabled = false;
+  }
+  toggleScheduleDayTimes();
+  openModal('scheduleDayModal');
+}
+function toggleScheduleDayTimes() {
+  const work = document.getElementById('scheduleDayStatus').value === 'work';
+  ['scheduleDayStart', 'scheduleDayEnd', 'scheduleDayBreakStart', 'scheduleDayBreakEnd'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.disabled = !work;
+    el.style.opacity = work ? '1' : '.5';
+  });
+}
+function saveScheduleDay() {
+  const editId = document.getElementById('scheduleDayEditId').value;
+  const empId = document.getElementById('scheduleDayEmployee').value;
+  const date = document.getElementById('scheduleDayDate').value;
+  if (!empId || !date) { alert('Empleado y fecha son obligatorios.'); return; }
+  const status = document.getElementById('scheduleDayStatus').value;
+  const start = status === 'work' ? document.getElementById('scheduleDayStart').value : '';
+  const end = status === 'work' ? document.getElementById('scheduleDayEnd').value : '';
+  if (status === 'work' && (!start || !end)) { alert('Indica la hora de entrada y de salida.'); return; }
+  if (status === 'work' && tcParseHM(end) <= tcParseHM(start)) { alert('La hora de salida debe ser posterior a la de entrada.'); return; }
+  const payload = {
+    employeeId: empId,
+    date,
+    status,
+    start,
+    end,
+    breakStart: status === 'work' ? document.getElementById('scheduleDayBreakStart').value : '',
+    breakEnd: status === 'work' ? document.getElementById('scheduleDayBreakEnd').value : '',
+    note: document.getElementById('scheduleDayNote').value.trim(),
+    source: 'manual',
+    _modified: Date.now(),
+    _deleted: false
+  };
+  let rec = editId
+    ? (data.scheduleDays || []).find(d => d.id === editId)
+    : (data.scheduleDays || []).find(d => !d._deleted && d.employeeId === empId && d.date === date);
+  if (rec) Object.assign(rec, payload);
+  else {
+    payload.id = 'sd_' + empId + '_' + date;
+    data.scheduleDays.push(payload);
+  }
+  saveKey('scheduleDays');
+  syncPush();
+  closeModal('scheduleDayModal');
+  renderScheduleTable();
+  renderSummary();
+}
+function deleteScheduleDay(id) {
+  const rec = (data.scheduleDays || []).find(d => d.id === id);
+  if (!rec) return;
+  if (!confirm('¿Eliminar este día de horario?')) return;
+  rec._deleted = true;
+  rec._modified = Date.now();
+  saveKey('scheduleDays');
+  syncPush();
+  renderScheduleTable();
+  renderSummary();
+}
+function deleteScheduleDayFromModal() {
+  const id = document.getElementById('scheduleDayEditId').value;
+  if (!id) return;
+  deleteScheduleDay(id);
+  closeModal('scheduleDayModal');
+}
+function quickSetScheduleStatus(id, status) {
+  const rec = (data.scheduleDays || []).find(d => d.id === id);
+  if (!rec) return;
+  rec.status = status;
+  rec.source = 'manual';
+  rec._modified = Date.now();
+  if (status === 'work' && (!rec.start || !rec.end)) {
+    const tpl = tcGetTemplate(rec.employeeId);
+    const t = tpl[tcWeekday(rec.date)] || {};
+    rec.start = t.start || '09:00';
+    rec.end = t.end || '20:00';
+    rec.breakStart = t.breakStart || '';
+    rec.breakEnd = t.breakEnd || '';
+  }
+  saveKey('scheduleDays');
+  syncPush();
+  renderScheduleTable();
+  renderSummary();
+}
+function exportScheduleCsv() {
+  const year = (document.getElementById('scheduleYear') || {}).value || '';
+  const month = (document.getElementById('scheduleMonthFilter') || {}).value || '';
+  const empId = (document.getElementById('scheduleEmployeeFilter') || {}).value || '';
+  let list = (data.scheduleDays || []).filter(d => d && !d._deleted && (d.date || '').slice(0, 4) === String(year));
+  if (empId) list = list.filter(d => d.employeeId === empId);
+  if (month) list = list.filter(d => d.date.slice(5, 7) === month);
+  list.sort((a, b) => a.date.localeCompare(b.date));
+  if (!list.length) { alert('No hay horarios para exportar con este filtro.'); return; }
+  const rows = [['Fecha','Día','Empleado','Estado','Entrada','Salida','Pausa desde','Pausa hasta','Horas','Notas']];
+  list.forEach(d => {
+    const st = TC_STATUS[d.status] || TC_STATUS.off;
+    rows.push([d.date, TC_WEEKDAYS[tcWeekday(d.date)], tcEmployeeName(d.employeeId), st.label, d.start || '', d.end || '', d.breakStart || '', d.breakEnd || '', tcScheduleMinutes(d) ? tcFmtDuration(tcScheduleMinutes(d)) : '', d.note || '']);
+  });
+  tcDownloadCsv('horarios_' + year + (month ? '_' + month : '') + '.csv', rows);
+}
+
+// ---- Fichajes ----
+function renderClockStatus() {
+  const sel = document.getElementById('tcClockEmployee');
+  if (!sel) return;
+  const empId = sel.value;
+  const today = tcToday();
+  const rec = empId ? tcGetClockRecord(empId, today) : null;
+  const sched = empId ? tcGetScheduleDay(empId, today) : null;
+  const status = tcStatusInfo(rec);
+  const activeBreak = tcActiveBreak(rec);
+  const worked = rec ? tcRecordMinutes(rec, true) : 0;
+  const planned = sched ? tcScheduleMinutes(sched) : 0;
+
+  const dateEl = document.getElementById('tcLiveDate');
+  if (dateEl) dateEl.textContent = new Date(today + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  const badge = document.getElementById('tcClockStatusBadge');
+  if (badge) badge.innerHTML = `<span class="tc-status-badge ${status.cls}">${status.label}</span>`;
+  const scheduledEl = document.getElementById('tcScheduled');
+  if (scheduledEl) scheduledEl.textContent = sched && sched.status === 'work' ? (sched.start || '?') + ' - ' + (sched.end || '?') : 'Sin horario';
+  const inEl = document.getElementById('tcClockIn');
+  if (inEl) inEl.textContent = rec && rec.clockIn ? rec.clockIn : '--:--';
+  const outEl = document.getElementById('tcClockOut');
+  if (outEl) outEl.textContent = rec && rec.clockOut ? rec.clockOut : '--:--';
+  const workedEl = document.getElementById('tcWorked');
+  if (workedEl) workedEl.textContent = tcFmtDuration(worked);
+  const breaksEl = document.getElementById('tcBreaks');
+  if (breaksEl) breaksEl.innerHTML = rec && rec.breaks && rec.breaks.length ? '☕ Pausas: ' + tcBreakSummary(rec) : '';
+  const diffEl = document.getElementById('tcDifference');
+  if (diffEl) {
+    if (!sched || sched.status !== 'work') {
+      diffEl.textContent = '';
+    } else {
+      const diff = worked - planned;
+      const cls = diff >= 0 ? 'tc-diff-pos' : 'tc-diff-neg';
+      diffEl.innerHTML = `Diferencia con lo previsto: <span class="${cls}">${tcFmtDiff(diff)}</span>`;
+    }
+  }
+
+  tcSetBtn('tcBtnIn', !!empId && !(rec && rec.clockIn && !rec.clockOut));
+  tcSetBtn('tcBtnBreakStart', !!empId && !!rec && !!rec.clockIn && !rec.clockOut && !activeBreak);
+  tcSetBtn('tcBtnBreakEnd', !!activeBreak);
+  tcSetBtn('tcBtnOut', !!empId && !!rec && !!rec.clockIn && !rec.clockOut);
+}
+function renderTeamClock() {
+  const div = document.getElementById('tcTeamStatus');
+  if (!div) return;
+  const emps = tcActiveEmployees();
+  if (!emps.length) { div.innerHTML = '<div class="empty-state" style="padding:20px;"><p>No hay empleados</p></div>'; return; }
+  const today = tcToday();
+  const selected = (document.getElementById('tcClockEmployee') || {}).value;
+  div.innerHTML = emps.map(emp => {
+    const rec = tcGetClockRecord(emp.id, today);
+    const st = tcStatusInfo(rec);
+    const worked = rec ? tcRecordMinutes(rec, true) : 0;
+    let actions = '';
+    if (st.key === 'none') {
+      actions = `<button class="btn btn-success btn-sm tc-mini-btn" onclick="event.stopPropagation();clockAction('in','${emp.id}')">🟢 Entrada</button>`;
+    } else if (st.key === 'working') {
+      actions = `<button class="btn btn-warning btn-sm tc-mini-btn" onclick="event.stopPropagation();clockAction('breakStart','${emp.id}')">☕ Pausa</button>
+        <button class="btn btn-danger btn-sm tc-mini-btn" onclick="event.stopPropagation();clockAction('out','${emp.id}')">🔴 Salida</button>`;
+    } else if (st.key === 'break') {
+      actions = `<button class="btn btn-secondary btn-sm tc-mini-btn" onclick="event.stopPropagation();clockAction('breakEnd','${emp.id}')">▶️ Fin pausa</button>
+        <button class="btn btn-danger btn-sm tc-mini-btn" onclick="event.stopPropagation();clockAction('out','${emp.id}')">🔴 Salida</button>`;
+    } else {
+      actions = '<span style="font-size:12px;color:var(--text-light);">✅ Cerrada</span>';
+    }
+    return `<div class="tc-employee-card ${emp.id === selected ? 'tc-selected' : ''}" onclick="selectClockEmployee('${emp.id}')">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px;">
+        <strong style="font-size:13px;">${esc(fullName(emp))}</strong>
+        <span class="badge ${st.key === 'none' ? 'badge-warning' : st.key === 'working' ? 'badge-success' : st.key === 'break' ? 'badge-warning' : 'badge-info'}" style="font-size:10px;">${st.label}</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-light);margin-bottom:6px;">Trabajado: ${tcFmtDuration(worked)}</div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">${actions}</div>
+    </div>`;
+  }).join('');
+}
+function selectClockEmployee(empId) {
+  const sel = document.getElementById('tcClockEmployee');
+  if (sel) sel.value = empId;
+  renderClockStatus();
+  renderTeamClock();
+}
+function renderClockHistory() {
+  const wrap = document.getElementById('tcHistoryTable');
+  if (!wrap) return;
+  const month = (document.getElementById('tcHistoryMonth') || {}).value || tcToday().slice(0, 7);
+  const empId = (document.getElementById('tcHistoryEmployee') || {}).value || '';
+  let list = (data.timeClock || []).filter(r => r && !r._deleted && (r.date || '').startsWith(month));
+  if (empId) list = list.filter(r => r.employeeId === empId);
+  list.sort((a, b) => b.date.localeCompare(a.date) || tcEmployeeName(a.employeeId).localeCompare(tcEmployeeName(b.employeeId)));
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">⏱️</div><p>No hay fichajes en este período.</p></div>';
+    return;
+  }
+  wrap.innerHTML = `<table><thead><tr><th>Fecha</th><th>Empleado</th><th>Horario</th><th>Entrada</th><th>Salida</th><th>Pausas</th><th>Trabajado</th><th>Diferencia</th><th>Acciones</th></tr></thead><tbody>` +
+    list.map(r => {
+      const sched = tcGetScheduleDay(r.employeeId, r.date);
+      const planned = sched ? tcScheduleMinutes(sched) : 0;
+      const worked = tcRecordMinutes(r, r.date === tcToday());
+      const diff = (sched && sched.status === 'work') ? worked - planned : null;
+      const diffHtml = diff == null ? '-' : `<span class="${diff >= 0 ? 'tc-diff-pos' : 'tc-diff-neg'}">${tcFmtDiff(diff)}</span>`;
+      const dateObj = new Date(r.date + 'T12:00:00');
+      const fecha = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      return `<tr>
+        <td>${fecha}<br><span style="font-size:11px;color:var(--text-light);">${TC_WEEKDAYS[dateObj.getDay()]}</span></td>
+        <td><strong>${esc(tcEmployeeName(r.employeeId))}</strong></td>
+        <td>${sched && sched.status === 'work' ? (sched.start || '?') + ' - ' + (sched.end || '?') : '-'}</td>
+        <td>${r.clockIn || '-'}</td>
+        <td>${r.clockOut || '<span style="color:var(--warning);">Abierto</span>'}</td>
+        <td style="font-size:11px;">${tcBreakSummary(r)}</td>
+        <td><strong>${tcFmtDuration(worked)}</strong></td>
+        <td>${diffHtml}</td>
+        <td><div class="btn-group">
+          <button class="btn btn-primary btn-sm" onclick="openTimeClockEditor('${r.id}')" title="Editar">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTimeClockRecord('${r.id}')" title="Eliminar">🗑️</button>
+        </div></td>
+      </tr>`;
+    }).join('') + '</tbody></table>';
+}
+
+function clockAction(action, empIdArg) {
+  const sel = document.getElementById('tcClockEmployee');
+  const empId = empIdArg || (sel && sel.value);
+  if (!empId) { alert('Selecciona un empleado.'); return; }
+  if (sel) sel.value = empId;
+  const today = tcToday();
+  const now = tcNowHM();
+  let rec = tcGetClockRecord(empId, today);
+
+  if (action === 'in') {
+    if (rec && rec.clockIn && !rec.clockOut) { alert('Este empleado ya tiene una entrada fichada sin salida.'); return; }
+    if (rec && rec.clockOut) {
+      if (!confirm('Ya existe una jornada cerrada hoy. ¿Quieres reabrirla?\n\nSe conservará la nueva entrada y se borrarán la salida y las pausas anteriores.')) return;
+      rec.clockIn = now;
+      rec.clockOut = '';
+      rec.breaks = [];
+    } else if (rec) {
+      rec.clockIn = now;
+    } else {
+      rec = { id: 'tc_' + empId + '_' + today, employeeId: empId, date: today, clockIn: now, clockOut: '', breaks: [], note: '', _modified: Date.now(), _deleted: false };
+      data.timeClock.push(rec);
+    }
+  } else if (action === 'breakStart') {
+    if (!rec || !rec.clockIn || rec.clockOut) { alert('Primero ficha la entrada.'); return; }
+    if (tcActiveBreak(rec)) { alert('Ya hay una pausa activa.'); return; }
+    if (!Array.isArray(rec.breaks)) rec.breaks = [];
+    rec.breaks.push({ start: now, end: '' });
+  } else if (action === 'breakEnd') {
+    const active = tcActiveBreak(rec);
+    if (!active) { alert('No hay ninguna pausa activa.'); return; }
+    active.end = now;
+  } else if (action === 'out') {
+    if (!rec || !rec.clockIn) { alert('Primero ficha la entrada.'); return; }
+    if (rec.clockOut) { alert('Este empleado ya tiene la salida fichada.'); return; }
+    const active = tcActiveBreak(rec);
+    if (active) active.end = now;
+    rec.clockOut = now;
+  }
+
+  rec._modified = Date.now();
+  rec._deleted = false;
+  saveKey('timeClock');
+  syncPush();
+  renderClockStatus();
+  renderTeamClock();
+  renderClockHistory();
+  renderSummary();
+}
+
+function openTimeClockEditor(id) {
+  const emps = tcActiveEmployees();
+  if (!emps.length) { alert('Primero crea al menos un empleado.'); return; }
+  const sel = document.getElementById('tcEditEmployee');
+  sel.innerHTML = emps.map(e => `<option value="${e.id}">${esc(fullName(e))}</option>`).join('');
+  const edit = id ? (data.timeClock || []).find(r => r.id === id && !r._deleted) : null;
+  const rec = edit || null;
+  const currentEmp = (document.getElementById('tcClockEmployee') || {}).value || emps[0].id;
+  document.getElementById('tcEditId').value = rec ? rec.id : '';
+  sel.value = rec ? rec.employeeId : currentEmp;
+  document.getElementById('tcEditDate').value = rec ? rec.date : tcToday();
+  document.getElementById('tcEditIn').value = rec ? (rec.clockIn || '') : '';
+  document.getElementById('tcEditOut').value = rec ? (rec.clockOut || '') : '';
+  const b = rec && Array.isArray(rec.breaks) ? rec.breaks : [];
+  document.getElementById('tcEditBreak1Start').value = b[0] ? (b[0].start || '') : '';
+  document.getElementById('tcEditBreak1End').value = b[0] ? (b[0].end || '') : '';
+  document.getElementById('tcEditBreak2Start').value = b[1] ? (b[1].start || '') : '';
+  document.getElementById('tcEditBreak2End').value = b[1] ? (b[1].end || '') : '';
+  document.getElementById('tcEditNote').value = rec ? (rec.note || '') : '';
+  document.getElementById('tcEditDeleteBtn').style.display = rec ? 'inline-flex' : 'none';
+  document.getElementById('timeClockModalTitle').textContent = rec ? 'Editar fichaje' : 'Añadir fichaje manual';
+  sel.disabled = !!rec;
+  document.getElementById('tcEditDate').disabled = !!rec;
+  openModal('timeClockEditModal');
+}
+function saveTimeClockRecord() {
+  const id = document.getElementById('tcEditId').value;
+  const empId = document.getElementById('tcEditEmployee').value;
+  const date = document.getElementById('tcEditDate').value;
+  if (!empId || !date) { alert('Empleado y fecha son obligatorios.'); return; }
+  const clockIn = document.getElementById('tcEditIn').value;
+  if (!clockIn) { alert('La hora de entrada es obligatoria.'); return; }
+  const breaks = [];
+  const pairs = [
+    [document.getElementById('tcEditBreak1Start').value, document.getElementById('tcEditBreak1End').value],
+    [document.getElementById('tcEditBreak2Start').value, document.getElementById('tcEditBreak2End').value]
+  ];
+  pairs.forEach(p => { if (p[0]) breaks.push({ start: p[0], end: p[1] || '' }); });
+  const payload = {
+    employeeId: empId,
+    date,
+    clockIn,
+    clockOut: document.getElementById('tcEditOut').value || '',
+    breaks,
+    note: document.getElementById('tcEditNote').value.trim(),
+    _modified: Date.now(),
+    _deleted: false
+  };
+  let rec = id
+    ? (data.timeClock || []).find(r => r.id === id)
+    : (data.timeClock || []).find(r => !r._deleted && r.employeeId === empId && r.date === date);
+  if (rec) Object.assign(rec, payload);
+  else {
+    payload.id = 'tc_' + empId + '_' + date;
+    data.timeClock.push(payload);
+  }
+  saveKey('timeClock');
+  syncPush();
+  closeModal('timeClockEditModal');
+  renderClockStatus();
+  renderTeamClock();
+  renderClockHistory();
+  renderSummary();
+}
+function deleteTimeClockRecord(id) {
+  const rec = (data.timeClock || []).find(r => r.id === id);
+  if (!rec) return;
+  if (!confirm('¿Eliminar este fichaje?')) return;
+  rec._deleted = true;
+  rec._modified = Date.now();
+  saveKey('timeClock');
+  syncPush();
+  renderClockStatus();
+  renderTeamClock();
+  renderClockHistory();
+  renderSummary();
+}
+function deleteTimeClockFromModal() {
+  const id = document.getElementById('tcEditId').value;
+  if (!id) return;
+  deleteTimeClockRecord(id);
+  closeModal('timeClockEditModal');
+}
+function exportTimeClockCsv() {
+  const month = (document.getElementById('tcHistoryMonth') || {}).value || tcToday().slice(0, 7);
+  const empId = (document.getElementById('tcHistoryEmployee') || {}).value || '';
+  let list = (data.timeClock || []).filter(r => r && !r._deleted && (r.date || '').startsWith(month));
+  if (empId) list = list.filter(r => r.employeeId === empId);
+  list.sort((a, b) => a.date.localeCompare(b.date));
+  if (!list.length) { alert('No hay fichajes para exportar.'); return; }
+  const rows = [['Fecha','Empleado','Horario previsto','Entrada','Salida','Pausas','Horas trabajadas','Diferencia']];
+  list.forEach(r => {
+    const sched = tcGetScheduleDay(r.employeeId, r.date);
+    const planned = sched ? tcScheduleMinutes(sched) : 0;
+    const worked = tcRecordMinutes(r, r.date === tcToday());
+    const diff = sched && sched.status === 'work' ? worked - planned : null;
+    rows.push([r.date, tcEmployeeName(r.employeeId), sched && sched.status === 'work' ? (sched.start || '') + '-' + (sched.end || '') : '', r.clockIn || '', r.clockOut || '', tcBreakSummary(r), tcFmtDuration(worked), diff == null ? '' : tcFmtDiff(diff)]);
+  });
+  tcDownloadCsv('fichajes_' + month + (empId ? '_' + tcEmployeeName(empId).replace(/\s+/g, '_') : '') + '.csv', rows);
+}
+
+// ---- Resumen ----
+function tcSummaryData(year, empId) {
+  const today = tcToday();
+  let employees = tcActiveEmployees();
+  if (empId) employees = employees.filter(e => e.id === empId);
+  return employees.map(emp => {
+    const scheduled = (data.scheduleDays || []).filter(d => d && !d._deleted && d.employeeId === emp.id && (d.date || '').slice(0, 4) === String(year) && d.status === 'work');
+    const planned = scheduled.reduce((s, d) => s + tcScheduleMinutes(d), 0);
+    const records = (data.timeClock || []).filter(r => r && !r._deleted && r.employeeId === emp.id && (r.date || '').slice(0, 4) === String(year));
+    const worked = records.reduce((s, r) => s + tcRecordMinutes(r, r.date === today), 0);
+    const daysWorked = records.filter(r => r.clockIn).length;
+    const absences = scheduled.filter(d => d.date < today && !records.some(r => r.date === d.date && r.clockIn)).length;
+    return { emp, scheduledDays: scheduled.length, planned, worked, difference: worked - planned, daysWorked, absences };
+  }).sort((a, b) => fullName(a.emp).localeCompare(fullName(b.emp)));
+}
+function renderSummary() {
+  const wrap = document.getElementById('tcSummaryTable');
+  if (!wrap) return;
+  const year = parseInt((document.getElementById('tcSummaryYear') || {}).value || new Date().getFullYear(), 10);
+  const empId = (document.getElementById('tcSummaryEmployee') || {}).value || '';
+  const rows = tcSummaryData(year, empId);
+  if (!rows.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">📊</div><p>No hay empleados para mostrar.</p></div>';
+    return;
+  }
+  const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
+  const totalWorked = rows.reduce((s, r) => s + r.worked, 0);
+  const totalAbsences = rows.reduce((s, r) => s + r.absences, 0);
+  const totalDiff = totalWorked - totalPlanned;
+  let html = `<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:15px;">
+    <div class="stat-card"><div class="stat-number">${tcFmtDuration(totalPlanned)}</div><div class="stat-label">Horas previstas</div></div>
+    <div class="stat-card"><div class="stat-number">${tcFmtDuration(totalWorked)}</div><div class="stat-label">Horas trabajadas</div></div>
+    <div class="stat-card"><div class="stat-number ${totalDiff >= 0 ? 'tc-diff-pos' : 'tc-diff-neg'}">${tcFmtDiff(totalDiff)}</div><div class="stat-label">Diferencia</div></div>
+    <div class="stat-card"><div class="stat-number">${totalAbsences}</div><div class="stat-label">Ausencias</div></div>
+  </div>`;
+  html += `<table><thead><tr><th>Empleado</th><th>Días laborables</th><th>Horas previstas</th><th>Días fichados</th><th>Horas trabajadas</th><th>Diferencia</th><th>Ausencias</th></tr></thead><tbody>` +
+    rows.map(r => `<tr>
+      <td><strong>${esc(fullName(r.emp))}</strong></td>
+      <td>${r.scheduledDays}</td>
+      <td>${tcFmtDuration(r.planned)}</td>
+      <td>${r.daysWorked}</td>
+      <td>${tcFmtDuration(r.worked)}</td>
+      <td><span class="${r.difference >= 0 ? 'tc-diff-pos' : 'tc-diff-neg'}">${tcFmtDiff(r.difference)}</span></td>
+      <td>${r.absences ? '<span style="color:var(--danger);font-weight:600;">' + r.absences + '</span>' : '0'}</td>
+    </tr>`).join('') + '</tbody></table>';
+
+  // Resumen mensual del ámbito seleccionado
+  const empIds = rows.map(r => r.emp.id);
+  const monthly = [];
+  for (let m = 1; m <= 12; m++) {
+    const prefix = year + '-' + tcPad(m);
+    const scheduled = (data.scheduleDays || []).filter(d => d && !d._deleted && (d.date || '').startsWith(prefix) && d.status === 'work' && empIds.includes(d.employeeId));
+    const records = (data.timeClock || []).filter(r => r && !r._deleted && (r.date || '').startsWith(prefix) && empIds.includes(r.employeeId));
+    const planned = scheduled.reduce((s, d) => s + tcScheduleMinutes(d), 0);
+    const worked = records.reduce((s, r) => s + tcRecordMinutes(r, r.date === tcToday()), 0);
+    monthly.push({ m, days: scheduled.length, planned, worked, count: records.length });
+  }
+  html += '<h3 style="font-size:15px;margin:20px 0 10px;">Detalle mensual</h3>';
+  html += '<table><thead><tr><th>Mes</th><th>Días laborables</th><th>Horas previstas</th><th>Fichajes</th><th>Horas trabajadas</th><th>Diferencia</th></tr></thead><tbody>' +
+    monthly.map(x => `<tr><td>${TC_MONTHS[x.m - 1]}</td><td>${x.days}</td><td>${tcFmtDuration(x.planned)}</td><td>${x.count}</td><td>${tcFmtDuration(x.worked)}</td><td><span class="${x.worked - x.planned >= 0 ? 'tc-diff-pos' : 'tc-diff-neg'}">${tcFmtDiff(x.worked - x.planned)}</span></td></tr>`).join('') +
+    '</tbody></table>';
+  wrap.innerHTML = html;
+}
+function exportSummaryCsv() {
+  const year = parseInt((document.getElementById('tcSummaryYear') || {}).value || new Date().getFullYear(), 10);
+  const empId = (document.getElementById('tcSummaryEmployee') || {}).value || '';
+  const rows = tcSummaryData(year, empId);
+  if (!rows.length) { alert('No hay datos para exportar.'); return; }
+  const out = [['Año','Empleado','Días laborables','Horas previstas','Días fichados','Horas trabajadas','Diferencia','Ausencias']];
+  rows.forEach(r => out.push([year, fullName(r.emp), r.scheduledDays, tcFmtDuration(r.planned), r.daysWorked, tcFmtDuration(r.worked), tcFmtDiff(r.difference), r.absences]));
+  tcDownloadCsv('resumen_horario_' + year + '.csv', out);
 }
 
 // ============ SERVICES ============
@@ -6282,6 +7450,13 @@ function init() {
     const sec = document.getElementById('sec-reminders');
     if (sec && sec.classList.contains('active')) renderReminders();
   }, 60000);
+  setInterval(() => {
+    const sec = document.getElementById('sec-timecontrol');
+    if (sec && sec.classList.contains('active') && timeControlTab === 'clock') {
+      renderClockStatus();
+      renderTeamClock();
+    }
+  }, 30000);
 }
 
 init();

@@ -321,7 +321,7 @@ export async function onRequest(context) {
           const merged = { ...current };
           const wasCancelledOrDeleted = new Set();
           (current.appointments||[]).forEach(a => { if (a && (a.cancelledBy || a._deleted)) wasCancelledOrDeleted.add(a.id); });
-          ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers'].forEach(k => {
+          ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers', 'scheduleTemplates', 'scheduleDays', 'timeClock'].forEach(k => {
             if (Array.isArray(remote[k])) {
               merged[k] = mergeArray(Array.isArray(current[k]) ? current[k] : [], remote[k]);
             }
