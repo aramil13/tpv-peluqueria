@@ -1076,7 +1076,7 @@ body:has(#sec-timecontrol.active) .main { min-width: 0; }
 <!-- MODAL: PLANTILLA SEMANAL DE HORARIO -->
 <div class="modal" id="scheduleTemplateModal">
   <div class="modal-content" style="max-width:820px;">
-    <div class="modal-header"><h3>🗓️ Plantilla semanal de horario</h3><button class="modal-close" onclick="closeModal('scheduleTemplateModal')">&times;</button></div>
+    <div class="modal-header"><h3>🗓️ Plantilla de dos semanas</h3><button class="modal-close" onclick="closeModal('scheduleTemplateModal')">&times;</button></div>
     <div class="form-group"><label>Empleado *</label><select id="templateEmployee" onchange="renderTemplateRows()"></select></div>
     <div style="font-size:12px;color:var(--text-light);margin-bottom:10px;">Define la semana tipo del empleado. Después podrás generar todos los días laborables del año con esta plantilla.</div>
     <div style="overflow-x:auto;">
@@ -2821,6 +2821,14 @@ function tcNowHM() {
 }
 function tcDate(year, month, day) { return year + '-' + tcPad(month) + '-' + tcPad(day); }
 function tcWeekday(dateStr) { return new Date(dateStr + 'T12:00:00').getDay(); }
+function tcCycleWeek(dateStr) {
+  // Semana 0/1 de un ciclo quincenal estable, anclado al lunes 2024-01-01.
+  const anchor = Date.UTC(2024, 0, 1);
+  const d = new Date(dateStr + 'T12:00:00Z').getTime();
+  const days = Math.floor((d - anchor) / 86400000);
+  const w = Math.floor(days / 7) % 2;
+  return w < 0 ? w + 2 : w;
+}
 function tcYearDates(year) {
   const out = [];
   for (let m = 1; m <= 12; m++) {
@@ -2869,28 +2877,35 @@ function tcDedupeControlData() {
     });
     return Array.from(map.values());
   };
-  data.scheduleTemplates = keepLatest(data.scheduleTemplates, t => String(t.employeeId) + '|' + String(t.weekday));
+  data.scheduleTemplates = keepLatest(data.scheduleTemplates, t => String(t.employeeId) + '|' + String(t.weekday) + '|' + String(t.week == null ? 0 : t.week));
   data.scheduleDays = keepLatest(data.scheduleDays, d => String(d.employeeId) + '|' + String(d.date));
   data.timeClock = keepLatest(data.timeClock, r => String(r.employeeId) + '|' + String(r.date));
 }
 
 function tcGetTemplate(empId) {
   const saved = (data.scheduleTemplates || []).filter(t => t && !t._deleted && t.employeeId === empId);
-  return [0,1,2,3,4,5,6].map(wd => {
-    const existing = saved.find(t => Number(t.weekday) === wd);
-    if (existing) return Object.assign({}, existing);
-    const oh = data.settings && data.settings.openingHours ? data.settings.openingHours[wd] : null;
-    const enabled = oh ? oh.closed !== true : (wd >= 1 && wd <= 6);
-    return {
-      employeeId: empId,
-      weekday: wd,
-      enabled,
-      start: (oh && (oh.morningOpen || oh.open)) || '09:00',
-      end: (oh && (oh.afternoonClose || oh.close)) || '20:00',
-      breakStart: (oh && oh.morningClose) || '',
-      breakEnd: (oh && oh.afternoonOpen) || ''
-    };
-  });
+  const out = [];
+  for (let week = 0; week < 2; week++) {
+    for (let wd = 0; wd < 7; wd++) {
+      const existing = saved.find(t => Number(t.weekday) === wd && (t.week == null ? 0 : Number(t.week)) === week);
+      if (existing) { out.push(Object.assign({}, existing, { week })); continue; }
+      // Compatibilidad con plantillas semanales antiguas: se reutilizan para ambas semanas.
+      const any = saved.find(t => Number(t.weekday) === wd);
+      const oh = data.settings && data.settings.openingHours ? data.settings.openingHours[wd] : null;
+      const enabled = any ? any.enabled === true : (oh ? oh.closed !== true : (wd >= 1 && wd <= 6));
+      out.push({
+        employeeId: empId,
+        week,
+        weekday: wd,
+        enabled,
+        start: (any && any.start) || (oh && (oh.morningOpen || oh.open)) || '09:00',
+        end: (any && any.end) || (oh && (oh.afternoonClose || oh.close)) || '20:00',
+        breakStart: (any && any.breakStart != null ? any.breakStart : (oh && oh.morningClose)) || '',
+        breakEnd: (any && any.breakEnd != null ? any.breakEnd : (oh && oh.afternoonOpen)) || ''
+      });
+    }
+  }
+  return out;
 }
 function tcGetScheduleDay(empId, date) {
   return (data.scheduleDays || []).find(d => d && !d._deleted && d.employeeId === empId && d.date === date) || null;
@@ -3135,16 +3150,40 @@ function renderTemplateRows() {
   const wrap = document.getElementById('templateRows');
   if (!empId) { wrap.innerHTML = ''; return; }
   const tpl = tcGetTemplate(empId);
-  wrap.innerHTML = `<div class="tc-template-row tc-template-head"><div>Día</div><div>Entrada</div><div>Salida</div><div>Pausa desde</div><div>Pausa hasta</div></div>` +
-    tpl.map((t, wd) => `<div class="tc-template-row" data-weekday="${wd}">
-      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer;">
-        <input type="checkbox" class="tc-tpl-enabled" ${t.enabled ? 'checked' : ''} onchange="tcToggleTemplateRow(this)" style="width:auto;"> ${TC_WEEKDAYS[wd]}
-      </label>
-      <input type="time" class="tc-tpl-start" value="${t.start || ''}" ${t.enabled ? '' : 'disabled'}>
-      <input type="time" class="tc-tpl-end" value="${t.end || ''}" ${t.enabled ? '' : 'disabled'}>
-      <input type="time" class="tc-tpl-break-start" value="${t.breakStart || ''}" ${t.enabled ? '' : 'disabled'}>
-      <input type="time" class="tc-tpl-break-end" value="${t.breakEnd || ''}" ${t.enabled ? '' : 'disabled'}>
-    </div>`).join('');
+  const weekBlock = (week) => {
+    const rows = tpl.filter(t => (t.week == null ? 0 : Number(t.week)) === week);
+    return `<div style="margin:12px 0 4px;font-size:12px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.4px;">Semana ${week + 1}</div>
+      <div class="tc-template-row tc-template-head"><div>Día</div><div>Entrada</div><div>Salida</div><div>Pausa desde</div><div>Pausa hasta</div></div>` +
+      rows.map(t => {
+        const wd = Number(t.weekday);
+        return `<div class="tc-template-row" data-weekday="${wd}" data-week="${week}">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:500;cursor:pointer;">
+          <input type="checkbox" class="tc-tpl-enabled" ${t.enabled ? 'checked' : ''} onchange="tcToggleTemplateRow(this)" style="width:auto;"> ${TC_WEEKDAYS[wd]}
+        </label>
+        <input type="time" class="tc-tpl-start" value="${t.start || ''}" ${t.enabled ? '' : 'disabled'}>
+        <input type="time" class="tc-tpl-end" value="${t.end || ''}" ${t.enabled ? '' : 'disabled'}>
+        <input type="time" class="tc-tpl-break-start" value="${t.breakStart || ''}" ${t.enabled ? '' : 'disabled'}>
+        <input type="time" class="tc-tpl-break-end" value="${t.breakEnd || ''}" ${t.enabled ? '' : 'disabled'}>
+      </div>`;
+      }).join('');
+  };
+  wrap.innerHTML = weekBlock(0) + weekBlock(1) +
+    `<div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end;">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="tcCopyTemplateWeek(0,1)">Copiar semana 1 → semana 2</button>
+    </div>`;
+}
+function tcCopyTemplateWeek(from, to) {
+  const rows = (w) => [...document.querySelectorAll('#templateRows .tc-template-row[data-week="' + w + '"]')];
+  const src = rows(from), dst = rows(to);
+  src.forEach((r, i) => {
+    const d = dst[i]; if (!d) return;
+    d.querySelector('.tc-tpl-enabled').checked = r.querySelector('.tc-tpl-enabled').checked;
+    tcToggleTemplateRow(d.querySelector('.tc-tpl-enabled'));
+    d.querySelector('.tc-tpl-start').value = r.querySelector('.tc-tpl-start').value;
+    d.querySelector('.tc-tpl-end').value = r.querySelector('.tc-tpl-end').value;
+    d.querySelector('.tc-tpl-break-start').value = r.querySelector('.tc-tpl-break-start').value;
+    d.querySelector('.tc-tpl-break-end').value = r.querySelector('.tc-tpl-break-end').value;
+  });
 }
 function tcToggleTemplateRow(cb) {
   const row = cb.closest('.tc-template-row');
@@ -3154,21 +3193,22 @@ function tcToggleTemplateRow(cb) {
 function saveScheduleTemplate() {
   const empId = document.getElementById('templateEmployee').value;
   if (!empId) { alert('Selecciona un empleado.'); return; }
-  const rows = document.querySelectorAll('#templateRows .tc-template-row[data-weekday]');
+  const rows = document.querySelectorAll('#templateRows .tc-template-row[data-weekday][data-week]');
   rows.forEach(row => {
     const wd = parseInt(row.dataset.weekday, 10);
+    const week = parseInt(row.dataset.week, 10) || 0;
     const enabled = row.querySelector('.tc-tpl-enabled').checked;
     const start = row.querySelector('.tc-tpl-start').value;
     const end = row.querySelector('.tc-tpl-end').value;
     const breakStart = row.querySelector('.tc-tpl-break-start').value;
     const breakEnd = row.querySelector('.tc-tpl-break-end').value;
-    let t = (data.scheduleTemplates || []).find(x => x && !x._deleted && x.employeeId === empId && Number(x.weekday) === wd);
+    let t = (data.scheduleTemplates || []).find(x => x && !x._deleted && x.employeeId === empId && Number(x.weekday) === wd && (x.week == null ? 0 : Number(x.week)) === week);
     if (!t) {
-      t = { id: 'st_' + empId + '_' + wd, employeeId: empId, weekday: wd };
+      t = { id: 'st_' + empId + '_w' + week + '_' + wd, employeeId: empId, weekday: wd, week };
       data.scheduleTemplates.push(t);
     }
     Object.assign(t, {
-      enabled, start, end, breakStart, breakEnd,
+      enabled, start, end, breakStart, breakEnd, week,
       _modified: Date.now(), _deleted: false
     });
   });
@@ -3205,7 +3245,7 @@ function generateYearSchedules(skipConfirm, onlyEmpId) {
         if (!prev || (d._modified || 0) >= (prev._modified || 0)) byDate.set(d.date, d);
       });
     dates.forEach(date => {
-      const t = tpl[tcWeekday(date)];
+      const t = tpl[tcCycleWeek(date) * 7 + tcWeekday(date)];
       const ex = byDate.get(date);
       if (ex && ex.source === 'manual') { preserved++; return; }
       if (t && t.enabled) {
@@ -3272,7 +3312,7 @@ function openScheduleDayModal(id) {
     const empId = (filter && filter.value) || emps[0].id;
     const date = tcToday();
     const tpl = tcGetTemplate(empId);
-    const t = tpl[tcWeekday(date)] || {};
+    const t = tpl[tcCycleWeek(date) * 7 + tcWeekday(date)] || {};
     sel.value = empId;
     dateEl.value = date;
     statusEl.value = t.enabled === false ? 'off' : 'work';
@@ -3360,7 +3400,7 @@ function quickSetScheduleStatus(id, status) {
   rec._modified = Date.now();
   if (status === 'work' && (!rec.start || !rec.end)) {
     const tpl = tcGetTemplate(rec.employeeId);
-    const t = tpl[tcWeekday(rec.date)] || {};
+    const t = tpl[tcCycleWeek(rec.date) * 7 + tcWeekday(rec.date)] || {};
     rec.start = t.start || '09:00';
     rec.end = t.end || '20:00';
     rec.breakStart = t.breakStart || '';
