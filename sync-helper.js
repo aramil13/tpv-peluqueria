@@ -196,7 +196,7 @@ function fetchFromSync() {
         try {
           const remote = JSON.parse(data);
           const current = readData();
-          const LIST_KEYS = ['appointments','clients','services','sections','employees','products','providers','sales','quotes','scheduleTemplates','scheduleDays','timeClock'];
+          const LIST_KEYS = ['appointments','clients','services','sections','employees','products','providers','sales','quotes','scheduleTemplates','scheduleDays','timeClock','vacations'];
           LIST_KEYS.forEach(k => {
             if (Array.isArray(remote[k])) current[k] = mergeArray(Array.isArray(current[k])?current[k]:[], remote[k]);
           });
@@ -232,6 +232,7 @@ function readData() {
       if (!Array.isArray(raw.scheduleTemplates)) raw.scheduleTemplates = [];
       if (!Array.isArray(raw.scheduleDays)) raw.scheduleDays = [];
       if (!Array.isArray(raw.timeClock)) raw.timeClock = [];
+      if (!Array.isArray(raw.vacations)) raw.vacations = [];
       if (!raw.settings) raw.settings = {};
       
       // Auto-heal database on read (remove binary Excel corrupted items)
@@ -265,7 +266,7 @@ function readData() {
   } catch (e) {
     console.error('[Sync] readData fallo; se devuelve vacio PERO los escritores bloquean tiendas rotas:', e.message);
   }
-  return { appointments: [], clients: [], services: [], employees: [], products: [], projects: [], movements: [], sections: [], providers: [], scheduleTemplates: [], scheduleDays: [], timeClock: [], settings: {}, lastModified: 0 };
+  return { appointments: [], clients: [], services: [], employees: [], products: [], projects: [], movements: [], sections: [], providers: [], scheduleTemplates: [], scheduleDays: [], timeClock: [], vacations: [], settings: {}, lastModified: 0 };
 }
 
 // Tienda claramente rota/vacia: prohibido grabarla encima de una buena.
@@ -477,7 +478,7 @@ function seedInitialData() {
   const data = {
     sections, services, employees,
     clients: [], products: [], projects: [], movements: [], appointments: [],
-    providers: [], settings: { businessName:'Peluquería Ejemplo', businessPhone:'612345678' },
+    vacations: [], providers: [], settings: { businessName:'Peluquería Ejemplo', businessPhone:'612345678' },
     lastModified: Date.now()
   };
   writeData(data);
@@ -520,7 +521,7 @@ const server = http.createServer((req, res) => {
           const merged = { ...current };
           const wasCancelledOrDeleted = new Set();
           (current.appointments||[]).forEach(a => { if (a && (a.cancelledBy || a._deleted)) wasCancelledOrDeleted.add(a.id); });
-          const LIST_KEYS = ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers', 'sales', 'quotes', 'scheduleTemplates', 'scheduleDays', 'timeClock'];
+          const LIST_KEYS = ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers', 'sales', 'quotes', 'scheduleTemplates', 'scheduleDays', 'timeClock', 'vacations'];
           LIST_KEYS.forEach(k => {
             if (Array.isArray(remote[k])) {
               merged[k] = mergeArray(Array.isArray(current[k]) ? current[k] : [], remote[k]);
@@ -1680,7 +1681,7 @@ function pullFromSync() {
       try {
         const remote = JSON.parse(data);
         const current = readData();
-        const LIST_KEYS = ['appointments', 'clients', 'services', 'sections', 'employees', 'products', 'projects', 'providers', 'sales', 'quotes', 'scheduleTemplates', 'scheduleDays', 'timeClock'];
+        const LIST_KEYS = ['appointments', 'clients', 'services', 'sections', 'employees', 'products', 'projects', 'providers', 'sales', 'quotes', 'scheduleTemplates', 'scheduleDays', 'timeClock', 'vacations'];
         let changed = false;
         LIST_KEYS.forEach(k => {
           if (Array.isArray(remote[k])) {

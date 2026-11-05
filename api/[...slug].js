@@ -228,7 +228,7 @@ module.exports = async (req, res) => {
         // Record which appointments were cancelled/deleted BEFORE merge, so TPV can't resurrect them
         const wasCancelledOrDeleted = new Set();
         (current.appointments||[]).forEach(a => { if (a && (a.cancelledBy || a._deleted)) wasCancelledOrDeleted.add(a.id); });
-        ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers', 'scheduleTemplates', 'scheduleDays', 'timeClock'].forEach(k => {
+        ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers', 'sales', 'quotes', 'scheduleTemplates', 'scheduleDays', 'timeClock', 'vacations'].forEach(k => {
           if (Array.isArray(remote[k])) {
             merged[k] = mergeArray(Array.isArray(current[k]) ? current[k] : [], remote[k]);
           }

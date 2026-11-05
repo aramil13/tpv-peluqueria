@@ -258,6 +258,7 @@ tr:hover td { background: #f8f9fa; }
 .tc-status-working { background: #d5f5e3; color: #1a6e3a; }
 .tc-status-break { background: #fdebd0; color: #935d0a; }
 .tc-status-done { background: #d6eaf8; color: #1a5276; }
+.tc-status-vacation { background: #e8daef; color: #6c3483; }
 .tc-metric { background: var(--bg); border-radius: 8px; padding: 8px 10px; }
 .tc-metric .tc-metric-label { font-size: 10px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-light); }
 .tc-metric .tc-metric-value { font-size: 15px; font-weight: 600; margin-top: 2px; }
@@ -426,6 +427,7 @@ body:has(#sec-timecontrol.active) .main { min-width: 0; }
           <h3>⏱️ Control de Horario</h3>
           <div class="tabs" style="margin-bottom:0;border-bottom:none;">
             <div class="tab tc-tab active" id="tcTabSchedules" onclick="setTimeControlTab('schedules',this)">📅 Horarios</div>
+            <div class="tab tc-tab" id="tcTabVacations" onclick="setTimeControlTab('vacations',this)">🌴 Vacaciones</div>
             <div class="tab tc-tab" id="tcTabClock" onclick="setTimeControlTab('clock',this)">⏱️ Fichajes</div>
             <div class="tab tc-tab" id="tcTabSummary" onclick="setTimeControlTab('summary',this)">📊 Resumen</div>
           </div>
@@ -452,6 +454,43 @@ body:has(#sec-timecontrol.active) .main { min-width: 0; }
           </div>
           <div id="scheduleStats" class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:15px;"></div>
           <div id="scheduleTableWrap" style="overflow-x:auto;"></div>
+        </div>
+      </div>
+
+      <!-- VACACIONES -->
+      <div id="tcPanelVacations" style="display:none;">
+        <div class="card">
+          <div class="card-header" style="flex-wrap:wrap;gap:8px;">
+            <h3>🌴 Vacaciones del personal</h3>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+              <select id="tcVacationFilterEmployee" onchange="renderVacations()" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></select>
+              <select id="tcVacationYear" onchange="renderVacations()" style="padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;"></select>
+            </div>
+          </div>
+          <div style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:14px;">
+            <div style="font-size:13px;font-weight:700;margin-bottom:10px;" id="vacationFormTitle">Añadir período de vacaciones</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;align-items:end;">
+              <label style="font-size:12px;font-weight:600;">Empleado
+                <select id="vacationEmployee" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;margin-top:4px;"></select>
+              </label>
+              <label style="font-size:12px;font-weight:600;">Desde
+                <input type="date" id="vacationStart" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;margin-top:4px;">
+              </label>
+              <label style="font-size:12px;font-weight:600;">Hasta
+                <input type="date" id="vacationEnd" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;margin-top:4px;">
+              </label>
+              <label style="font-size:12px;font-weight:600;">Notas
+                <input type="text" id="vacationNote" placeholder="Opcional" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-size:13px;margin-top:4px;">
+              </label>
+              <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                <button class="btn btn-primary" id="vacationSaveBtn" onclick="saveVacation()">+ Añadir período</button>
+                <button class="btn btn-secondary" id="vacationCancelBtn" onclick="cancelVacationEdit()" style="display:none;">Cancelar</button>
+              </div>
+            </div>
+            <input type="hidden" id="vacationEditId">
+          </div>
+          <div id="vacationStats" class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:15px;"></div>
+          <div id="vacationsTable" style="overflow-x:auto;"></div>
         </div>
       </div>
 
@@ -1196,6 +1235,7 @@ let data = {
   scheduleTemplates: DB.get('scheduleTemplates', []),
   scheduleDays: DB.get('scheduleDays', []),
   timeClock: DB.get('timeClock', []),
+  vacations: DB.get('vacations', []),
   ivaRate: DB.get('ivaRate', 21),
   ticketBackups: DB.get('ticketBackups', []),
   invoiceBackups: DB.get('invoiceBackups', []),
@@ -1227,7 +1267,7 @@ let data = {
 }
 
 // Ensure all list fields are arrays (fix localStorage corruption)
-const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','quotes','movements','scheduleTemplates','scheduleDays','timeClock'];
+const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','quotes','movements','scheduleTemplates','scheduleDays','timeClock','vacations'];
 ARRAY_KEYS.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 tcDedupeControlData();
 
@@ -2191,6 +2231,7 @@ function syncPush() {
     scheduleTemplates: Array.isArray(data.scheduleTemplates) ? data.scheduleTemplates : [],
     scheduleDays: Array.isArray(data.scheduleDays) ? data.scheduleDays : [],
     timeClock: Array.isArray(data.timeClock) ? data.timeClock : [],
+    vacations: Array.isArray(data.vacations) ? data.vacations : [],
     settings: data.settings || {}
   });
   const headers = { 'Content-Type': 'application/json' };
@@ -2327,7 +2368,7 @@ function applyRemoteData(remote, source) {
   if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
   if (Array.isArray(remote.projects) && remote.projects.length > 0) data.projects = [...remote.projects];
   if (Array.isArray(remote.providers) && remote.providers.length > 0) data.providers = [...remote.providers];
-  ['scheduleTemplates', 'scheduleDays', 'timeClock'].forEach(k => {
+  ['scheduleTemplates', 'scheduleDays', 'timeClock', 'vacations'].forEach(k => {
     if (Array.isArray(remote[k])) mergeRemote(k, remote[k]);
   });
   tcDedupeControlData();
@@ -2361,7 +2402,7 @@ function syncPull() {
     try {
       saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
       saveKey('clients'); saveKey('projects'); saveKey('providers'); saveKey('appointments');
-      saveKey('sales'); saveKey('quotes'); saveKey('scheduleTemplates'); saveKey('scheduleDays'); saveKey('timeClock');
+      saveKey('sales'); saveKey('quotes'); saveKey('scheduleTemplates'); saveKey('scheduleDays'); saveKey('timeClock'); saveKey('vacations');
     } catch(e) { console.error('SAVE ERROR:', e); }
 
     const active = document.querySelector('.nav-item.active');
@@ -2459,9 +2500,11 @@ function syncWebNow() {
       projects: Array.isArray(data.projects) ? data.projects : [],
       providers: Array.isArray(data.providers) ? data.providers : [],
       sales: Array.isArray(data.sales) ? data.sales : [],
+      quotes: Array.isArray(data.quotes) ? data.quotes : [],
       scheduleTemplates: Array.isArray(data.scheduleTemplates) ? data.scheduleTemplates : [],
       scheduleDays: Array.isArray(data.scheduleDays) ? data.scheduleDays : [],
       timeClock: Array.isArray(data.timeClock) ? data.timeClock : [],
+      vacations: Array.isArray(data.vacations) ? data.vacations : [],
       settings: data.settings || {}
     })
   }).then(async r => {
@@ -3013,7 +3056,7 @@ function tcEmployeeName(empId) {
 // Unifica duplicados que puedan llegar por sync: una plantilla por empleado+día,
 // un horario por empleado+fecha y un fichaje por empleado+fecha.
 function tcDedupeControlData() {
-  ['scheduleTemplates', 'scheduleDays', 'timeClock'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
+  ['scheduleTemplates', 'scheduleDays', 'timeClock', 'vacations'].forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
   const keepLatest = (arr, keyFn) => {
     const map = new Map();
     (arr || []).forEach(item => {
@@ -3133,10 +3176,11 @@ function tcDownloadCsv(filename, rows) {
 // ---- Navegación y pestañas ----
 function renderTimeControl() {
   populateScheduleFilters();
+  populateVacationFilters();
   populateClockFilters();
   populateSummaryFilters();
   setTimeControlTab(timeControlTab, document.getElementById(
-    timeControlTab === 'clock' ? 'tcTabClock' : timeControlTab === 'summary' ? 'tcTabSummary' : 'tcTabSchedules'
+    timeControlTab === 'clock' ? 'tcTabClock' : timeControlTab === 'summary' ? 'tcTabSummary' : timeControlTab === 'vacations' ? 'tcTabVacations' : 'tcTabSchedules'
   ));
 }
 function setTimeControlTab(tab, el) {
@@ -3144,9 +3188,11 @@ function setTimeControlTab(tab, el) {
   document.querySelectorAll('#sec-timecontrol .tc-tab').forEach(t => t.classList.remove('active'));
   if (el) el.classList.add('active');
   document.getElementById('tcPanelSchedules').style.display = tab === 'schedules' ? 'block' : 'none';
+  document.getElementById('tcPanelVacations').style.display = tab === 'vacations' ? 'block' : 'none';
   document.getElementById('tcPanelClock').style.display = tab === 'clock' ? 'block' : 'none';
   document.getElementById('tcPanelSummary').style.display = tab === 'summary' ? 'block' : 'none';
   if (tab === 'schedules') renderScheduleTable();
+  if (tab === 'vacations') renderVacations();
   if (tab === 'clock') { renderClockStatus(); renderTeamClock(); renderClockHistory(); }
   if (tab === 'summary') renderSummary();
 }
@@ -3219,15 +3265,187 @@ function populateSummaryFilters() {
   empSel.value = Array.from(empSel.options).some(o => o.value === prevEmp) ? prevEmp : '';
 }
 
+// ---- Vacaciones ----
+function tcVacations() {
+  return (data.vacations || []).filter(v => v && !v._deleted && v.employeeId && v.startDate && v.endDate);
+}
+function tcVacationFor(empId, date) {
+  return tcVacations().find(v => v.employeeId === empId && v.startDate <= date && v.endDate >= date) || null;
+}
+function tcVacationDays(v) {
+  if (!v || !v.startDate || !v.endDate) return 0;
+  const a = new Date(v.startDate + 'T12:00:00'), b = new Date(v.endDate + 'T12:00:00');
+  return Math.max(0, Math.round((b - a) / 86400000) + 1);
+}
+function tcVacationDaysInYear(v, year) {
+  if (!v || !v.startDate || !v.endDate) return 0;
+  const y = String(year);
+  const start = v.startDate > y + '-01-01' ? v.startDate : y + '-01-01';
+  const end = v.endDate < y + '-12-31' ? v.endDate : y + '-12-31';
+  if (start > end) return 0;
+  return Math.round((new Date(end + 'T12:00:00') - new Date(start + 'T12:00:00')) / 86400000) + 1;
+}
+function tcVacationState(v) {
+  const today = tcToday();
+  if (v.endDate < today) return { label: 'Pasadas', cls: 'badge-warning' };
+  if (v.startDate > today) return { label: 'Próximas', cls: 'badge-info' };
+  return { label: 'En curso', cls: 'badge-success' };
+}
+function tcFormatDate(date) {
+  if (!date) return '-';
+  return new Date(date + 'T12:00:00').toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+function populateVacationFilters() {
+  const empSel = document.getElementById('tcVacationFilterEmployee');
+  const yearSel = document.getElementById('tcVacationYear');
+  const formEmp = document.getElementById('vacationEmployee');
+  if (!empSel || !yearSel || !formEmp) return;
+  const emps = tcActiveEmployees();
+
+  const prevEmp = empSel.value;
+  empSel.innerHTML = '<option value="">Todos los empleados</option>' + emps.map(e => `<option value="${e.id}">${esc(fullName(e))}</option>`).join('');
+  empSel.value = Array.from(empSel.options).some(o => o.value === prevEmp) ? prevEmp : '';
+
+  const prevFormEmp = formEmp.value;
+  formEmp.innerHTML = emps.map(e => `<option value="${e.id}">${esc(fullName(e))}</option>`).join('');
+  if (prevFormEmp && emps.some(e => e.id === prevFormEmp)) formEmp.value = prevFormEmp;
+  else if (emps.length) formEmp.value = emps[0].id;
+
+  const currentYear = new Date().getFullYear();
+  const years = new Set();
+  for (let y = currentYear - 2; y <= currentYear + 2; y++) years.add(y);
+  tcVacations().forEach(v => {
+    const y1 = parseInt((v.startDate || '').slice(0, 4), 10);
+    const y2 = parseInt((v.endDate || '').slice(0, 4), 10);
+    if (y1) years.add(y1);
+    if (y2) years.add(y2);
+  });
+  const prevYear = yearSel.value;
+  const hadYearOptions = yearSel.options.length > 0;
+  yearSel.innerHTML = '<option value="">Todos los años</option>' + Array.from(years).sort((a, b) => b - a).map(y => `<option value="${y}">${y}</option>`).join('');
+  yearSel.value = Array.from(yearSel.options).some(o => o.value === prevYear) ? prevYear : (hadYearOptions ? '' : String(currentYear));
+}
+function renderVacations() {
+  const wrap = document.getElementById('vacationsTable');
+  const statsEl = document.getElementById('vacationStats');
+  if (!wrap) return;
+  const empId = (document.getElementById('tcVacationFilterEmployee') || {}).value || '';
+  const year = (document.getElementById('tcVacationYear') || {}).value || '';
+  let list = tcVacations();
+  if (empId) list = list.filter(v => v.employeeId === empId);
+  if (year) list = list.filter(v => (v.startDate || '').slice(0, 4) <= year && (v.endDate || '').slice(0, 4) >= year);
+  list.sort((a, b) => (b.startDate || '').localeCompare(a.startDate || '') || tcEmployeeName(a.employeeId).localeCompare(tcEmployeeName(b.employeeId)));
+
+  const totalDays = list.reduce((s, v) => s + tcVacationDays(v), 0);
+  const employees = new Set(list.map(v => v.employeeId)).size;
+  const current = list.filter(v => tcVacationState(v).label === 'En curso').length;
+  if (statsEl) {
+    statsEl.innerHTML = `
+      <div class="stat-card"><div class="stat-number">${list.length}</div><div class="stat-label">Períodos</div></div>
+      <div class="stat-card"><div class="stat-number">${employees}</div><div class="stat-label">Empleados</div></div>
+      <div class="stat-card"><div class="stat-number">${totalDays}</div><div class="stat-label">Días de vacaciones</div></div>
+      <div class="stat-card"><div class="stat-number">${current}</div><div class="stat-label">En curso</div></div>`;
+  }
+
+  if (!list.length) {
+    wrap.innerHTML = '<div class="empty-state"><div class="icon">🌴</div><p>No hay períodos de vacaciones para este filtro.</p><p style="font-size:12px;">Añade un período indicando empleado, fecha de inicio y fecha de fin.</p></div>';
+    return;
+  }
+
+  wrap.innerHTML = `<table><thead><tr><th>Empleado</th><th>Desde</th><th>Hasta</th><th>Días</th><th>Estado</th><th>Notas</th><th>Acciones</th></tr></thead><tbody>` +
+    list.map(v => {
+      const st = tcVacationState(v);
+      return `<tr>
+        <td><strong>${esc(tcEmployeeName(v.employeeId))}</strong></td>
+        <td>${tcFormatDate(v.startDate)}</td>
+        <td>${tcFormatDate(v.endDate)}</td>
+        <td><strong>${tcVacationDays(v)}</strong></td>
+        <td><span class="badge ${st.cls}">${st.label}</span></td>
+        <td>${esc(v.note || '-')}</td>
+        <td><div class="btn-group">
+          <button class="btn btn-primary btn-sm" onclick="editVacation('${v.id}')" title="Editar">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteVacation('${v.id}')" title="Eliminar">🗑️</button>
+        </div></td>
+      </tr>`;
+    }).join('') + '</tbody></table>';
+}
+function saveVacation() {
+  const editId = (document.getElementById('vacationEditId') || {}).value || '';
+  const empId = (document.getElementById('vacationEmployee') || {}).value;
+  const startDate = (document.getElementById('vacationStart') || {}).value;
+  const endDate = (document.getElementById('vacationEnd') || {}).value;
+  const note = ((document.getElementById('vacationNote') || {}).value || '').trim();
+  if (!empId) { alert('Selecciona un empleado.'); return; }
+  if (!startDate || !endDate) { alert('Indica la fecha de inicio y la fecha de fin.'); return; }
+  if (endDate < startDate) { alert('La fecha de fin no puede ser anterior a la de inicio.'); return; }
+  const overlapping = tcVacations().find(v => v.id !== editId && v.employeeId === empId && !(v.endDate < startDate || v.startDate > endDate));
+  if (overlapping) {
+    const cont = confirm('Ya existe un período de vacaciones para este empleado que coincide en fechas (' + tcFormatDate(overlapping.startDate) + ' a ' + tcFormatDate(overlapping.endDate) + ').\n\n¿Guardar de todos modos?');
+    if (!cont) return;
+  }
+  if (!Array.isArray(data.vacations)) data.vacations = [];
+  if (editId) {
+    const v = data.vacations.find(x => x && x.id === editId);
+    if (v) Object.assign(v, { employeeId: empId, startDate, endDate, note, _modified: Date.now(), _deleted: false });
+  } else {
+    data.vacations.push({
+      id: 'vac_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+      employeeId: empId, startDate, endDate, note,
+      _modified: Date.now(), _deleted: false
+    });
+  }
+  saveKey('vacations');
+  syncPush();
+  cancelVacationEdit();
+  renderVacations();
+  renderScheduleTable();
+  renderSummary();
+}
+function editVacation(id) {
+  const v = (data.vacations || []).find(x => x && x.id === id && !x._deleted);
+  if (!v) return;
+  document.getElementById('vacationEditId').value = v.id;
+  document.getElementById('vacationEmployee').value = v.employeeId;
+  document.getElementById('vacationStart').value = v.startDate;
+  document.getElementById('vacationEnd').value = v.endDate;
+  document.getElementById('vacationNote').value = v.note || '';
+  document.getElementById('vacationFormTitle').textContent = 'Editar período de vacaciones';
+  document.getElementById('vacationSaveBtn').textContent = '💾 Guardar cambios';
+  document.getElementById('vacationCancelBtn').style.display = 'inline-flex';
+  document.getElementById('vacationFormTitle').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+function cancelVacationEdit() {
+  document.getElementById('vacationEditId').value = '';
+  document.getElementById('vacationStart').value = '';
+  document.getElementById('vacationEnd').value = '';
+  document.getElementById('vacationNote').value = '';
+  document.getElementById('vacationFormTitle').textContent = 'Añadir período de vacaciones';
+  document.getElementById('vacationSaveBtn').textContent = '+ Añadir período';
+  document.getElementById('vacationCancelBtn').style.display = 'none';
+}
+function deleteVacation(id) {
+  const v = (data.vacations || []).find(x => x && x.id === id);
+  if (!v) return;
+  if (!confirm('¿Eliminar el período de vacaciones de ' + tcEmployeeName(v.employeeId) + ' (' + tcFormatDate(v.startDate) + ' a ' + tcFormatDate(v.endDate) + ')?')) return;
+  v._deleted = true;
+  v._modified = Date.now();
+  saveKey('vacations');
+  syncPush();
+  renderVacations();
+  renderScheduleTable();
+  renderSummary();
+}
+
 // ---- Horarios ----
 function renderScheduleStats(list, empId) {
   const el = document.getElementById('scheduleStats');
   if (!el) return;
-  const workDays = list.filter(d => d.status === 'work');
+  const workDays = list.filter(d => d.status === 'work' && !tcVacationFor(d.employeeId, d.date));
   const planned = workDays.reduce((s, d) => s + tcScheduleMinutes(d), 0);
   const emps = new Set(list.map(d => d.employeeId));
   const dates = new Set(list.map(d => d.date));
   const clockCount = (data.timeClock || []).filter(r => !r._deleted && dates.has(r.date) && (!empId || r.employeeId === empId)).length;
+  const vacCount = list.filter(d => tcVacationFor(d.employeeId, d.date)).length;
   el.innerHTML = `
     <div class="stat-card"><div class="stat-number">${emps.size}</div><div class="stat-label">Empleados</div></div>
     <div class="stat-card"><div class="stat-number">${workDays.length}</div><div class="stat-label">Días laborables</div></div>
@@ -3257,13 +3475,21 @@ function renderScheduleTable() {
   const today = tcToday();
   wrap.innerHTML = `<table><thead><tr><th>Fecha</th><th>Día</th><th>Empleado</th><th>Horario</th><th>Pausa</th><th>Horas</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>` +
     list.map(d => {
-      const st = TC_STATUS[d.status] || TC_STATUS.off;
-      const mins = tcScheduleMinutes(d);
+      const vac = tcVacationFor(d.employeeId, d.date);
+      const statusKey = vac ? 'vacation' : d.status;
+      const st = TC_STATUS[statusKey] || TC_STATUS.off;
+      const mins = vac ? 0 : tcScheduleMinutes(d);
       const isToday = d.date === today;
       const dateObj = new Date(d.date + 'T12:00:00');
       const fecha = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
-      const breakTxt = d.status === 'work' && d.breakStart && d.breakEnd ? d.breakStart + ' - ' + d.breakEnd : '-';
-      const horario = d.status === 'work' ? (d.start || '?') + ' - ' + (d.end || '?') : '-';
+      const breakTxt = !vac && d.status === 'work' && d.breakStart && d.breakEnd ? d.breakStart + ' - ' + d.breakEnd : '-';
+      const horario = !vac && d.status === 'work' ? (d.start || '?') + ' - ' + (d.end || '?') : '-';
+      const vacTitle = vac ? `Vacaciones: ${tcFormatDate(vac.startDate)} a ${tcFormatDate(vac.endDate)}${vac.note ? ' · ' + vac.note : ''}` : '';
+      const actions = vac
+        ? `<button class="btn btn-info btn-sm" onclick="setTimeControlTab('vacations',document.getElementById('tcTabVacations'));editVacation('${vac.id}')" title="Editar período de vacaciones">🌴</button>`
+        : `<button class="btn btn-primary btn-sm" onclick="openScheduleDayModal('${d.id}')" title="Editar">✏️</button>
+          <button class="btn btn-secondary btn-sm" onclick="quickSetScheduleStatus('${d.id}','${d.status === 'vacation' ? 'work' : 'vacation'}')" title="${d.status === 'vacation' ? 'Quitar vacaciones' : 'Marcar vacaciones'}">${d.status === 'vacation' ? '↩️' : '🏖️'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteScheduleDay('${d.id}')" title="Eliminar">🗑️</button>`;
       return `<tr class="${isToday ? 'tc-schedule-today' : ''}">
         <td>${fecha}${isToday ? ' <span class="badge badge-warning" style="font-size:10px;">Hoy</span>' : ''}</td>
         <td>${TC_WEEKDAYS[dateObj.getDay()]}</td>
@@ -3271,12 +3497,8 @@ function renderScheduleTable() {
         <td>${horario}</td>
         <td>${breakTxt}</td>
         <td>${mins ? tcFmtDuration(mins) : '-'}</td>
-        <td><span class="badge ${st.cls}">${st.label}</span></td>
-        <td><div class="btn-group">
-          <button class="btn btn-primary btn-sm" onclick="openScheduleDayModal('${d.id}')" title="Editar">✏️</button>
-          <button class="btn btn-secondary btn-sm" onclick="quickSetScheduleStatus('${d.id}','${d.status === 'vacation' ? 'work' : 'vacation'}')" title="${d.status === 'vacation' ? 'Quitar vacaciones' : 'Marcar vacaciones'}">${d.status === 'vacation' ? '↩️' : '🏖️'}</button>
-          <button class="btn btn-danger btn-sm" onclick="deleteScheduleDay('${d.id}')" title="Eliminar">🗑️</button>
-        </div></td>
+        <td><span class="badge ${st.cls}" title="${esc(vacTitle)}">${st.label}</span></td>
+        <td><div class="btn-group">${actions}</div></td>
       </tr>`;
     }).join('') + '</tbody></table>';
 }
@@ -3569,8 +3791,10 @@ function exportScheduleCsv() {
   if (!list.length) { alert('No hay horarios para exportar con este filtro.'); return; }
   const rows = [['Fecha','Día','Empleado','Estado','Entrada','Salida','Pausa desde','Pausa hasta','Horas','Notas']];
   list.forEach(d => {
-    const st = TC_STATUS[d.status] || TC_STATUS.off;
-    rows.push([d.date, TC_WEEKDAYS[tcWeekday(d.date)], tcEmployeeName(d.employeeId), st.label, d.start || '', d.end || '', d.breakStart || '', d.breakEnd || '', tcScheduleMinutes(d) ? tcFmtDuration(tcScheduleMinutes(d)) : '', d.note || '']);
+    const vac = tcVacationFor(d.employeeId, d.date);
+    const st = TC_STATUS[vac ? 'vacation' : d.status] || TC_STATUS.off;
+    const mins = vac ? 0 : tcScheduleMinutes(d);
+    rows.push([d.date, TC_WEEKDAYS[tcWeekday(d.date)], tcEmployeeName(d.employeeId), st.label, vac ? '' : (d.start || ''), vac ? '' : (d.end || ''), vac ? '' : (d.breakStart || ''), vac ? '' : (d.breakEnd || ''), mins ? tcFmtDuration(mins) : '', vac ? ('Vacaciones: ' + tcFormatDate(vac.startDate) + ' a ' + tcFormatDate(vac.endDate) + (vac.note ? ' · ' + vac.note : '')) : (d.note || '')]);
   });
   tcDownloadCsv('horarios_' + year + (month ? '_' + month : '') + '.csv', rows);
 }
@@ -3583,17 +3807,22 @@ function renderClockStatus() {
   const today = tcToday();
   const rec = empId ? tcGetClockRecord(empId, today) : null;
   const sched = empId ? tcGetScheduleDay(empId, today) : null;
-  const status = tcStatusInfo(rec);
+  const vac = empId ? tcVacationFor(empId, today) : null;
+  const status = vac
+    ? { key: 'vacation', label: '🌴 Vacaciones', cls: 'tc-status-vacation' }
+    : tcStatusInfo(rec);
   const activeBreak = tcActiveBreak(rec);
   const worked = rec ? tcRecordMinutes(rec, true) : 0;
-  const planned = sched ? tcScheduleMinutes(sched) : 0;
+  const planned = (sched && !vac) ? tcScheduleMinutes(sched) : 0;
 
   const dateEl = document.getElementById('tcLiveDate');
   if (dateEl) dateEl.textContent = new Date(today + 'T12:00:00').toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   const badge = document.getElementById('tcClockStatusBadge');
   if (badge) badge.innerHTML = `<span class="tc-status-badge ${status.cls}">${status.label}</span>`;
   const scheduledEl = document.getElementById('tcScheduled');
-  if (scheduledEl) scheduledEl.textContent = sched && sched.status === 'work' ? (sched.start || '?') + ' - ' + (sched.end || '?') : 'Sin horario';
+  if (scheduledEl) scheduledEl.textContent = vac
+    ? '🌴 Vacaciones: ' + tcFormatDate(vac.startDate) + ' - ' + tcFormatDate(vac.endDate)
+    : (sched && sched.status === 'work' ? (sched.start || '?') + ' - ' + (sched.end || '?') : 'Sin horario');
   const inEl = document.getElementById('tcClockIn');
   if (inEl) inEl.textContent = rec && rec.clockIn ? rec.clockIn : '--:--';
   const outEl = document.getElementById('tcClockOut');
@@ -3604,8 +3833,8 @@ function renderClockStatus() {
   if (breaksEl) breaksEl.innerHTML = rec && rec.breaks && rec.breaks.length ? '☕ Pausas: ' + tcBreakSummary(rec) : '';
   const diffEl = document.getElementById('tcDifference');
   if (diffEl) {
-    if (!sched || sched.status !== 'work') {
-      diffEl.textContent = '';
+    if (vac || !sched || sched.status !== 'work') {
+      diffEl.textContent = vac ? 'Día de vacaciones: no se computa como ausencia.' : '';
     } else {
       const diff = worked - planned;
       const cls = diff >= 0 ? 'tc-diff-pos' : 'tc-diff-neg';
@@ -3613,8 +3842,8 @@ function renderClockStatus() {
     }
   }
 
-  tcSetBtn('tcBtnIn', !!empId && !(rec && rec.clockIn && !rec.clockOut));
-  tcSetBtn('tcBtnBreakStart', !!empId && !!rec && !!rec.clockIn && !rec.clockOut && !activeBreak);
+  tcSetBtn('tcBtnIn', !!empId && !vac && !(rec && rec.clockIn && !rec.clockOut));
+  tcSetBtn('tcBtnBreakStart', !!empId && !vac && !!rec && !!rec.clockIn && !rec.clockOut && !activeBreak);
   tcSetBtn('tcBtnBreakEnd', !!activeBreak);
   tcSetBtn('tcBtnOut', !!empId && !!rec && !!rec.clockIn && !rec.clockOut);
 }
@@ -3627,10 +3856,13 @@ function renderTeamClock() {
   const selected = (document.getElementById('tcClockEmployee') || {}).value;
   div.innerHTML = emps.map(emp => {
     const rec = tcGetClockRecord(emp.id, today);
-    const st = tcStatusInfo(rec);
+    const vac = tcVacationFor(emp.id, today);
+    const st = vac ? { key: 'vacation', label: '🌴 Vacaciones' } : tcStatusInfo(rec);
     const worked = rec ? tcRecordMinutes(rec, true) : 0;
     let actions = '';
-    if (st.key === 'none') {
+    if (vac) {
+      actions = `<span style="font-size:12px;color:#6c3483;font-weight:600;">🌴 ${tcFormatDate(vac.startDate)} - ${tcFormatDate(vac.endDate)}</span>`;
+    } else if (st.key === 'none') {
       actions = `<button class="btn btn-success btn-sm tc-mini-btn" onclick="event.stopPropagation();clockAction('in','${emp.id}')">🟢 Entrada</button>`;
     } else if (st.key === 'working') {
       actions = `<button class="btn btn-warning btn-sm tc-mini-btn" onclick="event.stopPropagation();clockAction('breakStart','${emp.id}')">☕ Pausa</button>
@@ -3641,10 +3873,11 @@ function renderTeamClock() {
     } else {
       actions = '<span style="font-size:12px;color:var(--text-light);">✅ Cerrada</span>';
     }
+    const badgeCls = vac ? 'badge-info' : st.key === 'none' ? 'badge-warning' : st.key === 'working' ? 'badge-success' : st.key === 'break' ? 'badge-warning' : 'badge-info';
     return `<div class="tc-employee-card ${emp.id === selected ? 'tc-selected' : ''}" onclick="selectClockEmployee('${emp.id}')">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:6px;margin-bottom:4px;">
         <strong style="font-size:13px;">${esc(fullName(emp))}</strong>
-        <span class="badge ${st.key === 'none' ? 'badge-warning' : st.key === 'working' ? 'badge-success' : st.key === 'break' ? 'badge-warning' : 'badge-info'}" style="font-size:10px;">${st.label}</span>
+        <span class="badge ${badgeCls}" style="font-size:10px;">${st.label}</span>
       </div>
       <div style="font-size:11px;color:var(--text-light);margin-bottom:6px;">Trabajado: ${tcFmtDuration(worked)}</div>
       <div style="display:flex;gap:4px;flex-wrap:wrap;">${actions}</div>
@@ -3672,16 +3905,17 @@ function renderClockHistory() {
   wrap.innerHTML = `<table><thead><tr><th>Fecha</th><th>Empleado</th><th>Horario</th><th>Entrada</th><th>Salida</th><th>Pausas</th><th>Trabajado</th><th>Diferencia</th><th>Acciones</th></tr></thead><tbody>` +
     list.map(r => {
       const sched = tcGetScheduleDay(r.employeeId, r.date);
-      const planned = sched ? tcScheduleMinutes(sched) : 0;
+      const vac = tcVacationFor(r.employeeId, r.date);
+      const planned = (sched && !vac) ? tcScheduleMinutes(sched) : 0;
       const worked = tcRecordMinutes(r, r.date === tcToday());
-      const diff = (sched && sched.status === 'work') ? worked - planned : null;
-      const diffHtml = diff == null ? '-' : `<span class="${diff >= 0 ? 'tc-diff-pos' : 'tc-diff-neg'}">${tcFmtDiff(diff)}</span>`;
+      const diff = (!vac && sched && sched.status === 'work') ? worked - planned : null;
+      const diffHtml = diff == null ? (vac ? '<span class="badge badge-info" style="font-size:10px;">Vacaciones</span>' : '-') : `<span class="${diff >= 0 ? 'tc-diff-pos' : 'tc-diff-neg'}">${tcFmtDiff(diff)}</span>`;
       const dateObj = new Date(r.date + 'T12:00:00');
       const fecha = dateObj.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
       return `<tr>
         <td>${fecha}<br><span style="font-size:11px;color:var(--text-light);">${TC_WEEKDAYS[dateObj.getDay()]}</span></td>
         <td><strong>${esc(tcEmployeeName(r.employeeId))}</strong></td>
-        <td>${sched && sched.status === 'work' ? (sched.start || '?') + ' - ' + (sched.end || '?') : '-'}</td>
+        <td>${vac ? '<span class="badge badge-info" style="font-size:10px;">Vacaciones</span>' : (sched && sched.status === 'work' ? (sched.start || '?') + ' - ' + (sched.end || '?') : '-')}</td>
         <td>${r.clockIn || '-'}</td>
         <td>${r.clockOut || '<span style="color:var(--warning);">Abierto</span>'}</td>
         <td style="font-size:11px;">${tcBreakSummary(r)}</td>
@@ -3703,6 +3937,12 @@ function clockAction(action, empIdArg) {
   const today = tcToday();
   const now = tcNowHM();
   let rec = tcGetClockRecord(empId, today);
+
+  const vac = tcVacationFor(empId, today);
+  if (vac && action === 'in') {
+    alert('🌴 ' + tcEmployeeName(empId) + ' está de vacaciones del ' + tcFormatDate(vac.startDate) + ' al ' + tcFormatDate(vac.endDate) + '.\n\nNo se puede fichar la entrada durante el período vacacional.');
+    return;
+  }
 
   if (action === 'in') {
     if (rec && rec.clockIn && !rec.clockOut) { alert('Este empleado ya tiene una entrada fichada sin salida.'); return; }
@@ -3837,10 +4077,11 @@ function exportTimeClockCsv() {
   const rows = [['Fecha','Empleado','Horario previsto','Entrada','Salida','Pausas','Horas trabajadas','Diferencia']];
   list.forEach(r => {
     const sched = tcGetScheduleDay(r.employeeId, r.date);
-    const planned = sched ? tcScheduleMinutes(sched) : 0;
+    const vac = tcVacationFor(r.employeeId, r.date);
+    const planned = (sched && !vac) ? tcScheduleMinutes(sched) : 0;
     const worked = tcRecordMinutes(r, r.date === tcToday());
-    const diff = sched && sched.status === 'work' ? worked - planned : null;
-    rows.push([r.date, tcEmployeeName(r.employeeId), sched && sched.status === 'work' ? (sched.start || '') + '-' + (sched.end || '') : '', r.clockIn || '', r.clockOut || '', tcBreakSummary(r), tcFmtDuration(worked), diff == null ? '' : tcFmtDiff(diff)]);
+    const diff = (!vac && sched && sched.status === 'work') ? worked - planned : null;
+    rows.push([r.date, tcEmployeeName(r.employeeId), vac ? 'Vacaciones' : (sched && sched.status === 'work' ? (sched.start || '') + '-' + (sched.end || '') : ''), r.clockIn || '', r.clockOut || '', tcBreakSummary(r), tcFmtDuration(worked), diff == null ? '' : tcFmtDiff(diff)]);
   });
   tcDownloadCsv('fichajes_' + month + (empId ? '_' + tcEmployeeName(empId).replace(/\s+/g, '_') : '') + '.csv', rows);
 }
@@ -3851,13 +4092,14 @@ function tcSummaryData(year, empId) {
   let employees = tcActiveEmployees();
   if (empId) employees = employees.filter(e => e.id === empId);
   return employees.map(emp => {
-    const scheduled = (data.scheduleDays || []).filter(d => d && !d._deleted && d.employeeId === emp.id && (d.date || '').slice(0, 4) === String(year) && d.status === 'work');
+    const scheduled = (data.scheduleDays || []).filter(d => d && !d._deleted && d.employeeId === emp.id && (d.date || '').slice(0, 4) === String(year) && d.status === 'work' && !tcVacationFor(emp.id, d.date));
     const planned = scheduled.reduce((s, d) => s + tcScheduleMinutes(d), 0);
     const records = (data.timeClock || []).filter(r => r && !r._deleted && r.employeeId === emp.id && (r.date || '').slice(0, 4) === String(year));
     const worked = records.reduce((s, r) => s + tcRecordMinutes(r, r.date === today), 0);
     const daysWorked = records.filter(r => r.clockIn).length;
     const absences = scheduled.filter(d => d.date < today && !records.some(r => r.date === d.date && r.clockIn)).length;
-    return { emp, scheduledDays: scheduled.length, planned, worked, difference: worked - planned, daysWorked, absences };
+    const vacationDays = tcVacations().filter(v => v.employeeId === emp.id).reduce((s, v) => s + tcVacationDaysInYear(v, year), 0);
+    return { emp, scheduledDays: scheduled.length, planned, worked, difference: worked - planned, daysWorked, absences, vacationDays };
   }).sort((a, b) => fullName(a.emp).localeCompare(fullName(b.emp)));
 }
 function renderSummary() {
@@ -3873,14 +4115,16 @@ function renderSummary() {
   const totalPlanned = rows.reduce((s, r) => s + r.planned, 0);
   const totalWorked = rows.reduce((s, r) => s + r.worked, 0);
   const totalAbsences = rows.reduce((s, r) => s + r.absences, 0);
+  const totalVacationDays = rows.reduce((s, r) => s + r.vacationDays, 0);
   const totalDiff = totalWorked - totalPlanned;
-  let html = `<div class="stats-grid" style="grid-template-columns:repeat(4,1fr);margin-bottom:15px;">
+  let html = `<div class="stats-grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:15px;">
     <div class="stat-card"><div class="stat-number">${tcFmtDuration(totalPlanned)}</div><div class="stat-label">Horas previstas</div></div>
     <div class="stat-card"><div class="stat-number">${tcFmtDuration(totalWorked)}</div><div class="stat-label">Horas trabajadas</div></div>
     <div class="stat-card"><div class="stat-number ${totalDiff >= 0 ? 'tc-diff-pos' : 'tc-diff-neg'}">${tcFmtDiff(totalDiff)}</div><div class="stat-label">Diferencia</div></div>
     <div class="stat-card"><div class="stat-number">${totalAbsences}</div><div class="stat-label">Ausencias</div></div>
+    <div class="stat-card"><div class="stat-number">${totalVacationDays}</div><div class="stat-label">Días de vacaciones</div></div>
   </div>`;
-  html += `<table><thead><tr><th>Empleado</th><th>Días laborables</th><th>Horas previstas</th><th>Días fichados</th><th>Horas trabajadas</th><th>Diferencia</th><th>Ausencias</th></tr></thead><tbody>` +
+  html += `<table><thead><tr><th>Empleado</th><th>Días laborables</th><th>Horas previstas</th><th>Días fichados</th><th>Horas trabajadas</th><th>Diferencia</th><th>Ausencias</th><th>Vacaciones</th></tr></thead><tbody>` +
     rows.map(r => `<tr>
       <td><strong>${esc(fullName(r.emp))}</strong></td>
       <td>${r.scheduledDays}</td>
@@ -3889,6 +4133,7 @@ function renderSummary() {
       <td>${tcFmtDuration(r.worked)}</td>
       <td><span class="${r.difference >= 0 ? 'tc-diff-pos' : 'tc-diff-neg'}">${tcFmtDiff(r.difference)}</span></td>
       <td>${r.absences ? '<span style="color:var(--danger);font-weight:600;">' + r.absences + '</span>' : '0'}</td>
+      <td>${r.vacationDays || 0}</td>
     </tr>`).join('') + '</tbody></table>';
 
   // Resumen mensual del ámbito seleccionado
@@ -3896,7 +4141,7 @@ function renderSummary() {
   const monthly = [];
   for (let m = 1; m <= 12; m++) {
     const prefix = year + '-' + tcPad(m);
-    const scheduled = (data.scheduleDays || []).filter(d => d && !d._deleted && (d.date || '').startsWith(prefix) && d.status === 'work' && empIds.includes(d.employeeId));
+    const scheduled = (data.scheduleDays || []).filter(d => d && !d._deleted && (d.date || '').startsWith(prefix) && d.status === 'work' && empIds.includes(d.employeeId) && !tcVacationFor(d.employeeId, d.date));
     const records = (data.timeClock || []).filter(r => r && !r._deleted && (r.date || '').startsWith(prefix) && empIds.includes(r.employeeId));
     const planned = scheduled.reduce((s, d) => s + tcScheduleMinutes(d), 0);
     const worked = records.reduce((s, r) => s + tcRecordMinutes(r, r.date === tcToday()), 0);
@@ -7727,6 +7972,16 @@ function handleNfcRead(uid) {
   const today = (typeof tcToday === 'function') ? tcToday() : null;
   const now = (typeof tcNowHM === 'function') ? tcNowHM() : '';
   let rec = (typeof tcGetClockRecord === 'function') ? tcGetClockRecord(emp.id, today) : null;
+  const vac = (today && typeof tcVacationFor === 'function') ? tcVacationFor(emp.id, today) : null;
+  if (vac && (!rec || !rec.clockIn || rec.clockOut)) {
+    const empName = (typeof fullName === 'function' ? fullName(emp) : emp.name);
+    nfcToast(empName + ': 🌴 vacaciones del ' + tcFormatDate(vac.startDate) + ' al ' + tcFormatDate(vac.endDate) + '. No se ficha entrada.');
+    const selVac = document.getElementById('tcClockEmployee');
+    if (selVac) selVac.value = emp.id;
+    const navVac = document.querySelector('.nav-item[data-section="timecontrol"]');
+    if (navVac) navVac.click();
+    return true;
+  }
   let msg = '';
   if (!rec || !rec.clockIn || rec.clockOut) {
     // Fichar entrada (reabrir jornada cerrada sin confirmación)
