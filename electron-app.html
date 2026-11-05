@@ -6340,9 +6340,11 @@ function ticketDiscount() {
   return { amount: amt, pct: typeEl.value === 'percent' ? Math.round(Math.min(raw, 100) * 100) / 100 : 0 };
 }
 function pagoLabel(pm) {
+  if (pm === 'quote') return '📝 Presupuesto';
   return pm === 'card' ? '💳 Tarjeta' : pm === 'mixed' ? '💰💳 Mixto' : '💰 Contado';
 }
 function pagoPlain(pm) {
+  if (pm === 'quote') return 'Presupuesto';
   return pm === 'card' ? 'Tarjeta' : pm === 'mixed' ? 'Mixto' : 'Contado';
 }
 function pagoDetail(sale) {
