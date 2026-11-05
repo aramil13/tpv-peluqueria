@@ -379,10 +379,11 @@ body:has(#sec-timecontrol.active) .main { min-width: 0; }
               </select>
             </div>
             <div id="ticketClientInvoice" style="font-size:11px;color:var(--text-light);margin-bottom:10px;padding:8px;background:var(--bg);border-radius:6px;display:none;"></div>
-            <div style="margin-bottom:10px;display:flex;gap:8px;">
-              <button class="btn" id="payCash" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;" onclick="setPayment('cash')">💰 Contado</button>
-              <button class="btn" id="payCard" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;" onclick="setPayment('card')">💳 Tarjeta</button>
-              <button class="btn" id="payMixed" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;" onclick="setPayment('mixed')">💰💳 Mixto</button>
+            <div style="margin-bottom:10px;display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="btn" id="payCash" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;min-width:90px;" onclick="setPayment('cash')">💰 Contado</button>
+              <button class="btn" id="payCard" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;min-width:90px;" onclick="setPayment('card')">💳 Tarjeta</button>
+              <button class="btn" id="payMixed" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;min-width:90px;" onclick="setPayment('mixed')">💰💳 Mixto</button>
+              <button class="btn" id="payQuote" style="flex:1;text-align:center;justify-content:center;border:2px solid var(--border);background:var(--card);font-weight:600;min-width:90px;" onclick="setPayment('quote')" title="Guardar como presupuesto (no cuenta como venta)">📝 Presupuesto</button>
             </div>
             <div id="mixedPayRow" style="display:none;margin-bottom:10px;padding:8px;background:var(--bg);border-radius:6px;border:1px solid var(--border);">
               <div style="display:flex;gap:8px;font-size:12px;">
@@ -392,7 +393,7 @@ body:has(#sec-timecontrol.active) .main { min-width: 0; }
               <div id="mixHint" style="font-size:11px;margin-top:4px;color:var(--text-light);"></div>
             </div>
             <div class="ticket-actions">
-              <button class="btn btn-success" onclick="completeSale()">💰 Cobrar</button>
+              <button class="btn btn-success" id="btnCharge" onclick="completeSale()">💰 Cobrar</button>
               <button class="btn btn-danger" onclick="clearTicket()">🗑️ Vaciar</button>
             </div>
           </div>
@@ -658,6 +659,7 @@ body:has(#sec-timecontrol.active) .main { min-width: 0; }
         <div class="card-header"><h3>Listados e Informes</h3><button class="btn btn-secondary btn-sm" id="btnSyncFacturas" onclick="syncFacturas()">⇄ Sincronizar con Access</button></div>
         <div class="tabs">
           <div class="tab active" onclick="switchReportTab('sales',this)">Ventas</div>
+          <div class="tab" onclick="switchReportTab('quotes',this)">Presupuestos</div>
           <div class="tab" onclick="switchReportTab('general',this)">Generales</div>
         </div>
         <div class="search-bar" style="margin-top:10px;">
@@ -1189,6 +1191,7 @@ let data = {
   providers: DB.get('providers', []),
   appointments: DB.get('appointments', []),
   sales: DB.get('sales', []),
+  quotes: DB.get('quotes', []),
   movements: DB.get('movements', []),
   scheduleTemplates: DB.get('scheduleTemplates', []),
   scheduleDays: DB.get('scheduleDays', []),
@@ -1224,7 +1227,7 @@ let data = {
 }
 
 // Ensure all list fields are arrays (fix localStorage corruption)
-const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','movements','scheduleTemplates','scheduleDays','timeClock'];
+const ARRAY_KEYS = ['clients','employees','services','sections','projects','products','providers','appointments','sales','quotes','movements','scheduleTemplates','scheduleDays','timeClock'];
 ARRAY_KEYS.forEach(k => { if (!Array.isArray(data[k])) data[k] = []; });
 tcDedupeControlData();
 
@@ -1297,7 +1300,9 @@ if (Array.isArray(data.clients)) {
 data.sales.forEach(s => {
   if (s.base === undefined) { const r = s.ivaRate || data.ivaRate || 21; s.base = s.total / (1 + r/100); s.iva = s.total - s.base; s.ivaRate = r; }
 });
+if (!Array.isArray(data.quotes)) data.quotes = [];
 saveKey('sales');
+saveKey('quotes');
 
 // Clean up old persistent counter keys (no longer used, numbering is dynamic)
 localStorage.removeItem('tpv_ticketCounter');
@@ -1838,6 +1843,123 @@ function nextInvoiceNum() {
 }
 function lastInvoiceNum() { return Math.max(0, nextInvoiceNum() - 1); }
 
+// ============ PRESUPUESTOS (no son ventas: no descuentan stock ni suman a caja) ============
+function nextQuoteNum() {
+  let max = 0;
+  (data.quotes||[]).forEach(q => { const n = parseInt(q.number, 10); if (!isNaN(n) && n > max) max = n; });
+  return max + 1;
+}
+function saveQuote() {
+  if (editingSaleId) { alert('No puedes guardar un presupuesto mientras estás editando un ticket. Cancela la edición primero.'); return; }
+  const subtotalSale = ticketSubtotalAmount();
+  const disc = ticketDiscount();
+  const total = Math.round((subtotalSale - disc.amount) * 100) / 100;
+  const iva = ivaAmount(total);
+  const base = basePrice(total);
+  const quote = {
+    id: id(),
+    number: nextQuoteNum(),
+    items: JSON.parse(JSON.stringify(ticket.items.filter(i => !i._removed))),
+    total, base, iva,
+    ivaRate: getIvaRate(),
+    clientId: ticket.clientId || '',
+    date: new Date().toISOString(),
+    discount: disc.amount,
+    ...(disc.pct ? { discountPct: disc.pct } : {})
+  };
+  if (!Array.isArray(data.quotes)) data.quotes = [];
+  data.quotes.push(quote);
+  saveKey('quotes');
+  try { syncPush(); } catch(e) {}
+  showQuoteReceipt(quote);
+  clearTicket();
+  renderPosItems();
+}
+function showQuoteReceipt(quote) {
+  const client = data.clients.find(c => c.id === quote.clientId);
+  const bs = data.settings;
+  const itemsHtml = quote.items.map(i => `
+    <tr>
+      <td style="padding:4px 0;font-size:12px;">${i.qty}x ${esc(i.name)}</td>
+      <td style="padding:4px 0;font-size:12px;text-align:right;white-space:nowrap;">${cur(i.price*i.qty)}</td>
+    </tr>`).join('');
+  const html = `
+    <div style="text-align:center;margin-bottom:12px;">
+      <div style="font-size:14px;font-weight:700;color:var(--primary);">${esc(bs.businessName||'TPV PELUQUERÍA')}</div>
+      ${bs.businessNif ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessNif)}</div>` : ''}
+      ${bs.businessAddress ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessAddress)}</div>` : ''}
+      ${(bs.businessCity||bs.businessProvince) ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessCity||'')} ${esc(bs.businessProvince||'')}</div>` : ''}
+      ${bs.businessPhone ? `<div style="font-size:11px;color:var(--text-light);">${esc(bs.businessPhone)}</div>` : ''}
+    </div>
+    <div style="border-top:2px dashed var(--primary);border-bottom:2px dashed var(--primary);padding:8px 0;margin-bottom:10px;text-align:center;">
+      <div style="font-size:13px;font-weight:700;color:var(--primary);">PRESUPUESTO P-${String(quote.number||'').padStart(4,'0')}</div>
+      <div style="font-size:11px;color:var(--text-light);">${new Date(quote.date).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric'})} ${new Date(quote.date).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</div>
+      <div style="font-size:10px;color:var(--warning);font-weight:600;margin-top:4px;">⚠️ No es una venta · Sin valor contable</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;">
+      ${itemsHtml}
+    </table>
+    <div style="border-top:1px solid var(--border);margin-top:8px;padding-top:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-light);"><span>Base</span><span>${cur(quote.base||0)}</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-light);"><span>IVA (${quote.ivaRate||getIvaRate()}%)</span><span>${cur(quote.iva||0)}</span></div>
+      ${quote.discount ? `<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--danger);"><span>Descuento${quote.discountPct ? ' (' + quote.discountPct + '%)' : ''}</span><span>-${cur(quote.discount)}</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:700;color:var(--primary);margin-top:4px;padding-top:4px;border-top:2px solid var(--primary);"><span>TOTAL PRESUPUESTO</span><span>${cur(quote.total)}</span></div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:8px;font-size:11px;color:var(--text-light);">
+      <div>Cliente: ${esc(client?fullName(client):'Mostrador')}</div>
+      ${client && client.nif ? `<div>DNI/NIF: ${esc(client.nif)}</div>` : ''}
+      ${client && client.address ? `<div>Dirección: ${esc(client.address)}${client.city ? ', ' + esc(client.city) : ''}</div>` : ''}
+    </div>
+    <div style="text-align:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);font-size:11px;color:var(--text-light);font-style:italic;">${esc(bs.ticketFooter||'¡Gracias por su visita!')}</div>`;
+  document.getElementById('receiptContent').innerHTML = html;
+  openModal('receiptModal');
+}
+function showQuoteDetail(id) {
+  const q = (data.quotes||[]).find(x => x.id === id);
+  if (!q) return;
+  const client = data.clients.find(c => c.id === q.clientId);
+  let html = `<p><strong>Presupuesto P-${String(q.number||'').padStart(4,'0')}</strong></p>`;
+  html += `<p><strong>Fecha:</strong> ${new Date(q.date).toLocaleString('es-ES')}</p>
+    <p><strong>Cliente:</strong> ${client?esc(fullName(client)):'Mostrador'}</p>`;
+  if (client && client.nif) html += `<p><strong>NIF/CIF:</strong> ${esc(client.nif)}</p>`;
+  if (client && client.address) html += `<p><strong>Dirección:</strong> ${esc(client.address)}</p>`;
+  html += `${q.discount ? `<p style="color:var(--danger);"><strong>Descuento:</strong> -${cur(q.discount)}${q.discountPct ? ' (' + q.discountPct + '%)' : ''}</p>` : ''}
+    <p><strong>Base:</strong> ${cur(q.base||0)}</p>
+    <p><strong>IVA (${q.ivaRate||getIvaRate()}%):</strong> ${cur(q.iva||0)}</p>
+    <p><strong>Total:</strong> ${cur(q.total)}</p>
+    <hr style="margin:10px 0;border:none;border-top:1px solid var(--border);">
+    <table><thead><tr><th>Item</th><th>Cant.</th><th>Precio</th><th>Subtotal</th></tr></thead><tbody>`;
+  q.items.forEach(i => {
+    html += `<tr><td>${esc(i.name)}</td><td>${i.qty}</td><td>${cur(i.price)}</td><td>${cur(i.price*i.qty)}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  html += `<p style="font-size:11px;color:var(--warning);margin-top:8px;">⚠️ Presupuesto — no contabilizado como venta.</p>`;
+  document.getElementById('saleDetailContent').innerHTML = html;
+  openModal('saleDetailModal');
+}
+function deleteQuote(id) {
+  const q = (data.quotes||[]).find(x => x.id === id);
+  if (!q) return;
+  if (!confirm('¿Eliminar el presupuesto P-' + String(q.number||'').padStart(4,'0') + ' definitivamente?')) return;
+  data.quotes = data.quotes.filter(x => x.id !== id);
+  saveKey('quotes');
+  try { syncPush(); } catch(e) {}
+  renderReports();
+}
+function quoteToSale(id) {
+  const q = (data.quotes||[]).find(x => x.id === id);
+  if (!q) return;
+  ticket.items = JSON.parse(JSON.stringify(q.items));
+  ticket.clientId = q.clientId || '';
+  ticket.paymentMethod = 'cash';
+  const dv = document.getElementById('discountValue');
+  const dt = document.getElementById('discountType');
+  if (dv) dv.value = q.discountPct ? String(q.discountPct) : (q.discount ? Number(q.discount).toFixed(2) : '');
+  if (dt) dt.value = q.discountPct ? 'percent' : 'amount';
+  document.querySelector('.nav-item[data-section="pos"]')?.click();
+  updateTicket();
+}
+
 function backupTicketCounter() {
   const current = nextTicketNum() - 1;
   if (!confirm('Se guardará el número actual de ticket (#'+current+') y se reiniciará a #0. ¿Continuar?')) return;
@@ -2065,6 +2187,7 @@ function syncPush() {
     projects: Array.isArray(data.projects) ? data.projects : [],
     providers: Array.isArray(data.providers) ? data.providers : [],
     sales: Array.isArray(data.sales) ? data.sales : [],
+    quotes: Array.isArray(data.quotes) ? data.quotes : [],
     scheduleTemplates: Array.isArray(data.scheduleTemplates) ? data.scheduleTemplates : [],
     scheduleDays: Array.isArray(data.scheduleDays) ? data.scheduleDays : [],
     timeClock: Array.isArray(data.timeClock) ? data.timeClock : [],
@@ -2191,6 +2314,14 @@ function applyRemoteData(remote, source) {
       if (!localSales.has(s.id)) { data.sales.push(s); localSales.set(s.id, s); }
     });
   }
+  if (Array.isArray(remote.quotes) && remote.quotes.length > 0) {
+    if (!Array.isArray(data.quotes)) data.quotes = [];
+    const localQuotes = new Map(data.quotes.map(q => [q.id, q]));
+    remote.quotes.forEach(q => {
+      if (!q || typeof q !== 'object' || !q.id) return;
+      if (!localQuotes.has(q.id)) { data.quotes.push(q); localQuotes.set(q.id, q); }
+    });
+  }
   if (Array.isArray(remote.employees) && remote.employees.length > 0) data.employees = [...remote.employees];
   if (Array.isArray(remote.sections) && remote.sections.length > 0) data.sections = [...remote.sections];
   if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
@@ -2230,7 +2361,7 @@ function syncPull() {
     try {
       saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
       saveKey('clients'); saveKey('projects'); saveKey('providers'); saveKey('appointments');
-      saveKey('sales'); saveKey('scheduleTemplates'); saveKey('scheduleDays'); saveKey('timeClock');
+      saveKey('sales'); saveKey('quotes'); saveKey('scheduleTemplates'); saveKey('scheduleDays'); saveKey('timeClock');
     } catch(e) { console.error('SAVE ERROR:', e); }
 
     const active = document.querySelector('.nav-item.active');
@@ -6263,7 +6394,17 @@ function setPayment(method) {
   document.getElementById('payCard').style.background = method === 'card' ? '#f4ecf7' : 'var(--card)';
   document.getElementById('payMixed').style.borderColor = method === 'mixed' ? 'var(--primary)' : 'var(--border)';
   document.getElementById('payMixed').style.background = method === 'mixed' ? '#f4ecf7' : 'var(--card)';
+  const pq = document.getElementById('payQuote');
+  if (pq) {
+    pq.style.borderColor = method === 'quote' ? 'var(--primary)' : 'var(--border)';
+    pq.style.background = method === 'quote' ? '#fef9e7' : 'var(--card)';
+  }
   document.getElementById('mixedPayRow').style.display = method === 'mixed' ? 'block' : 'none';
+  const btnCharge = document.getElementById('btnCharge');
+  if (btnCharge) {
+    if (method === 'quote') { btnCharge.textContent = '📝 Guardar Presupuesto'; btnCharge.classList.remove('btn-success'); btnCharge.classList.add('btn-warning'); }
+    else { btnCharge.textContent = '💰 Cobrar'; btnCharge.classList.remove('btn-warning'); btnCharge.classList.add('btn-success'); }
+  }
   if (method === 'mixed') syncMixedInputs();
 }
 
@@ -6364,7 +6505,13 @@ function deleteTicket(id) {
 
 function completeSale() {
   if (!ticket.items.length) { alert('El ticket está vacío'); return; }
-  
+
+  // Presupuesto: no es venta, no descuenta stock, no suma a clientes ni a caja
+  if ((ticket.paymentMethod || 'cash') === 'quote') {
+    saveQuote();
+    return;
+  }
+
   const subtotalSale = ticket.items.reduce((sum, i) => sum + i.price * i.qty, 0);
   const disc = ticketDiscount();
   const total = Math.round((subtotalSale - disc.amount) * 100) / 100;
@@ -6804,6 +6951,7 @@ function switchReportTab(tab, el) {
   if (el) el.classList.add('active');
   const isSales = tab === 'sales';
   const isGen = tab === 'general';
+  const isQuotes = tab === 'quotes';
   document.getElementById('dateFilters').style.display = isGen ? 'none' : 'inline-flex';
   document.getElementById('salesFilters').style.display = isSales ? 'inline-flex' : 'none';
   document.getElementById('genFilters').style.display = isGen ? 'inline-flex' : 'none';
@@ -6840,6 +6988,32 @@ function saleMatchesDim(s, dim, val) {
     if (dim === 'employee') return i.employeeId === val;
     return true;
   });
+}
+
+function renderQuotesReport(div, from, to) {
+  let quotes = Array.isArray(data.quotes) ? [...data.quotes] : [];
+  if (from) quotes = quotes.filter(q => (q.date||'') >= from);
+  if (to) quotes = quotes.filter(q => (q.date||'') <= to + 'T23:59:59');
+  quotes = quotes.sort((a,b) => new Date(b.date) - new Date(a.date));
+  if (!quotes.length) { div.innerHTML = '<div class="empty-state"><div class="icon">📝</div><p>Sin presupuestos en este período</p><p style="font-size:12px;">Crea uno desde Punto de Venta → 📝 Presupuesto</p></div>'; return; }
+  const total = quotes.reduce((sum, q) => sum + (q.total||0), 0);
+  const totalBase = quotes.reduce((sum, q) => sum + (q.base||0), 0);
+  const totalIva = quotes.reduce((sum, q) => sum + (q.iva||0), 0);
+  const range = (from || '…') + ' → ' + (to || 'hoy');
+  div.innerHTML = `<p style="margin-bottom:10px;font-weight:500;">${quotes.length} presupuestos (${esc(range)}) · Total: <strong>${cur(total)}</strong> · Base: <strong>${cur(totalBase)}</strong> · IVA: <strong>${cur(totalIva)}</strong></p>
+    <p style="font-size:11px;color:var(--warning);margin-bottom:10px;">⚠️ Los presupuestos no contabilizan como ventas.</p>
+    <div style="overflow-x:auto;"><table><thead><tr><th>Nº</th><th>Fecha</th><th>Cliente</th><th>Items</th><th>Base</th><th>IVA</th><th>Total</th><th>Acción</th></tr></thead><tbody>` +
+    quotes.map(q => {
+      const client = data.clients.find(c => c.id === q.clientId);
+      const items = (q.items||[]).map(i => `${i.qty}x ${i.name}`).join(', ');
+      return `<tr><td style="text-align:center;font-weight:600;">P-${String(q.number||'').padStart(4,'0')}</td><td>${new Date(q.date).toLocaleString('es-ES')}</td><td>${esc(client?fullName(client):'Mostrador')}</td>
+        <td>${esc(items)}</td><td>${cur(q.base||0)}</td><td>${cur(q.iva||0)}</td><td><strong>${cur(q.total)}</strong></td>
+        <td><div class="btn-group">
+          <button class="btn btn-secondary btn-sm" onclick="showQuoteDetail('${q.id}')" title="Ver">Ver</button>
+          <button class="btn btn-primary btn-sm" onclick="quoteToSale('${q.id}')" title="Pasar a venta en TPV">➡️ Venta</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteQuote('${q.id}')" title="Eliminar">🗑️</button>
+        </div></td></tr>`;
+    }).join('') + '</tbody></table></div>';
 }
 
 function renderAnuladasInvoices(div, j) {
@@ -6897,6 +7071,11 @@ function renderReports() {
   const div = document.getElementById('reportContent');
   const from = document.getElementById('reportFrom').value;
   const to = document.getElementById('reportTo').value;
+
+  if (reportTab === 'quotes') {
+    renderQuotesReport(div, from, to);
+    return;
+  }
   
   if (reportTab === 'sales') {
     if (!document.getElementById('reportVal').options.length) populateReportValues();
@@ -7132,6 +7311,28 @@ function showSaleDetail(id) {
 }
 
 function exportCSV() {
+  if (reportTab === 'quotes') {
+    let quotes = Array.isArray(data.quotes) ? [...data.quotes] : [];
+    const from = document.getElementById('reportFrom').value;
+    const to = document.getElementById('reportTo').value;
+    if (!quotes.length) { alert('No hay datos para exportar'); return; }
+    if (from) quotes = quotes.filter(q => q.date >= from);
+    if (to) quotes = quotes.filter(q => q.date <= to+'T23:59:59');
+    if (!quotes.length) { alert('Sin presupuestos en este período'); return; }
+    let csv = 'Numero,Fecha,Cliente,Items,Base,IVA,Total,Descuento\n';
+    quotes.forEach(q => {
+      const client = data.clients.find(c => c.id === q.clientId);
+      const items = (q.items||[]).map(i => `${i.qty}x ${i.name}`).join('; ');
+      csv += `"P-${String(q.number||'').padStart(4,'0')}","${new Date(q.date).toLocaleString('es-ES')}","${client?fullName(client):'Mostrador'}","${items.replace(/"/g,'""')}",${(q.base||0).toFixed(2)},${(q.iva||0).toFixed(2)},${(q.total||0).toFixed(2)},${(q.discount||0).toFixed(2)}\n`;
+    });
+    const blob = new Blob(['\uFEFF'+csv], {type:'text/csv;charset=utf-8;'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'presupuestos_export.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    return;
+  }
   if (!data.sales.length) { alert('No hay datos para exportar'); return; }
   const from = document.getElementById('reportFrom').value;
   const to = document.getElementById('reportTo').value;

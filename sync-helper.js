@@ -196,7 +196,7 @@ function fetchFromSync() {
         try {
           const remote = JSON.parse(data);
           const current = readData();
-          const LIST_KEYS = ['appointments','clients','services','sections','employees','products','providers','scheduleTemplates','scheduleDays','timeClock'];
+          const LIST_KEYS = ['appointments','clients','services','sections','employees','products','providers','sales','quotes','scheduleTemplates','scheduleDays','timeClock'];
           LIST_KEYS.forEach(k => {
             if (Array.isArray(remote[k])) current[k] = mergeArray(Array.isArray(current[k])?current[k]:[], remote[k]);
           });
@@ -227,6 +227,8 @@ function readData() {
       if (!Array.isArray(raw.movements)) raw.movements = [];
       if (!Array.isArray(raw.sections)) raw.sections = [];
       if (!Array.isArray(raw.providers)) raw.providers = [];
+      if (!Array.isArray(raw.sales)) raw.sales = [];
+      if (!Array.isArray(raw.quotes)) raw.quotes = [];
       if (!Array.isArray(raw.scheduleTemplates)) raw.scheduleTemplates = [];
       if (!Array.isArray(raw.scheduleDays)) raw.scheduleDays = [];
       if (!Array.isArray(raw.timeClock)) raw.timeClock = [];
@@ -518,7 +520,7 @@ const server = http.createServer((req, res) => {
           const merged = { ...current };
           const wasCancelledOrDeleted = new Set();
           (current.appointments||[]).forEach(a => { if (a && (a.cancelledBy || a._deleted)) wasCancelledOrDeleted.add(a.id); });
-          const LIST_KEYS = ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers', 'sales', 'scheduleTemplates', 'scheduleDays', 'timeClock'];
+          const LIST_KEYS = ['appointments', 'clients', 'services', 'employees', 'products', 'projects', 'movements', 'sections', 'providers', 'sales', 'quotes', 'scheduleTemplates', 'scheduleDays', 'timeClock'];
           LIST_KEYS.forEach(k => {
             if (Array.isArray(remote[k])) {
               merged[k] = mergeArray(Array.isArray(current[k]) ? current[k] : [], remote[k]);
@@ -1678,7 +1680,7 @@ function pullFromSync() {
       try {
         const remote = JSON.parse(data);
         const current = readData();
-        const LIST_KEYS = ['appointments', 'clients', 'services', 'sections', 'employees', 'products', 'projects', 'providers', 'scheduleTemplates', 'scheduleDays', 'timeClock'];
+        const LIST_KEYS = ['appointments', 'clients', 'services', 'sections', 'employees', 'products', 'projects', 'providers', 'sales', 'quotes', 'scheduleTemplates', 'scheduleDays', 'timeClock'];
         let changed = false;
         LIST_KEYS.forEach(k => {
           if (Array.isArray(remote[k])) {
