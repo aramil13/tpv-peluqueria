@@ -1,5 +1,15 @@
 # Helper UNICO de sincronia LOCAL (sin nube) apuntando al JSON del TPV instalado
 Set-Location 'C:\Users\tester\OneDrive\Documentos\carpeta para opencode\tpv para peluqueria'
+
+# Evitar arrancar un segundo helper si el puerto 3456 ya esta en uso (p.ej. TPV embebido)
+try {
+    $inUse = Get-NetTCPConnection -LocalPort 3456 -State Listen -ErrorAction SilentlyContinue
+    if ($inUse) {
+        Write-Host "Puerto 3456 ya en uso: no se arranca helper duplicado."
+        exit 0
+    }
+} catch {}
+
 $env:SYNC_FILE = "$env:APPDATA\tpv-peluqueria\sync\appointments.json"
 $env:DATA_DIR  = "$env:APPDATA\tpv-peluqueria\sync"
 # IMPORTANTE: deliberadamente NO se cargan SYNC_FORWARD_URL ni claves de nube

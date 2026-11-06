@@ -1,4 +1,4 @@
-const { readData, writeData, mergeArray, dedupClients } = require('../../lib/kv-data');
+const { readData: _readData, writeData: _writeData, mergeArray, dedupClients } = require('../../lib/kv-data');
 
 export async function onRequest(context) {
   const { request, env } = context;
@@ -11,6 +11,22 @@ export async function onRequest(context) {
     }
 
     globalThis.__ENV = env;
+
+    let _dataPromise = null;
+    let _dataDirty = false;
+    function getData() {
+      if (_dataDirty || !_dataPromise) {
+        _dataPromise = _readData();
+        _dataDirty = false;
+      }
+      return _dataPromise;
+    }
+    async function writeData(data) {
+      const r = await _writeData(data);
+      _dataDirty = true;
+      _dataPromise = null;
+      return r;
+    }
 
     const CORS_ORIGIN = env.CORS_ORIGIN || '*';
     const WEB_API_KEY = env.WEB_API_KEY || '';
@@ -34,14 +50,16 @@ export async function onRequest(context) {
     return (parseInt(p[0])||0) + (parseInt(p[1])||0) / 60;
   }
 
+  const _madridFmt = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
   function madridNow() {
-    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(new Date());
+    const parts = _madridFmt.formatToParts(new Date());
     const val = (t) => parseInt((parts.find(p => p.type === t) || { value: '0' }).value, 10);
     return new Date(val('year'), val('month') - 1, val('day'), val('hour'), val('minute'), val('second'));
   }
 
+  const _todayFmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' });
   function todayMadrid() {
-    return new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Madrid', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    return _todayFmt.format(new Date());
   }
 
   const MIN_BOOKING_DAYS_AHEAD = 3;
@@ -92,12 +110,11 @@ export async function onRequest(context) {
 
 
 
-  async function computeETag(data) {
-    const encoder = new TextEncoder();
-    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(JSON.stringify(data)));
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    return '"' + hashHex.slice(0, 16) + '"';
+  function computeETag(data) {
+    const str = typeof data === 'string' ? data : JSON.stringify(data);
+    let h = 5381;
+    for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+    return '"' + (h >>> 0).toString(16) + '-' + str.length + '"';
   }
 
   function sanitizeUrl(url) {
@@ -193,7 +210,7 @@ export async function onRequest(context) {
 
   async function handleClientLogin(phone) {
     const norm = normPhone(phone);
-    const d = await readData();
+    const d = await getData();
     const client = (d.clients||[]).find(c => normPhone(c.phone) === norm && !c._deleted);
     if (!client) {
       return json({ error: 'Cliente no encontrado. ¿El teléfono está registrado?' }, 404);
@@ -294,7 +311,7 @@ export async function onRequest(context) {
       if (request.method !== 'GET') {
         return json({ error: 'Método no permitido' }, 405);
       }
-      const data = await readData();
+      const data = await getData();
       const live = (arr) => (Array.isArray(arr) ? arr : []).filter(x => x && !x._deleted);
       return json({
         services: live(data.services),
@@ -311,13 +328,21 @@ export async function onRequest(context) {
     case '/api/sync':
     case '/api/sync/': {
       if (request.method === 'GET') {
-        const data = await readData();
-        return json(data, 200, { 'Cache-Control': 'no-cache' });
+        const data = await getData();
+        const payload = JSON.stringify(data);
+        const stream = new ReadableStream({
+          start(controller) {
+            const enc = new TextEncoder();
+            controller.enqueue(enc.encode(payload));
+            controller.close();
+          }
+        });
+        return new Response(stream, { status: 200, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-cache' } });
       }
       if (request.method === 'POST') {
         try {
           const remote = await getBody();
-          const current = await readData();
+          const current = await getData();
           const merged = { ...current };
           const wasCancelledOrDeleted = new Set();
           (current.appointments||[]).forEach(a => { if (a && (a.cancelledBy || a._deleted)) wasCancelledOrDeleted.add(a.id); });
@@ -328,8 +353,9 @@ export async function onRequest(context) {
           });
           merged.settings = remote.settings || current.settings || {};
           merged.clients = dedupClients(merged.clients);
+          const _origApptMap = new Map((current.appointments||[]).filter(x=>x&&x.id).map(x=>[x.id,x]));
           (merged.appointments||[]).forEach(a => {
-            const orig = (current.appointments||[]).find(x => x && x.id === a.id);
+            const orig = a && a.id ? _origApptMap.get(a.id) : null;
             if (!orig) return;
             if (orig._dismissedByClient && !a._dismissedByClient) {
               a._dismissedByClient = true;
@@ -368,7 +394,7 @@ export async function onRequest(context) {
      // === HEALTH ===
      case '/health':
      case '/api/health': {
-      const data = await readData();
+      const data = await getData();
       return json({
         status: 'ok', storage: 'upstash-redis',
         appointments: (data.appointments || []).length,
@@ -385,7 +411,7 @@ export async function onRequest(context) {
 
     // === API: SLOTS ===
     case '/api/slots': {
-      const data = await readData();
+      const data = await getData();
       const q = url.searchParams;
       const date = q.get('date');
       const serviceIdsParam = q.get('serviceIds') || q.get('serviceId') || '';
@@ -489,7 +515,7 @@ export async function onRequest(context) {
       if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
       try {
         const b = await getBody();
-        const data = await readData();
+        const data = await getData();
         const webCfg = ((data.settings||{}).onlineOpening||{})[todayMadrid()] || {};
         let webEnabled = webCfg.enabled === true;
         if (webCfg.time) {
@@ -679,7 +705,7 @@ export async function onRequest(context) {
 
         const normP = normPhone(searchKey);
         const searchStr = searchKey.toLowerCase();
-        const d = await readData();
+        const d = await getData();
         const client = (d.clients || []).find(c =>
           !c._deleted && (
             (c.phone && normPhone(c.phone) === normP) ||
@@ -718,7 +744,7 @@ export async function onRequest(context) {
         if ((!b.clientId && !b.phone) || !b.password) return json({ error: 'Teléfono y contraseña obligatorios' }, 400);
         if (b.password.length < 8) return json({ error: 'La contraseña debe tener al menos 8 caracteres' }, 400);
 
-        const d = await readData();
+        const d = await getData();
         const client = b.clientId
           ? (d.clients || []).find(c => c.id === b.clientId && !c._deleted)
           : (d.clients || []).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
@@ -745,7 +771,7 @@ export async function onRequest(context) {
         const b = await getBody();
         if (!b.email) return json({ error: 'Email obligatorio' }, 400);
         const email = b.email.trim().toLowerCase();
-        const d = await readData();
+        const d = await getData();
         const client = (d.clients || []).find(c => c.email && c.email.trim().toLowerCase() === email && !c._deleted);
         if (!client) return json({ error: 'No existe ninguna cuenta con ese email' }, 404);
 
@@ -770,7 +796,7 @@ export async function onRequest(context) {
         if (b.newPassword.length < 8) return json({ error: 'La nueva contraseña debe tener al menos 8 caracteres' }, 400);
 
         const email = b.email.trim().toLowerCase();
-        const d = await readData();
+        const d = await getData();
         const client = (d.clients || []).find(c => c.email && c.email.trim().toLowerCase() === email && !c._deleted);
         if (!client) return json({ error: 'No existe ningún cliente registrado con ese email' }, 404);
 
@@ -810,7 +836,7 @@ export async function onRequest(context) {
           if (b.password.length < 8) {
             return json({ error: 'La contraseña debe tener al menos 8 caracteres' }, 400);
           }
-          const d = await readData();
+          const d = await getData();
           const existingByPhone = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
           const existingByEmail = (d.clients||[]).find(c => c.email && c.email.toLowerCase() === b.email.trim().toLowerCase() && !c._deleted);
 
@@ -858,7 +884,7 @@ export async function onRequest(context) {
         if (!b.appointmentId || !b.phone) {
           return json({ error: 'appointmentId and phone required' }, 400);
         }
-        const d = await readData();
+        const d = await getData();
         const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
         if (!client) {
           return json({ error: 'Cliente no encontrado' }, 403);
@@ -899,7 +925,7 @@ export async function onRequest(context) {
         if (!b.appointmentId || !b.phone) {
           return json({ error: 'appointmentId and phone required' }, 400);
         }
-        const d = await readData();
+        const d = await getData();
         const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
         if (!client) {
           return json({ error: 'Cliente no encontrado' }, 403);
@@ -925,7 +951,7 @@ export async function onRequest(context) {
         if (!b.appointmentId || !b.phone) {
           return json({ error: 'appointmentId and phone required' }, 400);
         }
-        const d = await readData();
+        const d = await getData();
         const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
         if (!client) {
           return json({ error: 'Cliente no encontrado' }, 403);
@@ -979,7 +1005,7 @@ export async function onRequest(context) {
         if (!b.appointmentId || !b.phone || !b.newTime) {
           return json({ error: 'appointmentId, phone, newTime required' }, 400);
         }
-        const d = await readData();
+        const d = await getData();
         const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
         if (!client) {
           return json({ error: 'Cliente no encontrado' }, 403);
@@ -1070,7 +1096,7 @@ export async function onRequest(context) {
       try {
         const b = await getBody();
         if (!b.appointmentId || !b.phone) return json({ error: 'appointmentId and phone required' }, 400);
-        const d = await readData();
+        const d = await getData();
         const client = (d.clients||[]).find(c => normPhone(c.phone) === normPhone(b.phone) && !c._deleted);
         if (!client) return json({ error: 'Cliente no encontrado' }, 403);
         const appt = (d.appointments||[]).find(a => a.id === b.appointmentId && a.clientId === client.id && !a._deleted);
@@ -1116,13 +1142,13 @@ export async function onRequest(context) {
       if (!requireWebAuth(request)) {
         return json({ error: 'Unauthorized' }, 401);
       }
-      const d = await readData();
+      const d = await getData();
       const webProducts = (d.products||[]).filter(p => (p.showOnWeb || p.showWeb));
       const body = JSON.stringify(webProducts.map(p => ({
         id: p.id, name: p.name || '', price: p.price,
         description: p.description||'', photo: sanitizeUrl(p.photo)
       })));
-      const etag = await computeETag(body);
+      const etag = computeETag(body);
       if (request.headers.get('if-none-match') === etag) {
         return new Response(null, { status: 304, headers: CORS_HEADERS });
       }
@@ -1135,7 +1161,7 @@ export async function onRequest(context) {
       if (!requireWebAuth(request)) {
         return json({ error: 'Unauthorized' }, 401);
       }
-      const d = await readData();
+      const d = await getData();
       const webOffers = (d.projects||[]).filter(p => (p.showOnWeb || p.showWeb));
       const svcMap = {}; (d.services||[]).forEach(s => svcMap[s.id] = s);
       const prodMap = {}; (d.products||[]).forEach(p => prodMap[p.id] = p);
@@ -1154,7 +1180,7 @@ export async function onRequest(context) {
         };
       });
       const body = JSON.stringify(payload);
-      const etag = await computeETag(body);
+      const etag = computeETag(body);
       if (request.headers.get('if-none-match') === etag) {
         return new Response(null, { status: 304, headers: CORS_HEADERS });
       }
@@ -1170,7 +1196,7 @@ export async function onRequest(context) {
     // === API: ONLINE STATUS ===
     case '/api/online-status': {
       if (request.method !== 'GET') return json({ error: 'Method not allowed' }, 405);
-      const d = await readData();
+      const d = await getData();
       const s = d.settings || {};
       const today = todayMadrid();
       const dayCfg = (s.onlineOpening || {})[today] || {};

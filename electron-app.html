@@ -1045,6 +1045,10 @@ body:has(#sec-timecontrol.active) .main { min-width: 0; }
           o una URL cloud para sync desde cualquier lugar.<br>
           Compatible con app Android AgendaTPV.
         </div>
+          <div style="margin-top:8px;">
+            <button class="btn btn-secondary btn-sm" onclick="forceSyncComplete()">Forzar Sync Completo</button>
+            <span id="forceSyncStatus" style="font-size:12px;margin-left:8px;"></span>
+          </div>
       </div>
       <div style="margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--border);">
         <div style="font-size:13px;font-weight:600;margin-bottom:8px;">⏰ Horarios de sincronización</div>
@@ -2372,6 +2376,21 @@ function applyRemoteData(remote, source) {
     if (Array.isArray(remote[k])) mergeRemote(k, remote[k]);
   });
   tcDedupeControlData();
+}
+
+async function forceSyncComplete() {
+  const st = document.getElementById('forceSyncStatus');
+  if (st) st.textContent = 'Sincronizando...';
+  try {
+    const r = await fetch(LOCAL_SYNC_URL + '/api/force-sync', { method: 'POST' });
+    const j = await r.json();
+    if (!r.ok || !j.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    await syncPull();
+    if (st) st.textContent = 'Sync completo';
+  } catch (e) {
+    if (st) st.textContent = 'Error: ' + e.message;
+  }
+  setTimeout(() => { if (st) st.textContent = ''; }, 6000);
 }
 
 function syncPull() {

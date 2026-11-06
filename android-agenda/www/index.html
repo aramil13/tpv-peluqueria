@@ -2060,7 +2060,7 @@ function updateSyncStatus(msg, isErr) {
 function fetchWithTimeout(url, opts, ms) {
   if (typeof AbortController !== 'undefined') {
     const ctrl = new AbortController();
-    const id = setTimeout(() => ctrl.abort(), ms || 30000);
+    const id = setTimeout(() => ctrl.abort(), ms || 60000);
     return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(id));
   }
   return fetch(url, opts);
@@ -2310,7 +2310,7 @@ function syncPull() {
   if (!c.enabled) return;
   const dot = document.getElementById('syncDot');
   if (dot) dot.classList.add('syncing');
-  return fetchWithTimeout(syncBase()+'/sync', {})
+  return fetchWithTimeout(syncBase()+'/sync', {}, 60000)
     .then(r => {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();

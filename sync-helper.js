@@ -743,6 +743,26 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (url === '/api/force-sync') {
+    lastAccessSyncTs = 0;
+    syncToAccess(SYNC_FILE).then(out => {
+      const data = readData();
+      res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        ok: true,
+        output: (out || '').toString().slice(0, 500),
+        appointments: (data.appointments || []).length,
+        activeAppointments: (data.appointments || []).filter(a => !a._deleted).length,
+        clients: (data.clients || []).length,
+        lastModified: data.lastModified
+      }));
+    }).catch(e => {
+      res.writeHead(500, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: false, error: (e && e.message) ? e.message : String(e) }));
+    });
+    return;
+  }
+
   if (url === '/health') {
     const data = readData();
     const totalProducts = (data.products||[]).length;
@@ -1759,7 +1779,8 @@ setInterval(() => {
   syncToAccess(SYNC_FILE).then(() => {
     const fresh = readData();
     if (!fresh) return;
-    writeDataSilent(fresh);
+    // Solo reescribir el JSON si Access realmente cambio algo (syncToAccess ya lo hizo).
+    // Evitar writeDataSilent incondicional reduce cambios de mtime y colisiones con otras syncs.
     if (SYNC_FORWARD_URL) {
       const fwdUrl = SYNC_FORWARD_URL.replace(/\/+$/, '') + '/sync';
       const fwdHeaders = { 'Content-Type': 'application/json' };

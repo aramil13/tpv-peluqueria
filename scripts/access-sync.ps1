@@ -250,6 +250,15 @@ try {
     $pReactNc = $cmdReactivate.CreateParameter()
     $cmdReactivate.Parameters.Add($pReactNc) | Out-Null
 
+    # Pre-check: si el JSON cambio desde que lo leimos, abortar ANTES de mutar Access,
+    # para no dejar la BD en estado parcialmente sincronizado.
+    $preStamp = (Get-Item -LiteralPath $JsonFile).LastWriteTimeUtc
+    if ($preStamp -ne $jsonFileStamp) {
+        $conn.Close()
+        Write-Host "ABORTED: JSON changed before sync (pre-check). Next run will re-sync."
+        exit 0
+    }
+
     foreach ($appt in $activeAppts) {
         $uid = $appt.id
         if (-not $uid) { continue }
@@ -457,9 +466,9 @@ try {
         $nc = $pullReader['num_cita']
         if ($matchedNumCitas.ContainsKey($nc)) { continue }
         $existingUid = if ($pullReader['client_uid']) { $pullReader['client_uid'].ToString().Trim() } else { '' }
-        # If Access record has a client_uid that matches an ACTIVE JSON appointment, skip — that appointment is already synced
+        # If Access record has a client_uid that matches an ACTIVE JSON appointment, skip - that appointment is already synced
         if ($existingUid -and $jsonUidActive.ContainsKey($existingUid)) { continue }
-        # If Access record has a client_uid that matches only a DELETED JSON appointment, reactivate it later — don't skip
+        # If Access record has a client_uid that matches only a DELETED JSON appointment, reactivate it later - don't skip
         $newUid = if ($existingUid) { $existingUid } else { "svap_$nc" }
         $cliCode = if ($pullReader['Cliente'] -and $pullReader['Cliente'] -ne [System.DBNull]::Value) { [int]$pullReader['Cliente'] } else { 0 }
         $empCode = if ($pullReader['Empleado'] -and $pullReader['Empleado'] -ne [System.DBNull]::Value) { [int]$pullReader['Empleado'] } else { 0 }
@@ -524,6 +533,14 @@ try {
         }
     }
     $pullReader.Close()
+
+    # Pre-check antes de la Fase 3: si el JSON cambio, no cancelar filas de Access.
+    $midStamp = (Get-Item -LiteralPath $JsonFile).LastWriteTimeUtc
+    if ($midStamp -ne $jsonFileStamp) {
+        $conn.Close()
+        Write-Host "ABORTED: JSON changed during sync (mid-check), skipping Phase 3. Next run will re-sync."
+        exit 0
+    }
 
     # Phase 3: Cancel unmatched, reactivate matched - BATCH OPERATIONS
     # NOTE: nunca cancelar citas pasadas (Fecha < hoy): el JSON solo contiene hoy/futuro
@@ -696,7 +713,187 @@ try {
         Write-Host "WARN: Apellidos/Observaciones sync skipped: $($_.Exception.Message)"
     }
 
-    $shouldWrite = ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0 -or $surnamesPulled -gt 0 -or $obsPulled -gt 0 -or $accessSynced -gt 0)
+
+    # === SYNC PRODUCTOS: TPV -> Access (borrados y cambios tienen prioridad TPV) ===
+    $productsPushed = 0
+    try {
+        $accessProdCodes = New-Object 'System.Collections.Generic.HashSet[int]'
+        $cmdAP = $conn.CreateCommand()
+        $cmdAP.CommandText = "SELECT Codigo FROM Productos"
+        $rap = $cmdAP.ExecuteReader()
+        while ($rap.Read()) {
+            if ($rap['Codigo'] -ne [System.DBNull]::Value) { [void]$accessProdCodes.Add([int]$rap['Codigo']) }
+        }
+        $rap.Close()
+
+        foreach ($jp in @($json.products)) {
+            if (-not $jp.id) { continue }
+            if ($jp.id -notmatch '^svpr_(\d+)$') { continue }
+            $code = [int]$Matches[1]
+            if (-not $jp._deleted) { continue }
+            if (-not $accessProdCodes.Contains($code)) { continue }
+            $cmdDel = $conn.CreateCommand()
+            $cmdDel.CommandText = "UPDATE Productos SET Borrar=True WHERE Codigo=?"
+            $pDel = $cmdDel.CreateParameter(); $pDel.Value = $code; $cmdDel.Parameters.Add($pDel) | Out-Null
+            if (Invoke-SafeWrite $cmdDel "prod delete $code") { $productsPushed++ }
+        }
+
+        foreach ($jp in @($json.products)) {
+            if (-not $jp.id -or $jp._deleted) { continue }
+            if ($jp.id -notmatch '^svpr_(\d+)$') { continue }
+            $code = [int]$Matches[1]
+            if (-not $accessProdCodes.Contains($code)) { continue }
+            $nombre = if ($jp.name) { [string]$jp.name } else { '' }
+            $precio = if ($jp.price -ne $null) { [double]$jp.price } else { 0.0 }
+            $coste = if ($jp.cost -ne $null) { [double]$jp.cost } else { 0.0 }
+            $seccion = 0
+            if ($jp.sectionId -match '^svse_(\d+)$') { $seccion = [int]$Matches[1] }
+            $proveedor = 0
+            if ($jp.providerId -match '^svpv_(\d+)$') { $proveedor = [int]$Matches[1] }
+            $cmdUpd = $conn.CreateCommand()
+            $cmdUpd.CommandText = "UPDATE Productos SET Nombre=?, Precio=?, Coste=?, Seccion=?, Proveedor=? WHERE Codigo=?"
+            $vals = @($nombre, $precio, $coste, $seccion, $proveedor, $code)
+            foreach ($val in $vals) { $pp = $cmdUpd.CreateParameter(); $pp.Value = $val; $cmdUpd.Parameters.Add($pp) | Out-Null }
+            if (Invoke-SafeWrite $cmdUpd "prod update $code") { $productsPushed++ }
+        }
+    } catch {
+        Write-Host "WARN: Productos push (TPV->Access) skipped: $($_.Exception.Message)"
+    }
+
+    # === SYNC PRODUCTOS: Access -> TPV ===
+    $productsPulled = 0
+    try {
+        if (-not $json.products) { $json | Add-Member -NotePropertyName products -NotePropertyValue @() }
+        $jsonProductMap = @{}
+        foreach ($jp in @($json.products)) { if ($jp.id) { $jsonProductMap[$jp.id] = $jp } }
+        $cmdProd = $conn.CreateCommand()
+        $cmdProd.CommandText = "SELECT Codigo, Nombre, Seccion, Proveedor, Precio, Coste, Borrar FROM Productos"
+        $pr = $cmdProd.ExecuteReader()
+        while ($pr.Read()) {
+            if ($pr['Codigo'] -eq [System.DBNull]::Value) { continue }
+            $code = [int]$pr['Codigo']
+            $prodId = "svpr_$code"
+            $nombre = if ($pr['Nombre'] -and $pr['Nombre'] -ne [System.DBNull]::Value) { $pr['Nombre'].ToString().Trim() } else { '' }
+            if (-not $nombre) { continue }
+            $seccion = 0
+            if ($pr['Seccion'] -and $pr['Seccion'] -ne [System.DBNull]::Value) { try { $seccion = [int]$pr['Seccion'] } catch { $seccion = 0 } }
+            $proveedor = 0
+            if ($pr['Proveedor'] -and $pr['Proveedor'] -ne [System.DBNull]::Value) { try { $proveedor = [int]$pr['Proveedor'] } catch { $proveedor = 0 } }
+            $precio = 0.0
+            if ($pr['Precio'] -and $pr['Precio'] -ne [System.DBNull]::Value) { try { $precio = [double]$pr['Precio'] } catch { $precio = 0.0 } }
+            $coste = 0.0
+            if ($pr['Coste'] -and $pr['Coste'] -ne [System.DBNull]::Value) { try { $coste = [double]$pr['Coste'] } catch { $coste = 0.0 } }
+            $borrar = $false
+            if ($pr['Borrar'] -and $pr['Borrar'] -ne [System.DBNull]::Value) { try { $borrar = [bool]$pr['Borrar'] } catch { $borrar = $false } }
+            $sectionId = if ($seccion -gt 0) { "svse_$seccion" } else { '' }
+            $providerId = if ($proveedor -gt 0) { "svpv_$proveedor" } else { '' }
+            if ($jsonProductMap.ContainsKey($prodId)) {
+                $jp = $jsonProductMap[$prodId]
+                $changed = $false
+                if ([string]$jp.name -ne $nombre) { Set-ApptField $jp 'name' $nombre; $changed = $true }
+                if ([double]$jp.price -ne $precio) { Set-ApptField $jp 'price' $precio; $changed = $true }
+                if ([double]$jp.cost -ne $coste) { Set-ApptField $jp 'cost' $coste; $changed = $true }
+                if ([string]$jp.providerId -ne $providerId) { Set-ApptField $jp 'providerId' $providerId; $changed = $true }
+                if ([string]$jp.sectionId -ne $sectionId) { Set-ApptField $jp 'sectionId' $sectionId; $changed = $true }
+                # Prioridad TPV: si el producto esta borrado en el TPV, no reactivarlo desde Access.
+                if ($jp._deleted -ne $true -and [bool]$jp._deleted -ne $borrar) { Set-ApptField $jp '_deleted' $borrar; $changed = $true }
+                if ($changed) { Set-ApptField $jp '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds()); $productsPulled++ }
+            } else {
+                $newProd = [ordered]@{
+                    id = $prodId
+                    codigo = $code
+                    name = $nombre
+                    price = $precio
+                    cost = $coste
+                    sectionId = $sectionId
+                    providerId = $providerId
+                    _deleted = $borrar
+                    _modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
+                }
+                $json.products += [PSCustomObject]$newProd
+                $productsPulled++
+            }
+        }
+        $pr.Close()
+    } catch {
+        Write-Host "WARN: Productos sync skipped: $($_.Exception.Message)"
+    }
+
+    # === Marcar como borrados en TPV los SERVICIOS/CLIENTES/PROVEEDORES/EMPLEADOS marcados en Access ===
+    $entitiesPulled = 0
+    try {
+        # Servicios (Borrar)
+        $cmdS = $conn.CreateCommand(); $cmdS.CommandText = "SELECT Codigo, Borrar FROM Servicios"
+        $rs = $cmdS.ExecuteReader()
+        while ($rs.Read()) {
+            if ($rs['Codigo'] -eq [System.DBNull]::Value) { continue }
+            $code = [int]$rs['Codigo']
+            $borrar = $false
+            if ($rs['Borrar'] -and $rs['Borrar'] -ne [System.DBNull]::Value) { try { $borrar = [bool]$rs['Borrar'] } catch { $borrar = $false } }
+            $jp = $json.services | Where-Object { $_.id -eq "svsv_$code" } | Select-Object -First 1
+            if ($jp -and $jp._deleted -ne $true -and [bool]$jp._deleted -ne $borrar) {
+                Set-ApptField $jp '_deleted' $borrar
+                Set-ApptField $jp '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
+                $entitiesPulled++
+            }
+        }
+        $rs.Close()
+
+        # Clientes (Borrar)
+        $cmdC = $conn.CreateCommand(); $cmdC.CommandText = "SELECT Codigo, Borrar FROM Clientes"
+        $rc = $cmdC.ExecuteReader()
+        while ($rc.Read()) {
+            if ($rc['Codigo'] -eq [System.DBNull]::Value) { continue }
+            $code = [int]$rc['Codigo']
+            $borrar = $false
+            if ($rc['Borrar'] -and $rc['Borrar'] -ne [System.DBNull]::Value) { try { $borrar = [bool]$rc['Borrar'] } catch { $borrar = $false } }
+            $jp = $json.clients | Where-Object { $_.id -eq "svcl_$code" } | Select-Object -First 1
+            if ($jp -and $jp._deleted -ne $true -and [bool]$jp._deleted -ne $borrar) {
+                Set-ApptField $jp '_deleted' $borrar
+                Set-ApptField $jp '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
+                $entitiesPulled++
+            }
+        }
+        $rc.Close()
+
+        # Proveedores (Borrar)
+        $cmdP = $conn.CreateCommand(); $cmdP.CommandText = "SELECT Codigo, Borrar FROM Proveedores"
+        $rp = $cmdP.ExecuteReader()
+        while ($rp.Read()) {
+            if ($rp['Codigo'] -eq [System.DBNull]::Value) { continue }
+            $code = [int]$rp['Codigo']
+            $borrar = $false
+            if ($rp['Borrar'] -and $rp['Borrar'] -ne [System.DBNull]::Value) { try { $borrar = [bool]$rp['Borrar'] } catch { $borrar = $false } }
+            $jp = $json.providers | Where-Object { $_.id -eq "svpv_$code" } | Select-Object -First 1
+            if ($jp -and $jp._deleted -ne $true -and [bool]$jp._deleted -ne $borrar) {
+                Set-ApptField $jp '_deleted' $borrar
+                Set-ApptField $jp '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
+                $entitiesPulled++
+            }
+        }
+        $rp.Close()
+
+        # Empleados (Baja -> borrado)
+        $cmdE = $conn.CreateCommand(); $cmdE.CommandText = "SELECT Codigo, Baja FROM Empleados"
+        $re = $cmdE.ExecuteReader()
+        while ($re.Read()) {
+            if ($re['Codigo'] -eq [System.DBNull]::Value) { continue }
+            $code = [int]$re['Codigo']
+            $baja = $false
+            if ($re['Baja'] -and $re['Baja'] -ne [System.DBNull]::Value) { try { $baja = [bool]$re['Baja'] } catch { $baja = $false } }
+            $jp = $json.employees | Where-Object { $_.id -eq "svem_$code" } | Select-Object -First 1
+            if ($jp -and $jp._deleted -ne $true -and [bool]$jp._deleted -ne $baja) {
+                Set-ApptField $jp '_deleted' $baja
+                Set-ApptField $jp '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
+                $entitiesPulled++
+            }
+        }
+        $re.Close()
+    } catch {
+        Write-Host "WARN: Entities deleted-flag sync skipped: $($_.Exception.Message)"
+    }
+
+    $shouldWrite = ($pulledFromAccess -gt 0 -or $accessCancelled -gt 0 -or $cleaned -gt 0 -or $surnamesPulled -gt 0 -or $obsPulled -gt 0 -or $accessSynced -gt 0 -or $productsPulled -gt 0 -or $entitiesPulled -gt 0)
 
     # Detect concurrent edits: if the JSON file changed while we were reading Access,
     # skip the JSON write so a stale snapshot never overwrites the TPV's latest changes.
@@ -719,10 +916,11 @@ try {
     $sw.Stop()
     $wasAccess = $allAccessActive.Count
     $cancelled = $wasAccess - $updated
-    Write-Host "OK (${($sw.Elapsed.TotalSeconds.ToString('0.00'))}s): $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled, $accessCancelled access-cancelled, $cancelled cancelled, $cleaned dupes, $surnamesPulled surnames, $obsPulled obs->historial (JSON: $($activeAppts.Count), Access: $wasAccess)"
+    Write-Host "OK (${($sw.Elapsed.TotalSeconds.ToString('0.00'))}s): $inserted inserted, $updated updated, $reactivated reactivated, $pulledFromAccess pulled, $accessCancelled access-cancelled, $cancelled cancelled, $cleaned dupes, $surnamesPulled surnames, $obsPulled obs->historial, $productsPulled products (JSON: $($activeAppts.Count), Access: $wasAccess)"
 } catch {
     if ($conn -and $conn.State -ne 'Closed') { try { $conn.Close() } catch {} }
     Write-Host "ERROR: $($_.Exception.Message)"
     Write-Host $_.ScriptStackTrace
     exit 1
 }
+
