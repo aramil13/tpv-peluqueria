@@ -751,7 +751,7 @@ try {
             $proveedor = 0
             if ($jp.providerId -match '^svpv_(\d+)$') { $proveedor = [int]$Matches[1] }
             $cmdUpd = $conn.CreateCommand()
-            $cmdUpd.CommandText = "UPDATE Productos SET Nombre=?, Precio=?, Coste=?, Seccion=?, Proveedor=?, Borrar=False WHERE Codigo=?"
+            $cmdUpd.CommandText = "UPDATE Productos SET Nombre=?, Precio=?, Coste=?, Seccion=?, Proveedor=? WHERE Codigo=?"
             $vals = @($nombre, $precio, $coste, $seccion, $proveedor, $code)
             foreach ($val in $vals) { $pp = $cmdUpd.CreateParameter(); $pp.Value = $val; $cmdUpd.Parameters.Add($pp) | Out-Null }
             if (Invoke-SafeWrite $cmdUpd "prod update $code") { $productsPushed++ }
@@ -789,14 +789,33 @@ try {
             $providerId = if ($proveedor -gt 0) { "svpv_$proveedor" } else { '' }
             if ($jsonProductMap.ContainsKey($prodId)) {
                 $jp = $jsonProductMap[$prodId]
-                # TPV es la fuente de verdad para productos ya existentes.
-                # Access solo puede marcarlos como borrados: NUNCA sobrescribe
-                # nombre/precio/coste/seccion/proveedor editados en el TPV.
-                # (Antes se pisaban con datos viejos y se ponia _modified=ahora,
-                #  lo que hacia que el siguiente pull revirtiera la edicion.)
-                if ($borrar -eq $true -and $jp._deleted -ne $true) {
-                    Set-ApptField $jp '_deleted' $true
-                    Set-ApptField $jp '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
+                # TPV es la fuente de verdad para los CAMPOS de productos existentes:
+                # Access nunca sobrescribe nombre/precio/coste/seccion/proveedor.
+                # El estado de borrado se sincroniza en ambos sentidos usando
+                # _accessDeleted para recordar que la baja tambien existe en Access.
+                $markerAccessDeleted = ($jp._accessDeleted -eq $true)
+                if ($borrar -eq $true) {
+                    if ($jp._deleted -ne $true -and -not $markerAccessDeleted) {
+                        # Baja nueva hecha en Access -> aplicarla en TPV.
+                        Set-ApptField $jp '_deleted' $true
+                        Set-ApptField $jp '_accessDeleted' $true
+                        Set-ApptField $jp '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
+                        $productsPulled++
+                    } elseif ($jp._deleted -eq $true -and -not $markerAccessDeleted) {
+                        # La baja ya existe en TPV (hecha desde el TPV): recordar
+                        # que Access tambien la tiene para no resucitarla al reactivar.
+                        Set-ApptField $jp '_accessDeleted' $true
+                        $productsPulled++
+                    }
+                    # markerAccessDeleted=true -> el TPV puede haberla reactivado; se respeta.
+                } elseif ($markerAccessDeleted) {
+                    # Access ya no la tiene borrada: limpiar la marca.
+                    Set-ApptField $jp '_accessDeleted' $false
+                    if ($jp._deleted -eq $true) {
+                        # La baja venia de Access y se ha deshecho en Access.
+                        Set-ApptField $jp '_deleted' $false
+                        Set-ApptField $jp '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
+                    }
                     $productsPulled++
                 }
             } else {
@@ -809,6 +828,7 @@ try {
                     sectionId = $sectionId
                     providerId = $providerId
                     _deleted = $borrar
+                    _accessDeleted = $borrar
                     _modified = [DateTimeOffset]::Now.ToUnixTimeMilliseconds()
                 }
                 $json.products += [PSCustomObject]$newProd
@@ -818,6 +838,27 @@ try {
         $pr.Close()
     } catch {
         Write-Host "WARN: Productos sync skipped: $($_.Exception.Message)"
+    }
+
+    # === PRODUCTOS: propagar al Access las reactivaciones hechas en el TPV ===
+    # Si el TPV reactivo un producto que Access tenia marcado como borrado,
+    # se pone Borrar=False en Access y se limpia la marca local.
+    try {
+        foreach ($jp in @($json.products)) {
+            if (-not $jp.id -or $jp._deleted) { continue }
+            if ($jp.id -notmatch '^svpr_(\d+)$') { continue }
+            if ($jp._accessDeleted -ne $true) { continue }
+            $code = [int]$Matches[1]
+            $cmdRe = $conn.CreateCommand()
+            $cmdRe.CommandText = "UPDATE Productos SET Borrar=False WHERE Codigo=?"
+            $pRe = $cmdRe.CreateParameter(); $pRe.Value = $code; $cmdRe.Parameters.Add($pRe) | Out-Null
+            if (Invoke-SafeWrite $cmdRe "prod reactivate $code") {
+                Set-ApptField $jp '_accessDeleted' $false
+                $productsPulled++
+            }
+        }
+    } catch {
+        Write-Host "WARN: Productos reactivacion (TPV->Access) skipped: $($_.Exception.Message)"
     }
 
     # === Marcar como borrados en TPV los SERVICIOS/CLIENTES/PROVEEDORES/EMPLEADOS marcados en Access ===
