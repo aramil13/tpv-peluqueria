@@ -496,18 +496,18 @@ const server = http.createServer((req, res) => {
 
   if (url === '/sync' || url === '/sync/') {
     if (req.method === 'GET') {
-      const serveData = () => {
-        const data = readData();
-        res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(data));
-      };
+      // Servir SIEMPRE de inmediato con lo que hay en disco. La sincronizacion
+      // con Access se hace aparte, en segundo plano, como maximo cada 30 segundos.
+      // Antes cada GET lanzaba PowerShell y esperaba hasta 13 s a que terminase:
+      // la consola visible robaba el foco y el TPV parecia volver atras solo.
       const now = Date.now();
-      if (fs.existsSync(SYNC_FILE) && (now - lastAccessSyncTs) > 5000) {
+      if (fs.existsSync(SYNC_FILE) && (now - lastAccessSyncTs) > 30000) {
         lastAccessSyncTs = now;
-        syncToAccess(SYNC_FILE).then(serveData).catch(serveData);
-      } else {
-        serveData();
+        syncToAccess(SYNC_FILE).catch(e => console.error('[AccessSync] GET /sync hook:', e.message || e));
       }
+      const data = readData();
+      res.writeHead(200, { ...CORS_HEADERS, 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(data));
       return;
     }
 
@@ -685,7 +685,7 @@ const server = http.createServer((req, res) => {
         const scriptPath = ensurePsScript('buscar-ventas-anuladas.ps1');
         if (!scriptPath) throw new Error('Script no encontrado');
         console.log('[VentasAnuladas] buscando', desde, '→', hasta);
-        execFile('powershell', ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-File', scriptPath, '-Desde', desde, '-Hasta', hasta, '-Json'], { timeout: 120000 }, (error, stdout, stderr) => {
+        execFile('powershell', ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-File', scriptPath, '-Desde', desde, '-Hasta', hasta, '-Json'], { timeout: 120000, windowsHide: true }, (error, stdout, stderr) => {
           const out = (stdout || '').trim();
           if (!out) {
             console.error('[VentasAnuladas] error:', error ? error.message : 'sin salida', stderr ? ('| ' + stderr.slice(0, 200)) : '');
@@ -721,7 +721,7 @@ const server = http.createServer((req, res) => {
     console.log('[SyncFacturas] inicio, JSON:', SYNC_FILE);
     const dbArgs = ['-JsonFile', SYNC_FILE];
     if (process.env.ACCESS_DB_PATH) dbArgs.push('-DbPath', process.env.ACCESS_DB_PATH);
-    execFile('powershell', ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-File', scriptPath, ...dbArgs], { timeout: 300000 }, (error, stdout, stderr) => {
+    execFile('powershell', ['-ExecutionPolicy', 'Bypass', '-NoProfile', '-File', scriptPath, ...dbArgs], { timeout: 300000, windowsHide: true }, (error, stdout, stderr) => {
       const out = (stdout || '').trim();
       if (!out) {
         console.error('[SyncFacturas] error:', error ? error.message : 'sin salida', stderr ? ('| ' + stderr.slice(0, 300)) : '');

@@ -2350,18 +2350,21 @@ function updateSyncErrorIndicator() {
 }
 
 function applyRemoteData(remote, source) {
-  if (!remote || typeof remote !== 'object') return;
+  if (!remote || typeof remote !== 'object') return false;
+  let changed = false;
   ['services', 'employees', 'sections', 'products', 'projects', 'providers'].forEach(k => {
-    if (Array.isArray(remote[k])) mergeCollection(k, remote[k]);
+    if (Array.isArray(remote[k]) && mergeCollection(k, remote[k])) changed = true;
   });
   if (Array.isArray(remote.appointments) && remote.appointments.length > 0) {
+    const beforeCount = (data.appointments || []).length;
     const localAppts = {};
     (data.appointments||[]).forEach(a => localAppts[a.id] = a);
     const mergedAppts = remote.appointments.map(r => {
       const l = localAppts[r.id];
-      if (!l) return r;
+      if (!l) { changed = true; return r; }
       // Local gana si es igual o mas reciente; el remoto solo si es estrictamente mas nuevo.
       if ((l._modified||0) >= (r._modified||0)) return l;
+      changed = true;
       return r;
     });
     remote.appointments.forEach(r => delete localAppts[r.id]);
@@ -2380,10 +2383,11 @@ function applyRemoteData(remote, source) {
       if (rankA > rankE) dedupMap.set(key, a);
     });
     data.appointments = [...dedupMap.values()];
+    if (data.appointments.length !== beforeCount) changed = true;
   }
   if (Array.isArray(remote.clients)) {
-    mergeCollection('clients', remote.clients);
-    dedupeClientsLocal();
+    if (mergeCollection('clients', remote.clients)) changed = true;
+    if (dedupeClientsLocal()) changed = true;
   }
   if (Array.isArray(remote.sales) && remote.sales.length > 0) {
     if (!Array.isArray(data.sales)) data.sales = [];
@@ -2391,7 +2395,7 @@ function applyRemoteData(remote, source) {
     remote.sales.forEach(s => {
       if (!s || typeof s !== 'object' || !s.id) return;
       if (s._deleted) return;
-      if (!localSales.has(s.id)) { data.sales.push(s); localSales.set(s.id, s); }
+      if (!localSales.has(s.id)) { data.sales.push(s); localSales.set(s.id, s); changed = true; }
     });
   }
   if (Array.isArray(remote.quotes) && remote.quotes.length > 0) {
@@ -2399,13 +2403,14 @@ function applyRemoteData(remote, source) {
     const localQuotes = new Map(data.quotes.map(q => [q.id, q]));
     remote.quotes.forEach(q => {
       if (!q || typeof q !== 'object' || !q.id) return;
-      if (!localQuotes.has(q.id)) { data.quotes.push(q); localQuotes.set(q.id, q); }
+      if (!localQuotes.has(q.id)) { data.quotes.push(q); localQuotes.set(q.id, q); changed = true; }
     });
   }
   ['scheduleTemplates', 'scheduleDays', 'timeClock', 'vacations'].forEach(k => {
-    if (Array.isArray(remote[k])) mergeCollection(k, remote[k]);
+    if (Array.isArray(remote[k]) && mergeCollection(k, remote[k])) changed = true;
   });
   tcDedupeControlData();
+  return changed;
 }
 
 async function forceSyncComplete() {
@@ -2445,29 +2450,35 @@ function syncPull() {
     const status = document.getElementById('syncStatus');
     if (status) { status.textContent = '✅ Sincronizado'; status.style.color = ''; status.style.fontWeight = ''; }
     setTimeout(() => { if (status) status.textContent = ''; }, 3000);
-    if (cloud) applyRemoteData(cloud);
-    if (locals) applyRemoteData(locals);
+    let changed = false;
+    if (cloud) changed = applyRemoteData(cloud) || changed;
+    if (locals) changed = applyRemoteData(locals) || changed;
 
-    try {
-      saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
-      saveKey('clients'); saveKey('projects'); saveKey('providers'); saveKey('appointments');
-      saveKey('sales'); saveKey('quotes'); saveKey('scheduleTemplates'); saveKey('scheduleDays'); saveKey('timeClock'); saveKey('vacations');
-    } catch(e) { console.error('SAVE ERROR:', e); }
+    if (changed) {
+      try {
+        saveKey('services'); saveKey('sections'); saveKey('employees'); saveKey('products');
+        saveKey('clients'); saveKey('projects'); saveKey('providers'); saveKey('appointments');
+        saveKey('sales'); saveKey('quotes'); saveKey('scheduleTemplates'); saveKey('scheduleDays'); saveKey('timeClock'); saveKey('vacations');
+      } catch(e) { console.error('SAVE ERROR:', e); }
 
-    const active = document.querySelector('.nav-item.active');
-    if (active) {
-      const sec = active.dataset.section;
-      if (sec === 'agenda') renderAgenda();
-      else if (sec === 'clients') renderClients();
-      else if (sec === 'services') renderServices();
-      else if (sec === 'sections') renderSections();
-      else if (sec === 'employees') renderEmployees();
-      else if (sec === 'timecontrol') renderTimeControl();
-      else if (sec === 'products') { renderProducts(); renderWarehouse(); }
-      else if (sec === 'projects') renderProjects();
-      else if (sec === 'dashboard') renderDashboard();
-      else if (sec === 'reports') renderReports();
-      else if (sec === 'pos') renderPosItems();
+      // No repintar mientras hay un modal/formulario abierto: evita saltos,
+      // perdida de foco y que la ventana de edicion se cierre a media escritura.
+      const modalOpen = !!document.querySelector('.modal.show');
+      const active = modalOpen ? null : document.querySelector('.nav-item.active');
+      if (active) {
+        const sec = active.dataset.section;
+        if (sec === 'agenda') renderAgenda();
+        else if (sec === 'clients') renderClients();
+        else if (sec === 'services') renderServices();
+        else if (sec === 'sections') renderSections();
+        else if (sec === 'employees') renderEmployees();
+        else if (sec === 'timecontrol') renderTimeControl();
+        else if (sec === 'products') { renderProducts(); renderWarehouse(); }
+        else if (sec === 'projects') renderProjects();
+        else if (sec === 'dashboard') renderDashboard();
+        else if (sec === 'reports') renderReports();
+        else if (sec === 'pos') renderPosItems();
+      }
     }
   }).catch(e => {
     console.error('SYNC PULL ERROR:', e);
@@ -2643,8 +2654,15 @@ function toggleSettingsMaximize() {
   const content = document.querySelector('#settingsModal .modal-content');
   content.classList.toggle('maximized');
 }
+// Solo los modales de solo lectura se cierran al pulsar fuera.
+// Los formularios exigen Cancelar/X para no perder lo escrito de forma accidental.
+const BACKDROP_CLOSE_MODALS = ['receiptModal', 'invoiceModal', 'saleDetailModal'];
 document.querySelectorAll('.modal').forEach(m => {
-  m.addEventListener('click', function(e) { if (e.target === this) this.classList.remove('show'); });
+  m.addEventListener('click', function(e) {
+    if (e.target !== this) return;
+    if (BACKDROP_CLOSE_MODALS.indexOf(this.id) === -1) return;
+    this.classList.remove('show');
+  });
 });
 document.addEventListener('keydown', function(e) {
   if (e.key !== 'Escape') return;

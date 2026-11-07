@@ -493,7 +493,18 @@ body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background:
 <script>
 // ============ DB ============
 const PREFIX = 'agenda_';
-const DB = { get(k) { try { return JSON.parse(localStorage.getItem(PREFIX+k)) } catch(e) { return undefined } }, set(k,v) { localStorage.setItem(PREFIX+k, JSON.stringify(v)) } };
+const DB = {
+  get(k) { try { return JSON.parse(localStorage.getItem(PREFIX+k)) } catch(e) { return undefined } },
+  set(k,v) {
+    try {
+      localStorage.setItem(PREFIX+k, JSON.stringify(v));
+    } catch (e) {
+      console.error('DB.set error (' + k + '):', e);
+      const dot = document.getElementById('syncDot');
+      if (dot) dot.classList.add('err');
+    }
+  }
+};
 
 // ============ DATA ============
 let data = {
