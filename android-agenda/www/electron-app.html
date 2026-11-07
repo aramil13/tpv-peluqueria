@@ -1728,7 +1728,9 @@ function mergeCollection(type, remote) {
       return;
     }
     if (modOf(item) > modOf(data[type][index])) {
-      data[type][index] = item;
+      // Fusionar campos: el remoto manda en los suyos, pero no borra
+      // metadatos locales que el remoto no conozca (p.ej. _accessDeleted).
+      data[type][index] = Object.assign({}, data[type][index], item);
       changed = true;
     }
   });
