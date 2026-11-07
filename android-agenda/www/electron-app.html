@@ -828,7 +828,19 @@ const DB = {
       return def;
     } 
   },
-  set(key, val) { localStorage.setItem('tpv_'+key, JSON.stringify(val)) }
+  set(key, val) {
+    try {
+      localStorage.setItem('tpv_'+key, JSON.stringify(val));
+    } catch (e) {
+      console.error('DB.set error (' + key + '):', e);
+      const st = document.getElementById('syncStatus');
+      if (st) {
+        st.textContent = '⚠️ Sin espacio local: cambios solo en memoria';
+        st.style.color = '#e67e22';
+        st.style.fontWeight = '600';
+      }
+    }
+  }
 }
 
 let data = {
@@ -1681,24 +1693,63 @@ function syncPush() {
   });
 }
 
-function mergeRemote(type, remote) {
-  if (!Array.isArray(remote) || !remote.length) return false;
+function modOf(item) {
+  const n = Number(item && item._modified);
+  return Number.isFinite(n) ? n : 0;
+}
+
+// Fusiona una coleccion remota por id SIN pisar cambios locales mas recientes.
+// El remoto solo gana si su _modified es ESTRICTAMENTE mayor; si empatan gana el local.
+function mergeCollection(type, remote) {
+  if (!Array.isArray(remote)) return false;
   if (!Array.isArray(data[type])) data[type] = [];
-  const localMap = new Map(data[type].map(item => [item.id, item]));
+  const entityTypes = ['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'];
+  const isEntity = entityTypes.includes(type);
+  const byId = new Map();
+  data[type].forEach((item, index) => {
+    if (item && item.id != null) byId.set(String(item.id), index);
+  });
   let changed = false;
   remote.forEach(item => {
-    if (['clients', 'employees', 'services', 'sections', 'projects', 'products', 'providers'].includes(type)) {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+    if (!item || typeof item !== 'object' || Array.isArray(item)) return;
+    if (isEntity) {
       if (typeof item.name !== 'string' || item.name.trim() === '') return;
       const keys = Object.keys(item);
       const isCorrupted = keys.some(key => key.includes('\u0011') || key.includes('\u001a') || key.includes('\u0000') || key.includes('\u0003') || key.includes('\u0004'));
       if (isCorrupted) return;
     }
-
-    const existing = localMap.get(item.id);
-    if (!existing) { data[type].push(item); changed = true; }
-    else if ((item._modified||0) >= (existing._modified||0)) { Object.assign(existing, item); changed = true; }
+    if (item.id == null || item.id === '') return;
+    const key = String(item.id);
+    const index = byId.get(key);
+    if (index === undefined) {
+      data[type].push(item);
+      byId.set(key, data[type].length - 1);
+      changed = true;
+      return;
+    }
+    if (modOf(item) > modOf(data[type][index])) {
+      data[type][index] = item;
+      changed = true;
+    }
   });
+  return changed;
+}
+
+function dedupeClientsLocal() {
+  if (!Array.isArray(data.clients)) { data.clients = []; return false; }
+  const byPhone = new Map();
+  const out = [];
+  let changed = false;
+  data.clients.forEach(c => {
+    if (!c || typeof c !== 'object') { changed = true; return; }
+    const np = c.phone ? normPhone(c.phone) : '';
+    if (!np) { out.push(c); return; }
+    if (!byPhone.has(np)) { byPhone.set(np, out.length); out.push(c); return; }
+    changed = true;
+    const idx = byPhone.get(np);
+    if (modOf(c) > modOf(out[idx])) out[idx] = c;
+  });
+  data.clients = out;
   return changed;
 }
 
@@ -1721,17 +1772,10 @@ function updateSyncErrorIndicator() {
 }
 
 function applyRemoteData(remote, source) {
-  if (Array.isArray(remote.services) && remote.services.length > 0) {
-    const localSvcs = {};
-    (data.services||[]).forEach(s => localSvcs[s.id] = s);
-    const mergedSvcs = remote.services.map(r => {
-      const l = localSvcs[r.id];
-      return (l && (l._modified||0) > (r._modified||0)) ? l : r;
-    });
-    remote.services.forEach(r => delete localSvcs[r.id]);
-    Object.values(localSvcs).forEach(s => mergedSvcs.push(s));
-    data.services = mergedSvcs;
-  }
+  if (!remote || typeof remote !== 'object') return;
+  ['services', 'employees', 'sections', 'products', 'projects', 'providers'].forEach(k => {
+    if (Array.isArray(remote[k])) mergeCollection(k, remote[k]);
+  });
   if (Array.isArray(remote.appointments) && remote.appointments.length > 0) {
     const localAppts = {};
     (data.appointments||[]).forEach(a => localAppts[a.id] = a);
@@ -1758,29 +1802,13 @@ function applyRemoteData(remote, source) {
     });
     data.appointments = [...dedupMap.values()];
   }
-  if (Array.isArray(remote.clients) && remote.clients.length > 0) {
-    const mergedClients = [...remote.clients];
-    const phoneMap = new Map();
-    mergedClients.forEach(c => { if (c.phone) phoneMap.set(normPhone(c.phone), c); });
-    (data.clients||[]).forEach(c => {
-      const np = c.phone ? normPhone(c.phone) : '';
-      if (np && phoneMap.has(np)) {
-        const remote = phoneMap.get(np);
-        if ((c._modified||0) > (remote._modified||0)) Object.assign(remote, c);
-      } else if (np) {
-        phoneMap.set(np, c);
-        mergedClients.push(c);
-      } else {
-        mergedClients.push(c);
-      }
-    });
-    data.clients = mergedClients;
+  if (Array.isArray(remote.clients)) {
+    mergeCollection('clients', remote.clients);
+    dedupeClientsLocal();
   }
-  if (Array.isArray(remote.employees) && remote.employees.length > 0) data.employees = [...remote.employees];
-  if (Array.isArray(remote.sections) && remote.sections.length > 0) data.sections = [...remote.sections];
-  if (Array.isArray(remote.products) && remote.products.length > 0) data.products = [...remote.products];
-  if (Array.isArray(remote.projects) && remote.projects.length > 0) data.projects = [...remote.projects];
-  if (Array.isArray(remote.providers) && remote.providers.length > 0) data.providers = [...remote.providers];
+  ['employees', 'sections', 'products', 'projects', 'providers'].forEach(k => {
+    if (Array.isArray(remote[k])) mergeCollection(k, remote[k]);
+  });
 }
 
 function syncPull() {

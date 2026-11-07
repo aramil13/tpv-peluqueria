@@ -751,7 +751,7 @@ try {
             $proveedor = 0
             if ($jp.providerId -match '^svpv_(\d+)$') { $proveedor = [int]$Matches[1] }
             $cmdUpd = $conn.CreateCommand()
-            $cmdUpd.CommandText = "UPDATE Productos SET Nombre=?, Precio=?, Coste=?, Seccion=?, Proveedor=? WHERE Codigo=?"
+            $cmdUpd.CommandText = "UPDATE Productos SET Nombre=?, Precio=?, Coste=?, Seccion=?, Proveedor=?, Borrar=False WHERE Codigo=?"
             $vals = @($nombre, $precio, $coste, $seccion, $proveedor, $code)
             foreach ($val in $vals) { $pp = $cmdUpd.CreateParameter(); $pp.Value = $val; $cmdUpd.Parameters.Add($pp) | Out-Null }
             if (Invoke-SafeWrite $cmdUpd "prod update $code") { $productsPushed++ }
@@ -789,15 +789,16 @@ try {
             $providerId = if ($proveedor -gt 0) { "svpv_$proveedor" } else { '' }
             if ($jsonProductMap.ContainsKey($prodId)) {
                 $jp = $jsonProductMap[$prodId]
-                $changed = $false
-                if ([string]$jp.name -ne $nombre) { Set-ApptField $jp 'name' $nombre; $changed = $true }
-                if ([double]$jp.price -ne $precio) { Set-ApptField $jp 'price' $precio; $changed = $true }
-                if ([double]$jp.cost -ne $coste) { Set-ApptField $jp 'cost' $coste; $changed = $true }
-                if ([string]$jp.providerId -ne $providerId) { Set-ApptField $jp 'providerId' $providerId; $changed = $true }
-                if ([string]$jp.sectionId -ne $sectionId) { Set-ApptField $jp 'sectionId' $sectionId; $changed = $true }
-                # Prioridad TPV: si el producto esta borrado en el TPV, no reactivarlo desde Access.
-                if ($jp._deleted -ne $true -and [bool]$jp._deleted -ne $borrar) { Set-ApptField $jp '_deleted' $borrar; $changed = $true }
-                if ($changed) { Set-ApptField $jp '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds()); $productsPulled++ }
+                # TPV es la fuente de verdad para productos ya existentes.
+                # Access solo puede marcarlos como borrados: NUNCA sobrescribe
+                # nombre/precio/coste/seccion/proveedor editados en el TPV.
+                # (Antes se pisaban con datos viejos y se ponia _modified=ahora,
+                #  lo que hacia que el siguiente pull revirtiera la edicion.)
+                if ($borrar -eq $true -and $jp._deleted -ne $true) {
+                    Set-ApptField $jp '_deleted' $true
+                    Set-ApptField $jp '_modified' ([DateTimeOffset]::Now.ToUnixTimeMilliseconds())
+                    $productsPulled++
+                }
             } else {
                 $newProd = [ordered]@{
                     id = $prodId
