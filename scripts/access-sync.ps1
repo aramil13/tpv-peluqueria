@@ -156,11 +156,14 @@ try {
     # === BUILD JSON HASHTABLES FOR O(1) LOOKUP (replaces O(n) Where-Object) ===
     $jsonUidActive = @{}     # uid -> appointment (non-deleted only)
     $jsonUidAll = @{}        # uid -> appointment (all, for existence check)
+    $deletedUids = @{}       # uid of appointments deleted in TPV (for safe cancellation)
     foreach ($appt in $json.appointments) {
         if ($appt.id) {
             $jsonUidAll[$appt.id] = $appt
             if (-not $appt._deleted) {
                 $jsonUidActive[$appt.id] = $appt
+            } else {
+                $deletedUids[$appt.id] = $true
             }
         }
     }
@@ -551,7 +554,8 @@ try {
     $toCancelNcs = @($allAccessActive.Keys | Where-Object {
         -not $matchedNumCitas.ContainsKey($_) -and
         $accessSnapshot[$_] -and $accessSnapshot[$_].fecha -is [DateTime] -and
-        $accessSnapshot[$_].fecha -ge (Get-Date).Date
+        $accessSnapshot[$_].fecha -ge (Get-Date).Date -and
+        $deletedUids.ContainsKey($accessSnapshot[$_].uid)
     })
     if ($toCancelNcs.Count -gt 0) {
         foreach ($ncCancel in $toCancelNcs) {
