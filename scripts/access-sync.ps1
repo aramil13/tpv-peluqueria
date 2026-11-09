@@ -956,7 +956,7 @@ try {
 
     if ($shouldWrite) {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
-        [System.IO.File]::WriteAllText($JsonFile, ($json | ConvertTo-Json -Depth 10), $utf8NoBom)
+        [System.IO.File]::WriteAllText($JsonFile, ($json | ConvertTo-Json -Depth 20), $utf8NoBom)
     }
 
     $sw.Stop()
